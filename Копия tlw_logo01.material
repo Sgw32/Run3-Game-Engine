@@ -1,0 +1,66 @@
+
+material MotherBoard
+{
+	technique
+	{
+		pass
+		{
+			ambient 0.588235 0.588235 0.588235 1
+			diffuse 0.588235 0.588235 0.588235 1
+			specular 0 0 0 10 0
+
+			texture_unit
+			{
+				texture Electronics0021_S.jpg
+			}
+		}
+
+	}
+
+}
+
+
+
+material Metal_tlw
+{
+	technique
+	{
+		pass
+		{
+			ambient 0.588235 0.588235 0.588235 1
+			diffuse 0.588235 0.588235 0.588235 1
+			specular 0 0 0 10 0
+
+			texture_unit
+			{
+				texture 968.jpg
+			}
+		}
+
+	}
+
+}
+
+
+
+material Metal_2rev
+{
+	technique
+	{
+		pass
+		{
+			ambient 0.588235 0.588235 0.588235 1
+			diffuse 0.588235 0.588235 0.588235 1
+			specular 0 0 0 10 0
+
+			texture_unit
+			{
+				texture MetalBase0053_4_S.jpg
+			}
+		}
+
+	}
+
+}
+
+

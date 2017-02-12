@@ -150,6 +150,7 @@ public:
 	vector<npc_neutral*> neutrals;
 	vector<npc_friend*> friends;
 	vector<npc_aerial*> aerials;
+	bool rest;
 private:
 	const OgreNewt::MaterialID* mMatDefault;
 	OgreNewt::MaterialPair* mMatPair;

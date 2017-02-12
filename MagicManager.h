@@ -192,9 +192,21 @@ void handleButtonEvent(buttonGUI::buttonEvent * e);
 		int n = lua_gettop(pL);
 		if (n!=5)
 		{
-			buttonGUI::button* btn = MagicManager::getSingleton().getBMgr()->createButton("star1", "BLANK", buttonGUI::buttonPosition(buttonGUI::CENTER, -128, -128), 150,150,0,true,true,"");
+			LogManager::getSingleton().logMessage("Creating 3d button!");
+			buttonGUI::button* btn = MagicManager::getSingleton().getBMgr()->createButton("star1", "BLANK", buttonGUI::buttonPosition(buttonGUI::CENTER, -128, -128), 150,150,2,true,true,"");
 			btn->setMovable(true);
 			btn->addButtonMesh("star1mesh", "ninjaStar.mesh", -25,-25, 200,200)->setZoom(3);
+			
+			buttonGUI::buttonManager* bmgr = MagicManager::getSingleton().getBMgr();
+
+			btn = bmgr->createButton("star2", "BLANK", buttonGUI::buttonPosition(buttonGUI::CENTER, -128, 0), 96,96,1,true,true,"");
+			btn->setMovable(true)->
+				addButtonMesh("star2mesh", "ninjaStar.mesh", -16,-16, 128,128)->
+					setZoom(2); //cheating by moving the model so i can use depth_check in his material
+			btn = bmgr->createButton("star3", "BLANK", buttonGUI::buttonPosition(buttonGUI::CENTER, -128, 100), 48,48,4,true,true,"");
+			btn->setMovable(true)->
+				addButtonMesh("star3mesh", "ninjaStar.mesh", -8,-8, 64,64);
+
 			return 1;
 		}
 		if (lua_isstring(pL, 1)&&lua_isstring(pL, 2)&&lua_isstring(pL, 3)&&lua_isstring(pL, 4)&&lua_isstring(pL, 5))

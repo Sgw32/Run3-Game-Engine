@@ -257,25 +257,30 @@ public:
 
     bool frameStarted(const FrameEvent &evt)
     {
+		if (global::getSingleton().restData[17])
+			return mContinue;
 		//LogManager::getSingleton().logMessage("g1");
 		global::getSingleton().getRoot()->getRenderSystem()->clearFrameBuffer(Ogre::FBT_COLOUR | Ogre::FBT_DEPTH);
 		//LogManager::getSingleton().logMessage("g2");
 		//global::getSingleton().getWindow()->swapBuffers();
 		Ogre::WindowEventUtilities::messagePump();
 		//LogManager::getSingleton().logMessage("g3");
-	buttonGUI::InputManager2::getSingletonPtr()->capture();
-	//LogManager::getSingleton().logMessage("g4");
+		if (!(global::getSingleton().restData[0]))
+			buttonGUI::InputManager2::getSingletonPtr()->capture();
+		//LogManager::getSingleton().logMessage("g4");
         mKeyboard->capture();
 		//LogManager::getSingleton().logMessage("g5");
         mMouse->capture();
 		//LogManager::getSingleton().logMessage("g6");
-		player->FCUpdate(evt);
+		if (!(global::getSingleton().restData[1]))
+			player->FCUpdate(evt);
 		//LogManager::getSingleton().logMessage("g7");
 		time = evt.timeSinceLastFrame;
 		//LogManager::getSingleton().logMessage("g8");
 		bool change = global::getSingleton().changemap_now;
 		//LogManager::getSingleton().logMessage("g9");
-		Modulator::getSingleton().frameStarted(evt);
+		if (!(global::getSingleton().restData[2]))
+			Modulator::getSingleton().frameStarted(evt);
 		//LogManager::getSingleton().logMessage("g10");
 		if (change)
 		{
@@ -297,36 +302,52 @@ public:
 		}
 		//LogManager::getSingleton().logMessage("g11");
 		global::getSingleton().setNULLChange();
-		mChCtrl.step(evt.timeSinceLastFrame);
+		if (!(global::getSingleton().restData[3]))
+			mChCtrl.step(evt.timeSinceLastFrame);
 		//LogManager::getSingleton().logMessage("g12");
-		MusicPlayer::getSingleton().upd(evt);
+		if (!(global::getSingleton().restData[4]))
+			MusicPlayer::getSingleton().upd(evt);
 		//LogManager::getSingleton().logMessage("g13");
-		WaterManager::getSingleton().upd(evt);
+		if (!(global::getSingleton().restData[5]))
+			WaterManager::getSingleton().upd(evt);
 		//LogManager::getSingleton().logMessage("g14");
-		SkyManager::getSingleton().upd(evt);
+		if (!(global::getSingleton().restData[6]))
+			SkyManager::getSingleton().upd(evt);
 		//LogManager::getSingleton().logMessage("g15");
-		BloodEmitter::getSingleton().upd(evt);
+		if (!(global::getSingleton().restData[7]))
+			BloodEmitter::getSingleton().upd(evt);
 		//LogManager::getSingleton().logMessage("g16");
-		Credits::getSingleton().update(evt);
+		if (!(global::getSingleton().restData[8]))
+			Credits::getSingleton().update(evt);
 		//LogManager::getSingleton().logMessage("g17");
-		Run3SoundRuntime::getSingleton().frameStarted(evt);
+		if (!(global::getSingleton().restData[9]))
+			Run3SoundRuntime::getSingleton().frameStarted(evt);
 		//LogManager::getSingleton().logMessage("g18");
-		NPCManager::getSingleton().frameStarted(evt);
+			NPCManager::getSingleton().frameStarted(evt);
 		//LogManager::getSingleton().logMessage("g19");
-		ExplosionManager::getSingleton().upd(evt);
+		if (!(global::getSingleton().restData[10]))
+			ExplosionManager::getSingleton().upd(evt);
 		//LogManager::getSingleton().logMessage("g20");
-		CrosshairOperator::getSingleton().upd(evt);
+		if (!(global::getSingleton().restData[11]))
+			CrosshairOperator::getSingleton().upd(evt);
 		//LogManager::getSingleton().logMessage("g21");
-		GibManager::getSingleton().upd(evt);
+		if (!(global::getSingleton().restData[12]))
+			GibManager::getSingleton().upd(evt);
 		//LogManager::getSingleton().logMessage("g22");
-		LightPerfomanceManager::getSingleton().upd(evt);
+		if (!(global::getSingleton().restData[13]))
+			LightPerfomanceManager::getSingleton().upd(evt);
 		//LogManager::getSingleton().logMessage("g23");
-		BulletHitManager::getSingleton().upd(evt);
+		if (!(global::getSingleton().restData[14]))
+			BulletHitManager::getSingleton().upd(evt);
 		//LogManager::getSingleton().logMessage("g24");
-		MagicManager::getSingleton().upd(evt);
+		if (!(global::getSingleton().restData[15]))
+			MagicManager::getSingleton().upd(evt);
 		//LogManager::getSingleton().logMessage("g25");
-		for (unsigned int i=0;i!=managers.size();i++)
-			managers[i]->upd(evt);
+		if (!(global::getSingleton().restData[16]))
+		{
+			for (unsigned int i=0;i!=managers.size();i++)
+				managers[i]->upd(evt);
+		}
 		//LogManager::getSingleton().logMessage("g26");
 		return mContinue;
     }

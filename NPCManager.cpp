@@ -4,7 +4,7 @@ template<> NPCManager *Singleton<NPCManager>::ms_Singleton=0;
 
 NPCManager::NPCManager()
 {
-
+	rest=false;
 }
 
 NPCManager::~NPCManager()
@@ -213,6 +213,8 @@ void NPCManager::all_npc_event(String name, String param1,String param2)
 
 bool NPCManager::frameStarted(const Ogre::FrameEvent &evt)
 {
+	if (rest)
+		return true;
 	for (unsigned int i=0;i!=enemies.size();i++)
 		enemies[i]->frameStarted(evt);
 	for (unsigned int i=0;i!=friends.size();i++)

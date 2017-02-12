@@ -223,15 +223,18 @@ else
 
 	void playerShake(Real ma0,Real mb,Real mw)
 	{
-		st=0;
-		pa=0;
-		a0=ma0*Ogre::Math::PI/180;
-		b=mb;
-		w=mw;
-		//stdA=mViewNode->_getDerivedOrientation().getRoll().valueDegrees();
-		stdA=mCamera->getOrientation().getRoll().valueDegrees();
-		//mViewNode->roll(Radian(a0));
-		LogManager::getSingleton().logMessage("playerShakez");
+		if (st=-1.0f)
+		{
+			st=0;
+			pa=0;
+			a0=ma0*Ogre::Math::PI/180;
+			b=mb;
+			w=mw;
+			//stdA=mViewNode->_getDerivedOrientation().getRoll().valueDegrees();
+			stdA=mCamera->getOrientation().getRoll().valueDegrees();
+			//mViewNode->roll(Radian(a0));
+			LogManager::getSingleton().logMessage("playerShakez");
+		}
 	}
 	void shakeAmplitude()
 	{

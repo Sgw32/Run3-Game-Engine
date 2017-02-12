@@ -133,6 +133,24 @@ public:
 	Real rc;
 
 	ColourValue ambiLight;
+
+	/*bool restModulator; //1
+	bool restPlayer;//2
+	bool restChCtrl;//3
+	bool restMusicPlayer;//4
+	bool restWaterManager;//5
+	bool restSkyManager;//6
+	bool restBloodEmitter;//7
+	bool restCredits;//8
+	bool restSoundRuntime;//9
+	bool restExplosionManager;//10
+	bool restCrosshairOperator;//11
+	bool restGibManager;//12
+	bool restLPrfMgr;//13
+	bool restBHitMgr;//14
+	bool restMMgr;//15
+	bool restOthers;//16*/
+	vector<bool> restData;
 private:
 	PRIVATE_NODELIST
 	int mLod;

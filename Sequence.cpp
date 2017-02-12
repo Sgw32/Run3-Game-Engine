@@ -178,9 +178,13 @@ void Sequence::init(Ogre::Root* root,SceneManager* scene,SoundManager* sound)
 	lua_register(pLuaState,"SkyX_setRayleighMultiplier",SkyX_setRayleighMultiplier);
 	lua_register(pLuaState,"SkyX_setSampleNumber",SkyX_setSampleNumber);
 	lua_register(pLuaState,"SkyX_updateParameters",SkyX_updateParameters);
+	lua_register(pLuaState,"turnoff__Module",turnoff__Module);
+	lua_register(pLuaState,"turnoff__Sequence",turnoff__Sequence);
+	lua_register(pLuaState,"turnoff__NPCManager",turnoff__NPCManager);
 	//Load-on-the-go
 	lua_register(pLuaState,"processSequence",processSequence);
 	lua_register(pLuaState,"processDotScene",processDotScene);
+	
 	pobjs=POs::getSingleton().getObjects();
 	OgreNewt::World* w = global::getSingleton().getWorld();
 	mPhysCallback = new TrainMat;

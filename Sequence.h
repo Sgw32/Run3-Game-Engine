@@ -2493,6 +2493,35 @@ static int player__getdiry(lua_State* pL)
 		return 1;
 	}
 
+	static int turnoff__Sequence(lua_State* pL)
+	{
+		LogManager::getSingleton().logMessage("Sequence turnoff!");
+		Sequence::getSingleton().rest = !Sequence::getSingleton().rest;
+		return 1;
+	}
+
+	static int turnoff__Module(lua_State* pL)
+	{
+		int n = lua_gettop(pL);
+		if (n!=1)
+		{
+			return 0;
+		}
+		if (lua_isstring(pL, 1))
+		{
+			int mod = StringConverter::parseInt(lua_tostring(pL, 1));
+			LogManager::getSingleton().logMessage("Module turnoff!");
+			global::getSingleton().restData[mod]=!global::getSingleton().restData[mod];
+		}
+		return 1;
+	}
+
+	static int turnoff__NPCManager(lua_State* pL)
+	{
+		LogManager::getSingleton().logMessage("NPCManager turnoff!");
+		NPCManager::getSingleton().rest = !NPCManager::getSingleton().rest;
+		return 1;
+	}
 	
 	static int player__setRegeneration(lua_State* pL)
 	{

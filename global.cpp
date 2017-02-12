@@ -15,6 +15,8 @@ global::global()
 	deferred=false;
 	computer_mode=false;
 	port=0;
+	for(unsigned int i=0;i!=20;i++)
+		restData.push_back(false);
 }
 
 global::~global()

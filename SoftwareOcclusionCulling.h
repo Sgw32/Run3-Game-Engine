@@ -11,7 +11,7 @@ Software Occlusion Culling  by Sgw32 2011
 using namespace Ogre;
 using namespace std;
  
-//#define DEBUG_CULLING
+#define DEBUG_CULLING
 
 class SoftwareOcclusionCulling : public Singleton<SoftwareOcclusionCulling>, public managerTemplate // Singleton initialize, another template for Run3 Game Engine compliance
 {
@@ -33,6 +33,7 @@ public:
 	virtual void upd(const FrameEvent& evt);
 	virtual void cleanup(){zps.clear();};
 private:
+	Real cnt;
 	bool enable;
 	vector<Entity*> zps;
 	CustomSceneManager* mgr;

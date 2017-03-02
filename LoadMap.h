@@ -20,6 +20,7 @@ Coded by Sgw32 2009(c)
 #include "POs.h"
 #include "MirrorManager.h"
 #include "LightPerfomanceManager.h"
+#include "FacialAnimationManager.h"
 #include "MeshDecalMgr.h"
 #include "Run3Batcher.h"
 #include "Credits.h"

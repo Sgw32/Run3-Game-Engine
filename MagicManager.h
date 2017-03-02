@@ -195,66 +195,61 @@ void handleButtonEvent(buttonGUI::buttonEvent * e);
 			LogManager::getSingleton().logMessage("Creating 3d button!");
 			buttonGUI::button* btn = MagicManager::getSingleton().getBMgr()->createButton("star1", "BLANK", buttonGUI::buttonPosition(buttonGUI::CENTER, -128, -128), 150,150,2,true,true,"");
 			btn->setMovable(true);
-			btn->addButtonMesh("star1mesh", "ninjaStar.mesh", -25,-25, 200,200)->setZoom(3);
-			
-			buttonGUI::buttonManager* bmgr = MagicManager::getSingleton().getBMgr();
-
-			btn = bmgr->createButton("star2", "BLANK", buttonGUI::buttonPosition(buttonGUI::CENTER, -128, 0), 96,96,1,true,true,"");
-			btn->setMovable(true)->
-				addButtonMesh("star2mesh", "ninjaStar.mesh", -16,-16, 128,128)->
-					setZoom(2); //cheating by moving the model so i can use depth_check in his material
-			btn = bmgr->createButton("star3", "BLANK", buttonGUI::buttonPosition(buttonGUI::CENTER, -128, 100), 48,48,4,true,true,"");
-			btn->setMovable(true)->
-				addButtonMesh("star3mesh", "ninjaStar.mesh", -8,-8, 64,64);
-
+			btn->addButtonMesh("star1mesh", "ninjaStar.mesh", 0,0, 150,150)->setZoom(50);
 			return 1;
 		}
 		if (lua_isstring(pL, 1)&&lua_isstring(pL, 2)&&lua_isstring(pL, 3)&&lua_isstring(pL, 4)&&lua_isstring(pL, 5))
 		{
-		String name = lua_tostring(pL, 1);
-		String matname =  lua_tostring(pL, 2);
-		Ogre::Vector2 position = StringConverter::parseVector2(lua_tostring(pL, 3));
-		Ogre::Vector2 size = StringConverter::parseVector2(lua_tostring(pL, 4));
-		if (MagicManager::getSingleton().center640)
-		{
-			Real x = MagicManager::getSingleton().mCam->getViewport()->getActualWidth();
-			Real y = MagicManager::getSingleton().mCam->getViewport()->getActualHeight();
-			switch (MagicManager::getSingleton().wrap_type)
+			LogManager::getSingleton().logMessage("Creating 3d button!");
+
+			String name = lua_tostring(pL, 1);
+			String meshname =  lua_tostring(pL, 2);
+			Ogre::Vector2 position = StringConverter::parseVector2(lua_tostring(pL, 3));
+			Ogre::Vector2 size = StringConverter::parseVector2(lua_tostring(pL, 4));
+
+			if (MagicManager::getSingleton().center640)
 			{
-			case CENTER:
-				position+=Vector2(x/2-320,y/2-240);
-				break;
-			case TOP_LEFT:
-				position.x*=x/640;
-				position.y*=y/480;
-				size.x*=x/640;
-				size.y*=y/480;
-				break;
-			case TOP_LEFT_COMP:
-				LogManager::getSingleton().logMessage("Transform: "+StringConverter::toString(position));
-				LogManager::getSingleton().logMessage("Transform: "+StringConverter::toString(size));
-				position.x*=512.0f/640.0f;
-				position.y*=512.0f/480.0f;
-				size.x*=512.0f/640.0f;
-				size.y*=512.0f/480.0f;
-				LogManager::getSingleton().logMessage("Transform: "+StringConverter::toString(position));
-				LogManager::getSingleton().logMessage("Transform: "+StringConverter::toString(size));
-				break;
-			default:
-				break;
+				Real x = MagicManager::getSingleton().mCam->getViewport()->getActualWidth();
+				Real y = MagicManager::getSingleton().mCam->getViewport()->getActualHeight();
+				switch (MagicManager::getSingleton().wrap_type)
+				{
+				case CENTER:
+					position+=Vector2(x/2-320,y/2-240);
+					break;
+				case TOP_LEFT:
+					position.x*=x/640;
+					position.y*=y/480;
+					size.x*=x/640;
+					size.y*=y/480;
+					break;
+				case TOP_LEFT_COMP:
+					LogManager::getSingleton().logMessage("Transform: "+StringConverter::toString(position));
+					LogManager::getSingleton().logMessage("Transform: "+StringConverter::toString(size));
+					position.x*=512.0f/640.0f;
+					position.y*=512.0f/480.0f;
+					size.x*=512.0f/640.0f;
+					size.y*=512.0f/480.0f;
+					LogManager::getSingleton().logMessage("Transform: "+StringConverter::toString(position));
+					LogManager::getSingleton().logMessage("Transform: "+StringConverter::toString(size));
+					break;
+				default:
+					break;
+				}
+				
 			}
-			
-		}
-		String lue = lua_tostring(pL, 5);
-		if (MagicManager::getSingleton().getBMgr()->getButton(name)==0)
-		{
-		MagicManager::getSingleton().getBMgr()->
-			createButton(name, matname, buttonGUI::buttonPosition(position.x,position.y), size.x,size.y,0,true,true,lue);
-		}
-		else
-		{
-		MagicManager::getSingleton().getBMgr()->getButton(name)->show(true);
-		}
+			String lue = lua_tostring(pL, 5);
+
+			if (MagicManager::getSingleton().getBMgr()->getButton(name)==0)
+			{
+			buttonGUI::button* btn = MagicManager::getSingleton().getBMgr()->
+				createButton(name, "BLANK", buttonGUI::buttonPosition(position.x,position.y), size.x,size.y,0,true,true,lue);
+			btn->setMovable(true);
+			btn->addButtonMesh(name+"_mesh", meshname, 0,0, 150,150)->setZoom(50);
+			}
+			else
+			{
+			MagicManager::getSingleton().getBMgr()->getButton(name)->show(true);
+			}
 		}
 		return 1;
 	}

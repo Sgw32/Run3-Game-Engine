@@ -240,6 +240,7 @@ void LoadMap::UnloadM(SceneManager *mSceneMgr)
 	LightPerfomanceManager::getSingleton().cleanup();
 	MeshDecalMgr::getSingleton().cleanup();
 	ZonePortalManager::getSingleton().cleanup();
+	FacialAnimationManager::getSingleton().cleanup();
 	Run3SoundRuntime::getSingleton().clearAmbientSounds();
 	sound->releaseAllAudio();
 	sound->releaseBuffers();

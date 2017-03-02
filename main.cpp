@@ -71,6 +71,7 @@ extern "C"
 #include "SaveGame.h"
 #include "ChapterController.h"
 #include "SoftwareOcclusionCulling.h"
+#include "FacialAnimationManager.h"
 //#include "ZonePortalManager.h"
 
 SoundManager* soundMgr;
@@ -634,6 +635,7 @@ public:
 		new SkyManager;
 		new SaveGame;
 		new SoftwareOcclusionCulling;
+		new FacialAnimationManager;
 	}
 
     ~Run3App() 
@@ -782,6 +784,7 @@ protected:
 		menuShown=false;
 		gLeftViewport = mWindow->getViewport(0);
 		
+		managers.push_back(FacialAnimationManager::getSingletonPtr());
 		managers.push_back(ZonePortalManager::getSingletonPtr());
 		managers.push_back(SoftwareOcclusionCulling::getSingletonPtr());
 #ifdef MULTIHEAD

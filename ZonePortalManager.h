@@ -23,6 +23,7 @@ public:
 	virtual void init();
 	void passPortal(Vector3 pos,Vector3 size);
 	void passZone(Vector3 pos,Vector3 size);
+	void setZoneCameraParams(Real of,Real nf);
 	void passEntity(String ent)
 	{
 		if (curZP)

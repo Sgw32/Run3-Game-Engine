@@ -5,6 +5,8 @@ template<> NPCManager *Singleton<NPCManager>::ms_Singleton=0;
 NPCManager::NPCManager()
 {
 	rest=false;
+	dt=0;
+	mStep=0.05; // ~20FPS
 }
 
 NPCManager::~NPCManager()
@@ -215,15 +217,21 @@ bool NPCManager::frameStarted(const Ogre::FrameEvent &evt)
 {
 	if (rest)
 		return true;
+	dt+=evt.timeSinceLastFrame;
+	if (dt<mStep)
+		return true;
+	dt=0.0f;
+	Ogre::FrameEvent evt2;
+	evt2.timeSinceLastFrame = mStep;
 	for (unsigned int i=0;i!=enemies.size();i++)
-		enemies[i]->frameStarted(evt);
+		enemies[i]->frameStarted(evt2);
 	for (unsigned int i=0;i!=friends.size();i++)
-		friends[i]->frameStarted(evt);
+		friends[i]->frameStarted(evt2);
 	for (unsigned int i=0;i!=neutrals.size();i++)
-		neutrals[i]->frameStarted(evt);
+		neutrals[i]->frameStarted(evt2);
 	for (unsigned int i=0;i!=aerials.size();i++)
-		aerials[i]->frameStarted(evt);
-	AIManager::getSingleton().update(evt.timeSinceLastFrame);
+		aerials[i]->frameStarted(evt2);
+	AIManager::getSingleton().update(evt2.timeSinceLastFrame);
 	#ifdef DEBUG_FACIAL
 	LogManager::getSingleton().logMessage("neutral end step");
 	#endif

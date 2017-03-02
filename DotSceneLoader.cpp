@@ -434,7 +434,13 @@ void DotSceneLoader::processPortals(TiXmlElement *XMLNode)
 		scale = sceneMultiplier*parseVector3(pElement);
 	}
 
+
 	ZonePortalManager::getSingleton().passZone(pos,scale);
+	
+	Real farClip = getAttribReal(XMLNode,"farClip");
+	if (farClip)
+		ZonePortalManager::getSingleton().setZoneCameraParams(mCamera->getFarClipDistance(),farClip);
+
 	pElement = XMLNode->FirstChildElement("node");
 	while(pElement)
 	{

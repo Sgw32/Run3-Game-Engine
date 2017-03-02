@@ -27,7 +27,7 @@ void Credits::start(String fileName)
 	cf.load(fileName);
 	String overlayName = cf.getSetting("OverlayName");
 	String datafile = cf.getSetting("FileName");
-	speed = StringConverter::parseReal(cf.getSetting("Speed"))*global::getSingleton().getWindow()->getWidth()/480;
+	speed = StringConverter::parseReal(cf.getSetting("Speed"))*2.66*global::getSingleton().getWindow()->getHeight()/1024;
 	cf.load(datafile);
 	ConfigFile::SettingsMultiMap *settings = cf.getSectionIterator().getNext();
    ConfigFile::SettingsMultiMap::iterator b;
@@ -49,6 +49,7 @@ void Credits::start(String fileName)
 	creditTextItem->setLeft(0);
 	creditTextItem->setHeight(global::getSingleton().getWindow()->getHeight());
 	creditTextItem->setWidth(global::getSingleton().getWindow()->getWidth());
+	//((TextAreaOverlayElement*)creditTextItem)->setCharHeight(((TextAreaOverlayElement*)creditTextItem)->getCharHeight()*1024/global::getSingleton().getWindow()->getHeight());
 	char_height=0.03*global::getSingleton().getWindow()->getHeight()*(settings->size()+1)+StringConverter::parseReal(cf.getSetting("Delta"));
 	LogManager::getSingleton().logMessage(StringConverter::toString(char_height));
 

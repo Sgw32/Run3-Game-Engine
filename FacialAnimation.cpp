@@ -227,9 +227,11 @@ void FacialAnimation::upd(Real tm)
 	try
 	{
 	//just starting
-	if (((mAnimate)&&(timeAnim<PROCESS_ANIM))&&(curstate==0))
+	//if (((mAnimate)&&(timeAnim<PROCESS_ANIM))&&(curstate==0))
+	if (((mAnimate))&&(curstate==0))
 	{
-		
+		if (timeAnim>PROCESS_ANIM)
+			timeAnim=PROCESS_ANIM;
 		LogManager::getSingleton().logMessage("[FacialAnimation] Pre-ready sequence.");
 		if (letters[curstate].getIndex()!=-1)
 		{
@@ -251,11 +253,13 @@ void FacialAnimation::upd(Real tm)
 		LogManager::getSingleton().logMessage("[FacialAnimation] Ok pre.");
 	}
 
-	if (((mAnimate)&&(timeAnim>PROCESS_ANIM)&&(timeAnim<endAnim+PROCESS_ANIM))&&(curstate<letters.size()))
+	//if (((mAnimate)&&(timeAnim>PROCESS_ANIM)&&(timeAnim<endAnim+PROCESS_ANIM))&&(curstate<letters.size()))
+	if (((mAnimate)&&(timeAnim>PROCESS_ANIM))&&(curstate<letters.size()))
 	{
 		// timeAnim-PROCESS_ANIM is time for active animation
 		// Triangle functions are there
-		
+		if (timeAnim>endAnim+PROCESS_ANIM)
+			timeAnim=endAnim+PROCESS_ANIM;
 		Real down=(letters[curstate].getSecond()-(timeAnim-PROCESS_ANIM))/(letters[curstate].getSecond());
 		Real up=1-down;
 		if (letters[curstate-1].getIndex()!=-1)

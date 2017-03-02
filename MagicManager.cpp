@@ -53,6 +53,13 @@ void MagicManager::init(Camera* mCamera,RenderWindow* win,String path)
 		inputMgr = buttonGUI::InputManager2::getSingletonPtr();
 		curs = buttonMgr->setCursor("cursorMat1", 32, 32, 3,3);
 		buttonMgr->hideCursor();
+
+		/*global::getSingleton().getCamera()->setNearClipDistance(0.01f);
+		buttonMgr->showCursor(); //!!!!!
+		buttonGUI::button* btn = buttonMgr->createButton("star1", "BLANK", buttonGUI::buttonPosition(buttonGUI::CENTER, -128, -128), 150,150,2,true,true,"");
+			btn->setMovable(true);
+			btn->addButtonMesh("star1mesh", "ninjaStar.mesh", -25,-25, 200,200)->setZoom(3);*/
+
     inputMgr->initialise(win);
     inputMgr->addMouseListener(this, "MagicManagerMouseListener");
 	inputMgr->addKeyListener(this, "MagicManagerKeyListener");

@@ -616,12 +616,12 @@ void npc_enemy::step(const Ogre::FrameEvent &evt)
 									if (rot_dir)
 									{
 										//LogManager::getSingleton().logMessage(StringConverter::toString(angle)+"+");
-									niNode->rotate(Vector3::UNIT_Y,Degree(10.0f*evt.timeSinceLastFrame*TIME_SHIFT*5));
+									niNode->rotate(Vector3::UNIT_Y,Degree(mProps.rotateSpeed*evt.timeSinceLastFrame*TIME_SHIFT));
 									}
 									else
 									{
 										//LogManager::getSingleton().logMessage(StringConverter::toString(angle)+"-");
-										niNode->rotate(Vector3::UNIT_Y,Degree(-10.0f*evt.timeSinceLastFrame*TIME_SHIFT*5));
+										niNode->rotate(Vector3::UNIT_Y,Degree(-mProps.rotateSpeed*evt.timeSinceLastFrame*TIME_SHIFT));
 									}
 				/*else
 				niNode->rotate(Vector3::UNIT_Y,angle);*/
@@ -748,12 +748,12 @@ void npc_enemy::step(const Ogre::FrameEvent &evt)
 									if (rot_dir)
 									{
 										////LogManager::getSingleton().logMessage(StringConverter::toString(angle)+"+");
-									niNode->rotate(Vector3::UNIT_Y,Degree(10.0f*evt.timeSinceLastFrame*TIME_SHIFT*5));
+									niNode->rotate(Vector3::UNIT_Y,Degree(mProps.rotateSpeed*evt.timeSinceLastFrame*TIME_SHIFT));
 									}
 									else
 									{
 										////LogManager::getSingleton().logMessage(StringConverter::toString(angle)+"-");
-										niNode->rotate(Vector3::UNIT_Y,Degree(-10.0f*evt.timeSinceLastFrame*TIME_SHIFT*5));
+										niNode->rotate(Vector3::UNIT_Y,Degree(-mProps.rotateSpeed*evt.timeSinceLastFrame*TIME_SHIFT));
 									}
 								}
 							}

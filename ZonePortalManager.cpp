@@ -30,6 +30,12 @@ void ZonePortalManager::passZone(Vector3 pos,Vector3 size)
 	zps.push_back(port);
 }
 
+void ZonePortalManager::setZoneCameraParams(Real of,Real nf)
+{
+	Zone* port = (Zone*)curZP;
+	port->setFarClipChange(of,nf);
+}
+
 void ZonePortalManager::upd(const FrameEvent& evt)
 {
 	vector<ZonePortal*>::iterator i;

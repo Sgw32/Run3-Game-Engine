@@ -1,6 +1,6 @@
 #include "npc_neutral.h"
 #include "PhysObject.h"
-
+#include "FacialAnimationManager.h"
 
 
 npc_neutral::npc_neutral()
@@ -345,7 +345,10 @@ void npc_neutral::processEvent(int flag,String param1,String param2)
 	if (flag==SPAWN_NPC)
 	{
 		if (mProps.facial_animation)
+		{
 			mFac=new FacialAnimation();
+			FacialAnimationManager::getSingleton().passFacial(mFac);
+		}
 		uniqueMult = 0.9f + Math::RangeRandom(0,100)/500;
 			mHeliNode = mSceneMgr->getRootSceneNode()->createChildSceneNode(mStartPos);
 
@@ -677,8 +680,10 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 #ifdef DEBUG_FACIAL
 	LogManager::getSingleton().logMessage("Facial start.");
 #endif
+	/*
 	if (mFac)
 	mFac->upd(evt.timeSinceLastFrame*TIME_SHIFT);
+	*/
 #ifdef DEBUG_FACIAL
 	LogManager::getSingleton().logMessage("Facial upd ok.");
 #endif

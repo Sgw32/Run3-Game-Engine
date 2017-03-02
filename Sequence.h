@@ -2522,7 +2522,23 @@ static int player__getdiry(lua_State* pL)
 		NPCManager::getSingleton().rest = !NPCManager::getSingleton().rest;
 		return 1;
 	}
-	
+
+	static int setNPCManagerStep(lua_State* pL)
+	{
+		int n = lua_gettop(pL);
+		if (n!=1)
+		{
+			return 0;
+		}
+		if (lua_isstring(pL, 1))
+		{
+			Real tex1 = StringConverter::parseReal(lua_tostring(pL, 1));
+			NPCManager::getSingleton().setStep(tex1);
+		}
+			
+		return 1;
+	}
+
 	static int player__setRegeneration(lua_State* pL)
 	{
 		int n = lua_gettop(pL);

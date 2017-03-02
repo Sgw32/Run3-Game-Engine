@@ -60,7 +60,15 @@ class Zone : public ZonePortal
 {
 public:
 	inline Zone(){};
-	inline Zone(AxisAlignedBox zonePortal){mZonePortal=zonePortal;inter=false;trigger();}
+	inline Zone(AxisAlignedBox zonePortal)
+	{
+		mZonePortal=zonePortal;
+		inter=false;
+		mCamera = global::getSingleton().getCamera();
+		trigger();
+		oldfarClip=0;
+		newfarClip=0;
+	}
 	virtual void check(Vector3 pos)
 	{
 		//if (inter!=mZonePortal.intersects(pos))
@@ -69,16 +77,32 @@ public:
 			{
 				///LogManager::getSingleton().logMessage("Hide");
 				trigger();
+				if (oldfarClip)
+				{
+					mCamera->setFarClipDistance(oldfarClip);
+				}
 			}
 			else
 			{
 				//LogManager::getSingleton().logMessage("Show");
 				getBack();
+				if (oldfarClip)
+				{
+					mCamera->setFarClipDistance(newfarClip);
+				}
 			}
+			
 		//}
 		//inter=mZonePortal.intersects(pos);
 	}
+	inline void setFarClipChange(Real of,Real nf)
+	{
+		oldfarClip=of;
+		newfarClip=nf;
+	}
 private:
+	Ogre::Camera* mCamera;
+	Real oldfarClip,newfarClip;
 	bool inter;
 };
 

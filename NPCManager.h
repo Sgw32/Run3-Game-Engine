@@ -145,6 +145,8 @@ public:
 			aerials.clear();
 	}
 	bool frameStarted(const Ogre::FrameEvent &evt);
+	inline Real getStep(){return mStep;}
+	inline void setStep(Real step){mStep = step;}
 	/////
 	vector<npc_enemy*> enemies;
 	vector<npc_neutral*> neutrals;
@@ -152,6 +154,8 @@ public:
 	vector<npc_aerial*> aerials;
 	bool rest;
 private:
+	Real dt;
+	Real mStep;
 	const OgreNewt::MaterialID* mMatDefault;
 	OgreNewt::MaterialPair* mMatPair;
 	const OgreNewt::MaterialID* enemyMat;

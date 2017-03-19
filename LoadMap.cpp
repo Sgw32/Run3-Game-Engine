@@ -104,6 +104,7 @@ LogManager::getSingleton().logMessage("6");
 scriptOnExit="";
 Sequence::getSingleton().SetSceneSeq(sequence);
 LogManager::getSingleton().logMessage("7");
+NPCManager::getSingleton().setStep(0.05f);
 	}
 	catch(...)
 	{

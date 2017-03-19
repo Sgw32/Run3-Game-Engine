@@ -222,7 +222,15 @@ void lookAt( Node* t,const Vector3& targetPoint, Node::TransformSpace relativeTo
 	void setParentRelation(SceneNode* pPar);
 	void setParentRelation(String node);
 	void stopParentRelation(){parentRelation=false;mPar=0;}
+	
 private:
+	//Private NPC events
+	vector<Ogre::Node*> animatedBones;
+	inline void processNoticeStep();
+	inline void processAttachedObjects();
+	inline void processAnimationTransition(Real time);
+	inline void processLook(Real time);
+	inline void processRandomMovements(Real time);
 	PRIVATE_NODELIST
 	AnimationState* mAnimState;
 	AnimationState* mTransitAnimState;

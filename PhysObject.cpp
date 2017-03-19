@@ -47,8 +47,8 @@ void PhysObject::init(SceneManager *SceneMgr,OgreNewt::World* world)
   physicalMat= global::getSingleton().physicalMat;
  /* mMatPair = new OgreNewt::MaterialPair( mWorld, mMatDefault, physicalMat );
   mMatPair->setContactCallback( mPhysCallback );*/
-isMetal=false;
-dragging=false;
+	isMetal=false;
+	dragging=false;
   //mMatPair->setDefaultFriction( 1.5, 1.4 );
   forcecounter=0;
 }

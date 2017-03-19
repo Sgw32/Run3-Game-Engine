@@ -114,6 +114,10 @@ private:
 	// recursive function for creating bones.
 	void _addAllBones( RagBone* parent, TiXmlElement* bone );
 
+	// recursive function for creating bones. AUTO
+	void _autoAddAllBones( RagBone* parent, Ogre::Bone* bone);
+
+
 	// add a joint between 2 bones.
 	void _joinBones( RagDoll::JointType type, RagBone* parent, RagBone* child, Ogre::Vector3 pos, Ogre::Vector3 pin, Ogre::Real limit1, Ogre::Real limit2 );
 

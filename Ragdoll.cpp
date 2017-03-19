@@ -71,6 +71,7 @@ RagDoll::RagBone::RagBone( RagDoll* creator, OgreNewt::World* world, RagDoll::Ra
 	col->calculateInertialMatrix( inertia, com );
 	
 	mBody->setMassMatrix( mass, inertia * mass );
+	mBody->setMaterialGroupID( global::getSingleton().physicalMat );
 	mBody->setCenterOfMass( com );
 	mBody->setAutoFreeze(false);
 	mBody->setCustomTransformCallback( RagDoll::_placementCallback );
@@ -247,7 +248,7 @@ RagDoll::RagDoll( Ogre::String filename, OgreNewt::World* world, Ogre::SceneNode
 	}
 	else
 	{
-			path = "[DotSceneLoader] File "+basename;
+			path = "[RagDoll module] File "+basename;
 			Ogre::LogManager::getSingleton().logMessage(path+" doesn't exist" );
 			return;
 	}
@@ -278,16 +279,23 @@ RagDoll::RagDoll( Ogre::String filename, OgreNewt::World* world, Ogre::SceneNode
 	// found the root ragdoll.  find the root bone, and go!
 	RagBone* parent = NULL;
 
-	TiXmlElement* bone = root->FirstChildElement("Bone");
-
-	if (bone)
+	TiXmlElement* bone = root->FirstChildElement("Auto");
+	if(bone)
 	{
-		_addAllBones( NULL, bone );
+			_autoAddAllBones( NULL, mSkeleton->getRootBone() );
+	}
+	else
+	{
+		TiXmlElement* bone = root->FirstChildElement("Bone");
 
+		if (bone)
+		{
+			_addAllBones( NULL, bone );
+
+		}
 	}
 
 }
-
 
 void RagDoll::_addAllBones(RagDoll::RagBone* parent, TiXmlElement* bone)
 {
@@ -379,9 +387,7 @@ void RagDoll::_addAllBones(RagDoll::RagBone* parent, TiXmlElement* bone)
 		_joinBones( jointtype, parent, me, jpos, jpin, limit1, limit2);
 	}
 	
-#ifdef _DEBUG
 	Ogre::LogManager::getSingleton().logMessage(" added bone from "+ogrebone->getName()+".");
-#endif // _DEBUG
 
 	///////////////////////////////////////////////////////////////////////////////
 	///////////////////////////////////////////////////////////////////////////////
@@ -393,6 +399,83 @@ void RagDoll::_addAllBones(RagDoll::RagBone* parent, TiXmlElement* bone)
 		_addAllBones( me, child );
 
 		child = child->NextSiblingElement("Bone");
+	}
+}
+
+void RagDoll::_autoAddAllBones(RagDoll::RagBone* parent, Ogre::Bone* bone)
+{
+	// get the information for the bone represented by this element.
+	Ogre::Bone* ogrebone = bone;
+	Ogre::LogManager::getSingleton().logMessage("Adding bone "+ogrebone->getName());
+
+
+	Ogre::Quaternion boneorient = mNode->getOrientation() * ogrebone->_getDerivedOrientation();
+
+	Vector3 dir = boneorient*Vector3::NEGATIVE_UNIT_Z;
+	Vector3 size = mNode->_getDerivedScale() * ogrebone->_getDerivedScale()*dir;
+	
+	
+	RagDoll::RagBone::BoneShape shape = RagDoll::RagBone::BS_BOX;
+
+	Ogre::Real mass = 5.0f;
+	
+	Ogre::LogManager::getSingleton().logMessage("Making ragbone...");
+	Ogre::LogManager::getSingleton().logMessage(StringConverter::toString(dir));
+	Ogre::LogManager::getSingleton().logMessage(StringConverter::toString(size));
+	///////////////////////////////////////////////////////////////////////////////
+	RagBone* me = _addBone( mWorld, parent, dir, shape, size, mass, ogrebone );
+	///////////////////////////////////////////////////////////////////////////////
+	Ogre::LogManager::getSingleton().logMessage("Ok.");	
+	// position the bone.
+	
+	Ogre::LogManager::getSingleton().logMessage("Positioning...");
+	Ogre::Vector3 bonepos;
+	if (shape != RagDoll::RagBone::BS_CONVEXHULL)
+		bonepos = mNode->_getFullTransform() * ogrebone->_getDerivedPosition() + (boneorient * (dir * (size.z*0.5f)));
+	else
+		bonepos = mNode->_getFullTransform() * ogrebone->_getDerivedPosition();
+
+	me->getBody()->setPositionOrientation( bonepos, boneorient );
+
+	// set offsets
+	if (!parent)
+	{
+		Ogre::Quaternion offsetorient = (boneorient.Inverse()) * mNode->getOrientation();
+		Ogre::Vector3 offsetpos = boneorient.Inverse() * (mNode->getPosition() - bonepos);
+		me->setOffset( offsetorient, offsetpos );
+	}
+	Ogre::LogManager::getSingleton().logMessage("Ok.");	
+
+	Ogre::LogManager::getSingleton().logMessage("Creating joints...");
+	// get the joint to connect this bone with it's parent.
+	if (parent)
+	{
+
+		Ogre::Vector3 jointpin = dir;//Ogre::StringConverter::parseVector3( joint->Attribute("pin") );
+		
+		RagDoll::JointType jointtype = RagDoll::JT_BALLSOCKET;
+
+
+		Ogre::Real limit1 = 0;
+		Ogre::Real limit2 = 90;
+
+		Ogre::Vector3 jpos = mNode->_getFullTransform() * ogrebone->_getDerivedPosition();
+		Ogre::Vector3 jpin = (mNode->getOrientation() * parent->getOgreBone()->_getDerivedOrientation()) * jointpin;
+
+		_joinBones( jointtype, parent, me, jpos, jpin, limit1, limit2);
+	}
+	Ogre::LogManager::getSingleton().logMessage("Ok.");	
+	Ogre::LogManager::getSingleton().logMessage(" added bone from "+ogrebone->getName()+".");
+
+	///////////////////////////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////////////////////////
+	// add all children of this bone.
+
+	Ogre::Bone::ChildNodeIterator it = ogrebone->getChildIterator();
+	while(it.hasMoreElements())
+	{
+	Ogre::Bone* child = dynamic_cast<Ogre::Bone*>(it.getNext());
+	_autoAddAllBones( me, child );
 	}
 }
 

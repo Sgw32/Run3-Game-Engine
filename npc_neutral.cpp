@@ -656,78 +656,58 @@ void npc_neutral::transitFromCurrentAnimation(String newAnim)
 	transitState=1.0f;
 }
 
-void npc_neutral::step(const Ogre::FrameEvent &evt)
+inline void npc_neutral::processNoticeStep()
 {
-	// If time stopped - NPC stopped
+	if (notice)
+	{
+		Vector3 dist = global::getSingleton().getPlayer()->get_location()-getpos(npcBody);
+		if (dist.length()<200.0f)
+		{
+			if (!mProps.cNearScript.empty())
+			{
+				RunLuaScript(global::getSingleton().getLuaState(), mProps.cNearScript.c_str());
+			}
+			notice=false;
+		}
+	}
+}
+
+inline void npc_neutral::processAttachedObjects()
+{
 	for (int j=0;j!=attachedPhysObjects.size();j++)
 	{
 		attachedPhysObjects[j]->updateAttached();
 	}
-
-	if (notice)
-{
-	Vector3 dist = global::getSingleton().getPlayer()->get_location()-getpos(npcBody);
-	if (dist.length()<200.0f)
-	{
-		if (!mProps.cNearScript.empty())
-		{
-			RunLuaScript(global::getSingleton().getLuaState(), mProps.cNearScript.c_str());
-		}
-		notice=false;
-	}
 }
-	Real mulTime = evt.timeSinceLastFrame*TIME_SHIFT*moveActivity*uniqueMult;
-#ifdef DEBUG_FACIAL
-	LogManager::getSingleton().logMessage("Facial start.");
-#endif
-	/*
-	if (mFac)
-	mFac->upd(evt.timeSinceLastFrame*TIME_SHIFT);
-	*/
-#ifdef DEBUG_FACIAL
-	LogManager::getSingleton().logMessage("Facial upd ok.");
-#endif
-	time256+=mulTime;
-	if (time256>256.0f)
-		time256=0;
 
-	if (TIME_SHIFT==0.0f)
-		return;
-
-	// Animation in processing.
-
-	if (animated)
-	{
-#ifdef DEBUG_FACIAL
-		LogManager::getSingleton().logMessage("Animation add.");
-#endif
-	mAnimState->addTime(mulTime);
-#ifdef DEBUG_FACIAL
-		LogManager::getSingleton().logMessage("Animation ok.");
-#endif
-	//Smooth transition part.
-	if ((transitState>0)&&(mTransitAnimState)) //Transition started
-	{
-		mAnimState->setWeight(transitState);
-		mTransitAnimState->setWeight(1-transitState);
-		transitState-=mulTime; //1 Second average?
-	}
-
-	if ((transitState<=0)&&(mTransitAnimState)) //Transition ended
-	{
-		//mAnimState->setWeight(transitState);
-		mAnimState->setWeight(1.0f);
-		mAnimState->setEnabled(false);
-		mTransitAnimState->setWeight(1.0f);
-		mAnimState=mTransitAnimState;
-		mTransitAnimState=0;
-		transitState=1.0f;
-	}
-
-	}
-
-	if (mProps.strange_look)
+inline void npc_neutral::processAnimationTransition(Real mulTime)
+{
+	#ifdef DEBUG_FACIAL
+				LogManager::getSingleton().logMessage("Animation ok.");
+		#endif
+		//Smooth transition part.
+		if ((transitState>0)&&(mTransitAnimState)) //Transition started
 		{
+			mAnimState->setWeight(transitState);
+			mTransitAnimState->setWeight(1-transitState);
+			transitState-=mulTime; //1 Second average?
+		}
+
+		if ((transitState<=0)&&(mTransitAnimState)) //Transition ended
+		{
+			mAnimState->setWeight(1.0f);
+			mAnimState->setEnabled(false);
+			mTransitAnimState->setWeight(1.0f);
+			mAnimState=mTransitAnimState;
+			mTransitAnimState=0;
+			transitState=1.0f;
+		}
+}
+
+inline void npc_neutral::processLook(Real mulTime)
+{
+	if (mProps.strange_look)
+	{
 			Ogre::Node* m = skel->getBone(mProps.headBone);
 			Vector3 dir1 = getNPCDirection();
 			Degree angle1,angle2,angle3,angle4;
@@ -740,6 +720,7 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 			yawAngle = newRot.getYaw().valueDegrees();
 			if ((fabs(newRot.getYaw().valueDegrees()))>45.0f)
 			yawAngle *= Ogre::Math::Exp(-Ogre::Math::Sqr(fabs(newRot.getYaw().valueDegrees())/45.0f-1.0f));
+
 			/*if ((newRot.getYaw().valueDegrees())>45.0f)
 				newRot=Quaternion(Radian(Degree(45.0f)),mProps.headAxis);
 			if ((newRot.getYaw().valueDegrees())<-45.0f)
@@ -747,7 +728,52 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 			
 			goalHeadYaw+=(yawAngle-goalHeadYaw)*mulTime;	//1 Second
 			m->setOrientation(getorient(npcBody)*Quaternion(Radian(Degree(goalHeadYaw)),mProps.headAxis));
-		}
+	}
+}
+
+inline void npc_neutral::processRandomMovements(Real time)
+{
+	if (!animatedBones.size())
+		return;
+	vector<Ogre::Node*>::iterator i;
+	for (i=animatedBones.begin();i!=animatedBones.end();i++)
+	{
+		
+	}
+		/*Ogre::Node* rforearm = skel->getBone(" R ForeArm");
+		Ogre::Node* lforearm = skel->getBone(" L ForeArm");
+		Ogre::Node* rthigh = skel->getBone(" R Thigh");
+		Ogre::Node* lthigh = skel->getBone(" L Thigh");*/
+		
+}
+
+void npc_neutral::step(const Ogre::FrameEvent &evt)
+{
+	// If time stopped - NPC stopped
+	if (TIME_SHIFT==0.0f)
+		return;
+
+	processAttachedObjects();
+	processNoticeStep();
+
+	Real mulTime = evt.timeSinceLastFrame*TIME_SHIFT*moveActivity*uniqueMult;
+
+	time256+=mulTime;
+	if (time256>256.0f)
+		time256=0;
+
+	// Animation in processing.
+
+	if (animated)
+	{
+		#ifdef DEBUG_FACIAL
+				LogManager::getSingleton().logMessage("Animation add.");
+		#endif
+		mAnimState->addTime(mulTime);
+		processAnimationTransition(mulTime);
+	}
+
+	processLook(mulTime);
 	
 	//There begins active code.
 	if (going)
@@ -799,9 +825,9 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 		//Very close to target position
 		if (stopAtDist)
 		{
-#ifdef DEBUG_TARGET_BLIZKO
-			LogManager::getSingleton().logMessage("Distance to destination: "+StringConverter::toString(pPosit)+" is "+StringConverter::toString(getpos(npcBody).distance(pPosit)));
-#endif
+			#ifdef DEBUG_TARGET_BLIZKO
+						LogManager::getSingleton().logMessage("Distance to destination: "+StringConverter::toString(pPosit)+" is "+StringConverter::toString(getpos(npcBody).distance(pPosit)));
+			#endif
 			blizko = getpos(npcBody).distance(pPosit) < stopDist;
 		}
 		// Execute finish script.
@@ -1278,6 +1304,7 @@ void npc_neutral::kill()
 	if (!mProps.luaOnDeath.empty())
 	RunLuaScript(global::getSingleton().getLuaState(),mProps.luaOnDeath.c_str());
 	mProps.applyGravity=true;
+
 	/*if (mProps.headshot)
 	{
 		LogManager::getSingleton().logMessage("HEADSHOT!!!");
@@ -1300,26 +1327,27 @@ void npc_neutral::kill()
 		MAKE_SOME_GORE("BMan0002-HeadNub")
 		MAKE_SOME_GORE("BMan0002-R Forearm")*/
 	//}*/
-			if (animated)
-		{
-	mAnimState->setEnabled(false);
-			mAnimState = heliEnt->getAnimationState("Death1");
-			mAnimState->setLoop(false);
-			mAnimState->setEnabled(true);
-		}
+
+	if (animated)
+	{
+		mAnimState->setEnabled(false);
+		mAnimState = heliEnt->getAnimationState("Death1");
+		mAnimState->setLoop(false);
+		mAnimState->setEnabled(true);
+	}
 }
 bool npc_neutral::frameStarted(const Ogre::FrameEvent &evt)
 {
 	step(evt);
-			if (animated)
-		{
-	if (!mAnimState->getLoop())
+	if (animated)
 	{
-		if (mAnimState->getTimePosition()>mAnimState->getLength())
-		{
-			mAnimState->setEnabled(false);
-		}
+			if (!mAnimState->getLoop())
+			{
+				if (mAnimState->getTimePosition()>mAnimState->getLength())
+				{
+					mAnimState->setEnabled(false);
+				}
+			}
 	}
-		}
 	return true;
 }

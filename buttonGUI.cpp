@@ -399,6 +399,8 @@ button *  button::setOpacity(float opacity)
 
 void button::setMaterialOpacity(float opacity, Ogre::MaterialPtr &mat)
 {
+	return;// Maybe okay at last.
+
 	Technique *t = mat->getTechnique(0);  // we are only bothering the fade with the first technique.
 
 	//iterate through passes and textureUnitStates, setting their opacity.

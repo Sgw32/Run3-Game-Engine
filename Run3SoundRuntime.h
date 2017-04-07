@@ -109,6 +109,8 @@ public:
 		}
 	}
 
+	
+
 	void restorePhase()
 	{
 		if (!phase) 
@@ -155,9 +157,12 @@ public:
 	void enableAmbientSound(String name);
 	void emitCollideSound(int type, Vector3 pos);
 	bool frameStarted(const Ogre::FrameEvent &evt);
+	void setCheckAmbientSounds();
+	void recheckAmbientSounds();
 	vector<String> fileNames;
 private:
 	SoundManager* sMgr;
+	Real check;
 	Player* ply;
 	vector<String> collides;
 	//vector<String> fileNames;

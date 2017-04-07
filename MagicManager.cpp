@@ -21,6 +21,7 @@ void MagicManager::init(Camera* mCamera,RenderWindow* win,String path)
 
 	lua_register(pLua, "buttonGUI_createButton",buttonGUI_createButton);
 	lua_register(pLua, "buttonGUI_create3DButton",buttonGUI_create3DButton);
+	lua_register(pLua, "buttonGUI_create3DButtonQuat",buttonGUI_create3DButtonQuat);
 	lua_register(pLua, "buttonGUI_createButtonS",buttonGUI_createButtonS);
 	lua_register(pLua, "buttonGUI_createDummy",buttonGUI_createDummy);
 	lua_register(pLua, "buttonGUI_deleteAllButtons",buttonGUI_deleteAllButtons);
@@ -137,17 +138,21 @@ void MagicManager::activateMagic(bool act)
 			(*i)->hide(false);
 		buttonMgr->hideCursor();
 		LogManager::getSingleton().logMessage("buttonGUIManager: false");
+		//CompositorManager::getSingleton().setCompositorEnabled(global::getSingleton().getCamera()->getViewport(), "Glow", glowWasEnabled);
 	}
 	if (act)
 	{
-		LogManager::getSingleton().logMessage("buttonGUIManager: creating Render Queue");
+		LogManager::getSingleton().logMessage("buttonGUIManager: creating Render Queue1");
 		buttonMgr->deleteAllButtons();
 		buttonMgr->showCursor();
+		//CompositorManager::getSingleton().setCompositorEnabled(global::getSingleton().getCamera()->getViewport(), "Glow", false);
+		//glowWasEnabled = CompositorManager::getSingleton().getCompositorEnabled(mCamera->getViewport(), "Glow");
 			//create red button in the middle
 		//buttonMgr->createButton("centerButton", "middleButtonMat", buttonGUI::buttonPosition(450,384), 128,128);		//notice that all the material variants are automatically detected and used
 
 	}
 }
+
 
 void MagicManager::activateMagic(bool act,String lua)
 {
@@ -158,12 +163,14 @@ void MagicManager::activateMagic(bool act,String lua)
 		buttonMgr->deleteAllButtons();
 		buttonMgr->hideCursor();
 		LogManager::getSingleton().logMessage("buttonGUIManager: false");
+		//CompositorManager::getSingleton().setCompositorEnabled(global::getSingleton().getCamera()->getViewport(), "Glow", glowWasEnabled);
 	}
 	if (act)
 	{
-		LogManager::getSingleton().logMessage("buttonGUIManager: creating Render Queue");
+		LogManager::getSingleton().logMessage("buttonGUIManager: creating Render Queue2");
 		buttonMgr->showCursor();
 		RunLuaScript(pLua,lua.c_str());
+		//CompositorManager::getSingleton().setCompositorEnabled(global::getSingleton().getCamera()->getViewport(), "Glow", false);
 			//create red button in the middle
 		//buttonMgr->createButton("centerButton", "middleButtonMat", buttonGUI::buttonPosition(450,384), 128,128);		//notice that all the material variants are automatically detected and used
 

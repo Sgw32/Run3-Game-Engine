@@ -28,9 +28,13 @@ public:
 	bool isVisible(){return visi;}
 	virtual void upd(const FrameEvent& evt);
 	virtual void cleanup();
-
+	inline void setGlowWasActive(bool glow)
+	{
+	glowWasEnabled = glow;
+	}
 private:
 	bool enabled;
+	bool glowWasEnabled;
 	bool visi;
 	//lua_State* pLua;
 	buttonGUI::buttonManager* buttonMgr;

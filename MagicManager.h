@@ -34,7 +34,7 @@ public:
 	void activateMagic(bool act,String lua);
 
 	void activateInventory(bool act);
-void handleButtonEvent(buttonGUI::buttonEvent * e);
+	void handleButtonEvent(buttonGUI::buttonEvent * e);
 
 	Real getCursorPosX()
 	{
@@ -47,6 +47,11 @@ void handleButtonEvent(buttonGUI::buttonEvent * e);
 //	virtual void create
 	virtual void upd(const FrameEvent& evt);
 	virtual void cleanup();
+	
+	inline void setGlowWasActive(bool glow)
+	{
+	glowWasEnabled = glow;
+	}
 
 		bool mouseMoved(const OIS::MouseEvent &arg);
 	bool mousePressed(const OIS::MouseEvent &arg, OIS::MouseButtonID id);
@@ -190,7 +195,7 @@ void handleButtonEvent(buttonGUI::buttonEvent * e);
 	static int buttonGUI_create3DButton(lua_State* pL)
 	{
 		int n = lua_gettop(pL);
-		if (n!=5)
+		if (n!=6)
 		{
 			LogManager::getSingleton().logMessage("Creating 3d button!");
 			buttonGUI::button* btn = MagicManager::getSingleton().getBMgr()->createButton("star1", "BLANK", buttonGUI::buttonPosition(buttonGUI::CENTER, -128, -128), 150,150,2,true,true,"");
@@ -198,7 +203,7 @@ void handleButtonEvent(buttonGUI::buttonEvent * e);
 			btn->addButtonMesh("star1mesh", "ninjaStar.mesh", 0,0, 150,150)->setZoom(50);
 			return 1;
 		}
-		if (lua_isstring(pL, 1)&&lua_isstring(pL, 2)&&lua_isstring(pL, 3)&&lua_isstring(pL, 4)&&lua_isstring(pL, 5))
+		if (lua_isstring(pL, 1)&&lua_isstring(pL, 2)&&lua_isstring(pL, 3)&&lua_isstring(pL, 4)&&lua_isstring(pL, 5)&&lua_isstring(pL, 6))
 		{
 			LogManager::getSingleton().logMessage("Creating 3d button!");
 
@@ -237,14 +242,81 @@ void handleButtonEvent(buttonGUI::buttonEvent * e);
 				}
 				
 			}
-			String lue = lua_tostring(pL, 5);
+			String lue = lua_tostring(pL, 6);
 
 			if (MagicManager::getSingleton().getBMgr()->getButton(name)==0)
 			{
 			buttonGUI::button* btn = MagicManager::getSingleton().getBMgr()->
 				createButton(name, "BLANK", buttonGUI::buttonPosition(position.x,position.y), size.x,size.y,0,true,true,lue);
 			btn->setMovable(true);
-			btn->addButtonMesh(name+"_mesh", meshname, 0,0, 150,150)->setZoom(50);
+			btn->addButtonMesh(name+"_mesh", meshname, 0,0, size.x,size.y)->setZoom(StringConverter::parseReal(lua_tostring(pL, 5)));
+			}
+			else
+			{
+			MagicManager::getSingleton().getBMgr()->getButton(name)->show(true);
+			}
+		}
+		return 1;
+	}
+
+	static int buttonGUI_create3DButtonQuat(lua_State* pL)
+	{
+		int n = lua_gettop(pL);
+		if (n!=7)
+		{
+			LogManager::getSingleton().logMessage("Creating 3d button!");
+			buttonGUI::button* btn = MagicManager::getSingleton().getBMgr()->createButton("star1", "BLANK", buttonGUI::buttonPosition(buttonGUI::CENTER, -128, -128), 150,150,2,true,true,"");
+			btn->setMovable(true);
+			btn->addButtonMesh("star1mesh", "ninjaStar.mesh", 0,0, 150,150)->setZoom(50);
+			return 1;
+		}
+		if (lua_isstring(pL, 1)&&lua_isstring(pL, 2)&&lua_isstring(pL, 3)&&lua_isstring(pL, 4)&&lua_isstring(pL, 5)&&lua_isstring(pL, 6)&&lua_isstring(pL, 6))
+		{
+			LogManager::getSingleton().logMessage("Creating 3d button!");
+
+			String name = lua_tostring(pL, 1);
+			String meshname =  lua_tostring(pL, 2);
+			Ogre::Vector2 position = StringConverter::parseVector2(lua_tostring(pL, 3));
+			Ogre::Vector2 size = StringConverter::parseVector2(lua_tostring(pL, 4));
+
+			if (MagicManager::getSingleton().center640)
+			{
+				Real x = MagicManager::getSingleton().mCam->getViewport()->getActualWidth();
+				Real y = MagicManager::getSingleton().mCam->getViewport()->getActualHeight();
+				switch (MagicManager::getSingleton().wrap_type)
+				{
+				case CENTER:
+					position+=Vector2(x/2-320,y/2-240);
+					break;
+				case TOP_LEFT:
+					position.x*=x/640;
+					position.y*=y/480;
+					size.x*=x/640;
+					size.y*=y/480;
+					break;
+				case TOP_LEFT_COMP:
+					LogManager::getSingleton().logMessage("Transform: "+StringConverter::toString(position));
+					LogManager::getSingleton().logMessage("Transform: "+StringConverter::toString(size));
+					position.x*=512.0f/640.0f;
+					position.y*=512.0f/480.0f;
+					size.x*=512.0f/640.0f;
+					size.y*=512.0f/480.0f;
+					LogManager::getSingleton().logMessage("Transform: "+StringConverter::toString(position));
+					LogManager::getSingleton().logMessage("Transform: "+StringConverter::toString(size));
+					break;
+				default:
+					break;
+				}
+				
+			}
+			String lue = lua_tostring(pL, 6);
+
+			if (MagicManager::getSingleton().getBMgr()->getButton(name)==0)
+			{
+			buttonGUI::button* btn = MagicManager::getSingleton().getBMgr()->
+				createButton(name, "BLANK", buttonGUI::buttonPosition(position.x,position.y), size.x,size.y,0,true,true,lue);
+			btn->setMovable(true);
+			btn->addButtonMesh(name+"_mesh", meshname, 0,0, size.x,size.y)->setZoom(StringConverter::parseReal(lua_tostring(pL, 5)))->setRotation(StringConverter::parseQuaternion(lua_tostring(pL, 6)));
 			}
 			else
 			{
@@ -355,7 +427,7 @@ void handleButtonEvent(buttonGUI::buttonEvent * e);
 		}
 		return 1;
 	}
-
+	
 	bool center640;
 	int wrap_type;
 	Camera* mCam;
@@ -363,7 +435,7 @@ private:
 	String mPath;
 	
 	bool activated;
-	
+	bool glowWasEnabled;
 	//MagicRenderQueue* mQueue;
 	lua_State* pLua;
 buttonGUI::buttonManager* buttonMgr;

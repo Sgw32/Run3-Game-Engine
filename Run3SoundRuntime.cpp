@@ -197,9 +197,32 @@ void Run3SoundRuntime::clearAmbientSounds()
 	fileNames.clear();
 }
 
+//Kostil
+void Run3SoundRuntime::recheckAmbientSounds()
+{
+	vector<AmbientSound>::iterator it;
+	for (it=asounds.begin();it!=asounds.end();it++)
+	{
+		(*it).destroy();
+	}
+}
+
+void Run3SoundRuntime::setCheckAmbientSounds()
+{
+	check=3.0f;
+}
 
 bool Run3SoundRuntime::frameStarted(const Ogre::FrameEvent &evt)
 {
+	if (check)
+	{
+		check-=evt.timeSinceLastFrame;
+		if (check<0)
+		{
+			recheckAmbientSounds();
+			check=0;
+		}
+	}
 	vector<AmbientSound>::iterator it;
 	for (it=asounds.begin();it!=asounds.end();it++)
 	{

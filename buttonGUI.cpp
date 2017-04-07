@@ -1228,6 +1228,12 @@ buttonMesh * buttonMesh::setRotation(Ogre::Real x, Ogre::Real y, Ogre::Real z)
 	return this;
 }
 
+buttonMesh * buttonMesh::setRotation(Quaternion rot)
+{
+	baseNode->rotate(rot);
+	return this;
+}
+
 
 buttonMesh * buttonMesh::setPosition(short x, short y)
 {

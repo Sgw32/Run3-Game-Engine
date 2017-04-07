@@ -40,12 +40,13 @@ void Inventory::display()
 {
 	if (enabled)
 	{
-	visi=true;
+		visi=true;
 
 		LogManager::getSingleton().logMessage("buttonGUIManager: creating Render Queue");
 		buttonMgr->showCursor();
 		HUD::getSingleton().ShowOverride();
 		RunLuaScript(global::getSingleton().getLuaState(),"run3/lua/funcs/inventory.lua");
+		CompositorManager::getSingleton().setCompositorEnabled(global::getSingleton().getCamera()->getViewport(), "Glow", false);
 	}
 			//create red button in the middle
 		//buttonMgr->createButton("centerButton", "middleButtonMat", buttonGUI::buttonPosition(450,384), 128,128);		//notice that all the material variants are automatically detected and used
@@ -59,6 +60,7 @@ void Inventory::destroy()
 			buttonMgr->deleteAllButtons();
 		buttonMgr->hideCursor();
 		LogManager::getSingleton().logMessage("buttonGUIManager: false");
+		CompositorManager::getSingleton().setCompositorEnabled(global::getSingleton().getCamera()->getViewport(), "Glow", glowWasEnabled);
 	
 }
 	

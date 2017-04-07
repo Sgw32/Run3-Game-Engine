@@ -692,7 +692,8 @@ class buttonMesh  //internal class to help manage 3D stuff in the buttons
 			* 
 			*/
 			buttonMesh * setRotation(Ogre::Real x, Ogre::Real y, Ogre::Real z);
-
+			
+			buttonMesh * setRotation(Quaternion rot);
 			/**
 			* Sets the drawing order of this buttonMesh
 			*/

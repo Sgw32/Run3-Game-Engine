@@ -106,10 +106,12 @@ void DotSceneLoader::parseDotScene(const String &SceneName, const String &groupN
 	if (StringConverter::parseBool(getAttrib(XMLRoot,"glow","false"))==false)
 	{
 		CompositorManager::getSingleton().setCompositorEnabled(mCamera->getViewport(), "Glow", false);
+		Inventory::getSingleton().setGlowWasActive(false);
 	}
 	else
 	{
 		CompositorManager::getSingleton().setCompositorEnabled(mCamera->getViewport(), "Glow", true);
+		Inventory::getSingleton().setGlowWasActive(true);
 	}
 	sceneMultiplier=getAttribReal(XMLRoot,"multiplier",1);
 	// figure out where to attach any nodes we create

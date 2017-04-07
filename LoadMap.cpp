@@ -104,7 +104,7 @@ LogManager::getSingleton().logMessage("6");
 scriptOnExit="";
 Sequence::getSingleton().SetSceneSeq(sequence);
 LogManager::getSingleton().logMessage("7");
-NPCManager::getSingleton().setStep(0.05f);
+
 	}
 	catch(...)
 	{
@@ -169,6 +169,7 @@ SceneLoadOverlay::getSingleton().Hide_all();
 scriptOnExit="";
 Sequence::getSingleton().SetSceneSeq(sequence);
 ZonePortalManager::getSingleton().triggerAll();
+Run3SoundRuntime::getSingleton().setCheckAmbientSounds();
 	}
 	catch(...)
 	{
@@ -245,4 +246,5 @@ void LoadMap::UnloadM(SceneManager *mSceneMgr)
 	Run3SoundRuntime::getSingleton().clearAmbientSounds();
 	sound->releaseAllAudio();
 	sound->releaseBuffers();
+	NPCManager::getSingleton().setStep(0.05f);
 }

@@ -16,21 +16,21 @@ public:
 	TrainMatOther(void){};
 	~TrainMatOther(void){};
 	void train_derail( OgreNewt::Body* me )
-{
-Ogre::Real mass; 
-   Ogre::Vector3 inertia; 
-   
-   me->getMassMatrix(mass, inertia); 
-   Ogre::Vector3 force(0,-500*TIME_SHIFT*TIME_SHIFT,0); 
-   force *= mass; 
-	me->addForce(force);
-}
+	{
+		Ogre::Real mass; 
+	Ogre::Vector3 inertia; 
+	   
+	me->getMassMatrix(mass, inertia); 
+	Ogre::Vector3 force(0,-500*TIME_SHIFT*TIME_SHIFT,0); 
+	force *= mass; 
+		me->addForce(force);
+	}
 	int userProcess()
 	{
 	
 	return true;
 	}
-World* mWorld;
+	World* mWorld;
 };
 
 
@@ -52,39 +52,33 @@ Ogre::Real mass;
 }
 	int userProcess()
 	{
-		//LogManager::getSingleton().logMessage(StringConverter::toString(m_body0->getType()));
-		//LogManager::getSingleton().logMessage(StringConverter::toString(m_body1->getType()));
 		Vector3 p,n;
 		getContactPositionAndNormal(p,n);
 		if ((m_body0->getType()==6)&&(m_body1->getType()==6))
-	{
-		//LogManager::getSingleton().logMessage("DERAIL!!!");
-		
-		ExplosionManager::getSingleton().spawnExplosionNosound(p,Vector3(3,3,3));
-Run3SoundRuntime::getSingleton().emitSound("run3/sounds/explode_3.wav",4,false,p,200,50,800);
-GibManager::getSingleton().spawnGibs("metal_chunk01.mesh",p,Vector3(3,3,3),10.0f,30,500);
-		/*m_body0->setCustomForceAndTorqueCallback<TrainMat>( &TrainMat::train_derail ,this);
-		m_body1->setCustomForceAndTorqueCallback<TrainMat>( &TrainMat::train_derail ,this);*/
-		m_body0->setType(4);
-		m_body1->setType(4);
-		m_body0->setMaterialGroupID(mWorld->getDefaultMaterialID());
-		m_body1->setMaterialGroupID(mWorld->getDefaultMaterialID());
-		//m_body0->setAutoFreeze(1);
-		//m_body1->setAutoFreeze(1);
-		/*Train* t1 = (Train*)m_body0->getUserData();
-		t1->derail();
-		t1 = (Train*)m_body1->getUserData();
-		t1->derail();*/
+		{
+			ExplosionManager::getSingleton().spawnExplosionNosound(p,Vector3(3,3,3));
+			Run3SoundRuntime::getSingleton().emitSound("run3/sounds/explode_3.wav",4,false,p,200,50,800);
+			GibManager::getSingleton().spawnGibs("metal_chunk01.mesh",p,Vector3(3,3,3),10.0f,30,500);
+			/*m_body0->setCustomForceAndTorqueCallback<TrainMat>( &TrainMat::train_derail ,this);
+			m_body1->setCustomForceAndTorqueCallback<TrainMat>( &TrainMat::train_derail ,this);*/
+			m_body0->setType(4);
+			m_body1->setType(4);
+			m_body0->setMaterialGroupID(mWorld->getDefaultMaterialID());
+			m_body1->setMaterialGroupID(mWorld->getDefaultMaterialID());
+			//m_body0->setAutoFreeze(1);
+			//m_body1->setAutoFreeze(1);
+			/*Train* t1 = (Train*)m_body0->getUserData();
+			t1->derail();
+			t1 = (Train*)m_body1->getUserData();
+			t1->derail();*/
 
-	}
-		//LogManager::getSingleton().logMessage("DERAIL!!!2");
-Vector3 force = getContactForce();
-	//LogManager::getSingleton().logMessage(StringConverter::toString(force));
-	Real y = force.y;
-	if (y>100000*TIME_SHIFT*TIME_SHIFT)
-	{
-	Run3SoundRuntime::getSingleton().emitSound("run3/sounds/trbr.wav",5.0f,false,p,200,50,800);
-	
+		}
+		Vector3 force = getContactForce();
+		Real y = force.y;
+		if (y>100000*TIME_SHIFT*TIME_SHIFT)
+		{
+		Run3SoundRuntime::getSingleton().emitSound("run3/sounds/trbr.wav",5.0f,false,p,200,50,800);
+		
 	}
 
 	/*if ((m_body0->getType()==1))
@@ -155,7 +149,7 @@ public:
 	{
 		 // Do nothing if given a zero vector
 		if (vec == Vector3::ZERO) return Quaternion::IDENTITY;
-Quaternion targetOrientation;
+		Quaternion targetOrientation;
         // The direction we want the local direction point to
         Vector3 targetDir = vec.normalisedCopy();
 
@@ -180,7 +174,7 @@ Quaternion targetOrientation;
                 Quaternion rotQuat = currentDir.getRotationTo(targetDir);
                 targetOrientation = rotQuat * currentOrient;
             }
-return targetOrientation;
+			return targetOrientation;
 	}
 	void setFixOrient(bool x);
 	void derail()
@@ -194,7 +188,7 @@ return targetOrientation;
 		else
 			return false;
 	}
-void setMaterialGroupID(const OgreNewt::MaterialID* enemyMat)
+	void setMaterialGroupID(const OgreNewt::MaterialID* enemyMat)
 	{
 		if (bod)
 		{
@@ -222,17 +216,20 @@ void setMaterialGroupID(const OgreNewt::MaterialID* enemyMat)
 	{
 		infinite=inf;
 	}
+
 	void enablePositionSaveMode()
 	{
 	positionSaveMode=true;
 	saveposition=getpos(bod);
 	}
+
 	void disablePositionSaveMode()
 	{
 	positionSaveMode=false;
 	}
+
 	String getName(){return mName;}
-		String stopSound;
+	String stopSound;
 	String movingSound;
 	String startSound;
 	Real mSpeed;

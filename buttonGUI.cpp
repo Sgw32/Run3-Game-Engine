@@ -1572,8 +1572,11 @@ bool buttonManager::injectMouseDown(OIS::MouseButtonID &id)
 		if (turningMouseButton == id)
 			isRotateMB = true;
 
-		if(topButton->onClick(isRotateMB)) //register the event in the button and check the returned trigger
-			eventLog.push_back(buttonEvent(ONCLICK, id, topButton)); //log the event
+		if (id==OIS::MB_Left)
+		{
+			if(topButton->onClick(isRotateMB)) //register the event in the button and check the returned trigger
+				eventLog.push_back(buttonEvent(ONCLICK, id, topButton)); //log the event
+		}
 
 		if(topButton->setFocused(true)) //only textInputAreas can be focused, so only they return true with setFocused()
 		{

@@ -15,6 +15,7 @@ Train::Train()
 	positionSaveMode=false;
 	infinite=false;
 	mYawAngle=180;
+	particleNode=0;
 }
 
 Train::~Train()
@@ -364,7 +365,9 @@ void Train::start()
 	}
 	if (startSound!="none")
 	Run3SoundRuntime::getSingleton().emitSound(startSound,soundDuration,false,getpos(bod),200,50,800);
-moving=true;
+	moving=true;
+	if (particleNode)
+		particleNode->setVisible(true);
 }
 
 void Train::resume()
@@ -448,6 +451,8 @@ curKPoint=1;
 		sound=777;
 	}
 	moving=false;
+	if (particleNode);
+	particleNode->setVisible(false);
 //	}
 }
 

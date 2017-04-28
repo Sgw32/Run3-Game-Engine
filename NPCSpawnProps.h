@@ -28,6 +28,7 @@ public:
 		renderDist=10000.0f;
 		transitSpeed=1;
 		cNearScript="";
+		ragdoll=false;
 	}
 	// overloaded constructor
 	inline NPCSpawnProps(String className,Vector3 pos)
@@ -60,6 +61,7 @@ public:
 	bool strange_look;
 	bool sounds;
 	bool facial_animation;
+	bool ragdoll;
 	Real takeOffBypass;
 	Real headshotDist;
 	Real rotateSpeed;

@@ -1439,12 +1439,8 @@ void DotSceneLoader::processMirror(TiXmlElement *XMLNode, SceneNode *pParent)
 	MirrorManager::getSingleton().createNewMirror(mat,pParent,pParent->getScale());
 }
 
-
-void DotSceneLoader::processRagDoll(TiXmlElement *XMLNode, SceneNode *pParent)
+void DotSceneLoader::util_processRagDoll(String name,String scriptFile,String meshFile, SceneNode *pParent)
 {
-	String name = getAttrib(XMLNode, "name");
-	String meshFile = getAttrib(XMLNode, "meshFile");
-	String scriptFile = getAttrib(XMLNode, "scriptFile");
 	dynamicObjects.push_back(name);
 	try
 	{
@@ -1458,7 +1454,15 @@ void DotSceneLoader::processRagDoll(TiXmlElement *XMLNode, SceneNode *pParent)
 	{
 		LogManager::getSingleton().logMessage("[DotSceneLoader] Error loading ragdoll");
 	}
+}
 
+void DotSceneLoader::processRagDoll(TiXmlElement *XMLNode, SceneNode *pParent)
+{
+	String name = getAttrib(XMLNode, "name");
+	String meshFile = getAttrib(XMLNode, "meshFile");
+	String scriptFile = getAttrib(XMLNode, "scriptFile");
+	
+	util_processRagDoll(name,scriptFile,meshFile,pParent);
 }
 
 void DotSceneLoader::processPhysObj(TiXmlElement *XMLNode, SceneNode *pParent)

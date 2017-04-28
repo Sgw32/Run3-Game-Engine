@@ -30,6 +30,7 @@ void Train::addParticleSystem(String name, Vector3 pos, Vector3 scale)
 	particleNode = nod->createChildSceneNode(pos);
 	particleNode->setScale(scale);
 	particleNode->attachObject(pParticles);
+	particleNode->setVisible(false);
 }
 
 void Train::setAcceleration(Real acc)

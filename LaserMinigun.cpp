@@ -381,7 +381,7 @@ void LaserMinigun::MouseRelease(const OIS::MouseEvent &arg, OIS::MouseButtonID i
 		{
 
 			mWeaponNode->detachObject(flashLight);
-			LogManager::getSingleton().logMessage(StringConverter::toString(mSceneMgr->hasLight("flashLighter3"))+"PLAYERB!!!");
+			//LogManager::getSingleton().logMessage(StringConverter::toString(mSceneMgr->hasLight("flashLighter3"))+"PLAYERB!!!");
 			if (flashLight)
 				mSceneMgr->destroyLight(flashLight);
 			flashLight=0;

@@ -988,6 +988,7 @@ void Sequence::processNPC(TiXmlElement *XMLNode)
 	prop.ax=axis;
 	prop.landed=landed;
 	prop.ascendFromGround=ascendFromGround;
+	prop.ragdoll=getAttribBool(XMLNode,"ragdoll",false);
 	prop.facial_animation=getAttribBool(XMLNode,"fac_anim",false);
 	prop.stupidsounds=getAttribBool(XMLNode,"sounds",true);
 	prop.sounds=getAttribBool(XMLNode,"sounds2",true);

@@ -809,20 +809,6 @@ void npc_aerial::step(const Ogre::FrameEvent &evt)
 	////LogManager::getSingleton().logMessage("enemy end step");
 } 
 
-/*Radian angleBetweenR(const Vector3& dest)
-{
-			Real lenProduct = length() * dest.length();
-
-			// Divide by zero check
-			if(lenProduct < 1e-6f)
-				lenProduct = 1e-6f;
-
-			Real f = dotProduct(dest) / lenProduct;
-
-			return Math::ACos(f);
-
-}*/
-
 bool npc_aerial::find_path()
 {
 	//LogManager::getSingleton().logMessage("pathfind");

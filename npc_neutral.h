@@ -66,6 +66,9 @@ public:
 	void suspend();
 	// Unused
 	void resume();
+
+	
+
 	Vector3 getDirection()
 	{
 		return getorient(npcBody)*Vector3::NEGATIVE_UNIT_Z;
@@ -165,7 +168,7 @@ public:
            t->setOrientation(targetOrientation);
     }
 
-void lookAt( Node* t,const Vector3& targetPoint, Node::TransformSpace relativeTo, 
+	void lookAt( Node* t,const Vector3& targetPoint, Node::TransformSpace relativeTo, 
         const Vector3& localDirectionVector)
     {
         // Calculate ourself origin relative to the given transform space
@@ -216,7 +219,8 @@ void lookAt( Node* t,const Vector3& targetPoint, Node::TransformSpace relativeTo
 	{
 		return (1+sin(time256/16*3.14f))/2;//(int)(((int)time256)%8>4);
 	}
-
+	
+	inline void flush();
 	// feedback from NPCManager
 	bool frameStarted(const Ogre::FrameEvent &evt);
 	void setParentRelation(SceneNode* pPar);
@@ -227,17 +231,19 @@ private:
 	//Private NPC events
 	vector<Ogre::Node*> animatedBones;
 	inline void processNoticeStep();
+	inline void processHealthLoss(OgreNewt::Body* me);
 	inline void processAttachedObjects();
 	inline void processAnimationTransition(Real time);
 	inline void processLook(Real time);
 	inline void processRandomMovements(Real time);
+	inline void spawnNPC();
+	inline void spawnNPCRagdoll(Vector3 pos);
 	PRIVATE_NODELIST
 	AnimationState* mAnimState;
 	AnimationState* mTransitAnimState;
 	Real transitState;
 	Real time256;
 	Light* flashLight;
-	//Real transitSpeed;
 	std::vector<NPCNode*> mPath;
 	Real mTime,mRealTime,mVel;
 	NPCNode* pPos;
@@ -263,14 +269,13 @@ private:
 	bool previous_player;
 	bool cmdMode;
 	bool parentRelation;
+	bool dead;
 	Vector3 pRelPosition;
 	Quaternion pRelQuat;
 	Quaternion pRelQuat2;
 	Vector3 destCMD;
 	Real goalHeadYaw;
 	SkeletonInstance* skel;
-	//Ogre::SceneNode*		mDebugPathNode;
-	//Ogre::ManualObject*		mDebugLines;
 	vector<Ogre::SceneNode*>	mDebugPathNodes;
 	vector<PhysObject*>	attachedPhysObjects;
 	Real yShift;

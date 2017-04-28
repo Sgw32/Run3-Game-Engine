@@ -242,7 +242,7 @@ void MagicManager::handleButtonEvent(buttonGUI::buttonEvent * e)
 	if (e->actionButton)
 		name = *(e->actionButton->getName()) ;  //store the name of the main button.
 
-	if ((e->action == buttonGUI::ONCLICK))
+	if ((e->action == buttonGUI::ONCLICK)&&(e->mouseButton==OIS::MB_Left))
 	{
 		if (e->actionButton->mLua!="")
 			RunLuaScript(pLua,e->actionButton->mLua.c_str());

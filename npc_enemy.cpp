@@ -159,7 +159,7 @@ void npc_enemy::npc_force_callback( OgreNewt::Body* me)
 		{
 			ExplosionManager::getSingleton().spawnExplosionNosound(me->damagePosition,Vector3(2,2,2));
 			if (mProps.sounds)
-Run3SoundRuntime::getSingleton().emitSound("run3/sounds/explode_3.wav",4,false,me->damagePosition,200,50,800);
+			Run3SoundRuntime::getSingleton().emitSound("run3/sounds/explode_3.wav",4,false,me->damagePosition,200,50,800);
 			kill();
 			mProps.exploding=false;
 		}

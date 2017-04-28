@@ -1,71 +1,84 @@
 #include "npc_neutral.h"
 #include "PhysObject.h"
 #include "FacialAnimationManager.h"
-
+#include "LoadMap.h"
 
 npc_neutral::npc_neutral()
 {
-blizko=false;
-stopAtDist=false;
-health=20;
-dyeNow=false;
-notsetIdle=false;
-rotation_needed=false;
-body_rot_y=0;
-lastAngle=0;
-previous_player=false;
-reach_zero=false;
-rot_dir=false;
-cmdMode=false;
-fstTimer=0;
-fstindex=1;
-moveActivity=1.0f;
-parentRelation=false;
-pRelPosition=Vector3::ZERO;
-luaToExec="";
-luaOnUse="";
-mTransitAnimState=0;
-transitState=1.0f;
-time256=0;
-goalHeadYaw=0;
-gravity=-98;
-mFac=NULL;
-notice=true;
-flashLight=0;
-//mDebugLines=0;
+	blizko=false;
+	stopAtDist=false;
+	health=20;
+	dyeNow=false;
+	notsetIdle=false;
+	rotation_needed=false;
+	body_rot_y=0;
+	lastAngle=0;
+	previous_player=false;
+	reach_zero=false;
+	rot_dir=false;
+	cmdMode=false;
+	fstTimer=0;
+	fstindex=1;
+	moveActivity=1.0f;
+	parentRelation=false;
+	pRelPosition=Vector3::ZERO;
+	luaToExec="";
+	luaOnUse="";
+	mTransitAnimState=0;
+	transitState=1.0f;
+	time256=0;
+	goalHeadYaw=0;
+	gravity=-98;
+	mFac=NULL;
+	notice=true;
+	flashLight=0;
+	dead=false;
+	//mDebugLines=0;
 }
 
 npc_neutral::~npc_neutral()
 {
-	if (animated)
+	flush();
+}
+
+inline void npc_neutral::flush()
+{
+	if (animated&&mAnimState)
 	{
-mAnimState->setEnabled(false);
+		mAnimState->setEnabled(false);
+		mAnimState=0;
 	}
 	if (npcBody)
-delete npcBody;
-heliEnt->detatchFromParent();
-mSceneMgr->destroyEntity(heliEnt);
-mSceneMgr->destroySceneNode(mHeliNode);
-int s = mDebugPathNodes.size();
+	{
+		delete npcBody;
+		npcBody = 0;
+	}
+	if (heliEnt)
+	{
+	heliEnt->detatchFromParent();
+	mSceneMgr->destroyEntity(heliEnt);
+	heliEnt=0;
+	}
+	if (mHeliNode)
+	{
+		mSceneMgr->destroySceneNode(mHeliNode);
+		mHeliNode=0;
+	}
+	int s = mDebugPathNodes.size();
 	for (unsigned int i=0;i!=s;i++)
 	{
 		mSceneMgr->destroyEntity(mDebugPathNodes[i]->getName());
 		mSceneMgr->destroySceneNode(mDebugPathNodes[i]);
 	}
 	mDebugPathNodes.clear();
-//mSceneMgr->destroySceneNode(mDebugPathNode);
-//mSceneMgr->destroyManualObject(mDebugLines);
-/*while (mPath.size() > 0)
-{
-		RagBone* bone = mBones.back();
 
-		delete bone;
 
-		mBones.pop_back();
-	}*/
-mPath.clear();
-if (mFac)
-delete mFac;
+	mPath.clear();
+	if (mFac)
+	{
+		delete mFac;
+		mFac=0;
+	}
 }
 
 //////////////////////////////////////////
@@ -94,8 +107,8 @@ void npc_neutral::teleport(Vector3 pos)
 ///
 void npc_neutral::init(NPCSpawnProps props)
 {
-	//LogManager::getSingleton().logMessage("Npc manager: npc neutral initializing");
-	mProps=props;
+			//LogManager::getSingleton().logMessage("Npc manager: npc neutral initializing");
+			mProps=props;
 			mRoot=global::getSingleton().getRoot();
 			going=false;
 			mSceneMgr=mRoot->getSceneManagerIterator().getNext();
@@ -141,12 +154,12 @@ pPosit=pos;
 
 void npc_neutral::start()
 {
-going=true;
+	going=true;
 }
 
 void npc_neutral::suspend()
 {
-going=false;
+	going=false;
 }
 
  void npc_neutral::resume()
@@ -156,7 +169,7 @@ going=false;
 
 void npc_neutral::headshot()
 {
-	Run3SoundRuntime::getSingleton().emitSound("run3/sounds/bodysplat_1.wav",2,false,npcBody->damagePosition,200,50,800);
+		Run3SoundRuntime::getSingleton().emitSound("run3/sounds/bodysplat_1.wav",2,false,npcBody->damagePosition,200,50,800);
 		mProps.headshot=false;
 		LogManager::getSingleton().logMessage("HEADSHOT!!!");
 		
@@ -168,6 +181,24 @@ void npc_neutral::headshot()
 		LogManager::getSingleton().logMessage("Headshot processing finished.");
 }
 
+inline void npc_neutral::processHealthLoss(OgreNewt::Body* me)
+{
+		LogManager::getSingleton().logMessage("NPC DAMAGE!!!");
+		if (((me->damagePosition-getpos(me)).y>mProps.headshotDist)&&(mProps.headshot))
+		{
+			BloodEmitter::getSingleton().emitBlood(me->damagePosition,Vector3(0.7,0.7,0.7));
+			GibManager::getSingleton().spawnGib(mProps.headMesh,me->damagePosition,mHeliNode->getScale(),4.0f);
+				headshot();
+		}
+		BloodEmitter::getSingleton().emitBlood(me->damagePosition,Vector3(0.3,0.3,0.3));
+		if (mProps.exploding)
+		{
+			ExplosionManager::getSingleton().spawnExplosionNosound(me->damagePosition,Vector3(2,2,2));
+			Run3SoundRuntime::getSingleton().emitSound("run3/sounds/explode_3.wav",4,false,me->damagePosition,200,50,800);
+			kill();
+			mProps.exploding=false;
+		}
+}
 
 void npc_neutral::npc_force_callback( OgreNewt::Body* me)
 {
@@ -179,83 +210,57 @@ void npc_neutral::npc_force_callback( OgreNewt::Body* me)
 	}
 
 	if (parentRelation)
-		{
-			me->setPositionOrientation(mPar->_getDerivedPosition()+(mPar->_getDerivedOrientation()*pRelQuat2)*pRelPosition,mPar->_getDerivedOrientation()*pRelQuat);//getorient(npcBody));
-		}
-	   else
-	   {
-   Ogre::Real mass; 
-   Ogre::Vector3 inertia; 
-   Vector3 stdAdd = Vector3::ZERO;
-   bool onEarth = isOnEarth();
-   Real health1=health;
-   health-=me->getDamage();
-  
-	if (health1!=health)
 	{
-		LogManager::getSingleton().logMessage("NPC DAMAGE!!!");
-		 if (((me->damagePosition-getpos(me)).y>mProps.headshotDist)&&(mProps.headshot))
-   {
-	   BloodEmitter::getSingleton().emitBlood(me->damagePosition,Vector3(0.7,0.7,0.7));
-	   GibManager::getSingleton().spawnGib(mProps.headMesh,me->damagePosition,mHeliNode->getScale(),4.0f);
-		headshot();
-   }
-		BloodEmitter::getSingleton().emitBlood(me->damagePosition,Vector3(0.3,0.3,0.3));
-		if (mProps.exploding)
-		{
-			ExplosionManager::getSingleton().spawnExplosionNosound(me->damagePosition,Vector3(2,2,2));
-Run3SoundRuntime::getSingleton().emitSound("run3/sounds/explode_3.wav",4,false,me->damagePosition,200,50,800);
-			kill();
-			mProps.exploding=false;
-		}
+			me->setPositionOrientation(mPar->_getDerivedPosition()+(mPar->_getDerivedOrientation()*pRelQuat2)*pRelPosition,mPar->_getDerivedOrientation()*pRelQuat);//getorient(npcBody));
 	}
-   if(health<0)
-   {
-	   dyeNow=true;
-		return;
-   }
-	   me->getMassMatrix(mass, inertia); 
-   if (me->getStdAddForce()!=Ogre::Vector3::ZERO)
-   {
-	stdAdd = me->getStdAddForce();
-	stdAdd.normalise();
-   }
-   //Ogre::Vector3 force2(steps.x*mVel+stdAdd.x*5*mVel,0,steps.z*1000+stdAdd.z*5*mVel);
-  // //LogManager::getSingleton().logMessage(StringConverter::toString(steps));
-   Ogre::Vector3 force2(steps.x*mVel+stdAdd.x*5*mVel,0,steps.z*mVel+stdAdd.z*5*mVel);
-  // //LogManager::getSingleton().logMessage(StringConverter::toString(steps));
-   Ogre::Vector3 force;
-   if (mProps.applyGravity)
-  force=Ogre::Vector3(0,gravity,0); 
-   else
-	 force=Vector3::ZERO;
+	else
+	{
+			//Main behaviour
+			Ogre::Real mass; 
+			Ogre::Vector3 inertia; 
+			Vector3 stdAdd = Vector3::ZERO;
+			bool onEarth = isOnEarth();
+			Real health1=health;
+			health-=me->getDamage();
+			  
+			//Helath processing
+			if (health1!=health)
+			{
+					processHealthLoss(me);
+			}
 
-   force *= mass; 
-   //force = force;
-   if (!onEarth)
-   me->addForce( force*TIME_SHIFT*TIME_SHIFT*moveActivity );
-   me->setStandartAddForce(Ogre::Vector3::ZERO);
-   //me->setPositionOrientation(getpos(me),Quaternion::ID
-  // me->addForce(  ); 
-  // me->setVelocity(Vector3::ZERO);
-   if ((onEarth)||(!mProps.applyGravity))
-   me->setVelocity( force2*TIME_SHIFT *moveActivity);
-   /*if (isOnEarth() && going)
-   {
-	   if (me->getUsing())
-		   force2=-force2;
-	    if (!stopAtDist)
-		{
+			if(health<0)
+			{
+				dyeNow=true;
+					return;
+			}
 
-			me->setVelocity( force2 );
-		}
-		else
-		{
-			if (!blizko)
-				me->setVelocity( force2 );
-		}
-   }*/
-	   }
+			me->getMassMatrix(mass, inertia); 
+			if (me->getStdAddForce()!=Ogre::Vector3::ZERO)
+			{
+				stdAdd = me->getStdAddForce();
+				stdAdd.normalise();
+			}
+			   
+			Ogre::Vector3 force2(steps.x*mVel+stdAdd.x*5*mVel,0,steps.z*mVel+stdAdd.z*5*mVel);
+			Ogre::Vector3 force;
+			if (mProps.applyGravity)
+				force=Ogre::Vector3(0,gravity,0); 
+			else
+				force=Vector3::ZERO;
+
+			force *= mass; 
+
+			if (!onEarth)
+					me->addForce( force*TIME_SHIFT*TIME_SHIFT*moveActivity );
+
+			me->setStandartAddForce(Ogre::Vector3::ZERO);
+			 
+			if ((onEarth)||(!mProps.applyGravity))
+			me->setVelocity( force2*TIME_SHIFT *moveActivity);
+  
+   }
+
    if (!going && !dyeNow)
    {
 	   if (!cmdMode)
@@ -273,16 +278,18 @@ Run3SoundRuntime::getSingleton().emitSound("run3/sounds/explode_3.wav",4,false,m
 	   }
 	   me->setVelocity(Vector3::ZERO);
    }
+
 	//FIX IT!!!
    //pPosit=mStartPos;
    if (!dyeNow)
    {
-   me->setOmega(Vector3(0,body_rot_y*TIME_SHIFT,0));
+		me->setOmega(Vector3(0,body_rot_y*TIME_SHIFT,0));
    }
    else
    {
 		me->setOmega(Vector3(0,0,0));
    }
+
 }
 
 
@@ -291,7 +298,7 @@ bool npc_neutral::isOnEarth()
         /*if (mProps.applyGravity)
 			return true;*/
    Ogre::Vector3 myPos = getpos(npcBody);
- AxisAlignedBox aab = heliEnt->getBoundingBox();
+	AxisAlignedBox aab = heliEnt->getBoundingBox();
 			
 		Vector3	size  = aab.getSize()*npc_scale;
    
@@ -339,12 +346,9 @@ bool npc_neutral::isOnEarth()
    
 }
 
-
-void npc_neutral::processEvent(int flag,String param1,String param2)
+inline void npc_neutral::spawnNPC()
 {
-	if (flag==SPAWN_NPC)
-	{
-		if (mProps.facial_animation)
+	if (mProps.facial_animation)
 		{
 			mFac=new FacialAnimation();
 			FacialAnimationManager::getSingleton().passFacial(mFac);
@@ -371,7 +375,7 @@ void npc_neutral::processEvent(int flag,String param1,String param2)
 			mHeliNode->setScale(npc_scale);
 			AxisAlignedBox aab = heliEnt->getBoundingBox();
 			
-		Vector3	size  = aab.getSize()*npc_scale;
+			Vector3	size  = aab.getSize()*npc_scale;
 			//LogManager::getSingleton().logMessage(StringConverter::toString(npc_scale)+" "+StringConverter::toString(size));
 			goal_achieved=true;
 			//Vector3 size=physSize;
@@ -413,6 +417,13 @@ void npc_neutral::processEvent(int flag,String param1,String param2)
 			mAnimState = heliEnt->getAnimationState("Idle1");
 			mAnimState->setEnabled(true);
 			}
+}
+
+void npc_neutral::processEvent(int flag,String param1,String param2)
+{
+	if (flag==SPAWN_NPC)
+	{
+		spawnNPC();
 	}
 
 	if (flag==FACIAL_ACTIVITY)
@@ -524,11 +535,11 @@ void npc_neutral::processEvent(int flag,String param1,String param2)
 		Run3SoundRuntime::getSingleton().emitSound("run3/sounds/bodysplat_1.wav",2,false,npcBody->damagePosition,200,50,800);
 		LogManager::getSingleton().logMessage("NPC KILL!!!");
 		 if (((npcBody->damagePosition-getpos(npcBody)).y>mProps.headshotDist)&&(mProps.headshot))
-   {
-	   BloodEmitter::getSingleton().emitBlood(npcBody->damagePosition,Vector3(0.7,0.7,0.7));
-	   GibManager::getSingleton().spawnGib(mProps.headMesh,npcBody->damagePosition,mHeliNode->getScale(),4.0f);
-		headshot();
-   }
+		{
+			BloodEmitter::getSingleton().emitBlood(npcBody->damagePosition,Vector3(0.7,0.7,0.7));
+			GibManager::getSingleton().spawnGib(mProps.headMesh,npcBody->damagePosition,mHeliNode->getScale(),4.0f);
+				headshot();
+		}
 		BloodEmitter::getSingleton().emitBlood(npcBody->damagePosition,Vector3(0.3,0.3,0.3));
 		if (mProps.exploding)
 		{
@@ -772,7 +783,6 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 		mAnimState->addTime(mulTime);
 		processAnimationTransition(mulTime);
 	}
-
 	processLook(mulTime);
 	
 	//There begins active code.
@@ -856,10 +866,7 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 	" "+StringConverter::toString(path_find));
 #endif
 		}
-		//else
-		//{
-			
-		//}
+		
 		
 		if (!notsetIdle&&!rotation_needed)
 		{
@@ -890,20 +897,6 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 			if (!dyeNow)
 			{
 			Vector3 dest=pPosit;
-				/*if (animated)
-				{
-				mAnimState->setEnabled(false);
-				}*/
-				/*
-				if (!notsetIdle&&!rotation_needed)
-				{
-							if (animated)
-							{
-								mAnimState = heliEnt->getAnimationState("Walk");
-								mAnimState->setEnabled(true);
-							}
-				}
-				*/
 
 			if (mPath.size()>=2)
 				dest = mPath[i]->getPosition();
@@ -965,11 +958,9 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 				Vector3 dir1 = getNPCDirection();
 				Degree angle;
 				angle = Vector3(dir1.x,0,dir1.z).angleBetween(dir);
-				////LogManager::getSingleton().logMessage(StringConverter::toString(dir1)+" "+StringConverter::toString(dir)+" "+StringConverter::toString(angle));
-				////LogManager::getSingleton().logMessage("Rotating in Player not found");
-				//if (angle>Degree(10.0f))
-									reach_zero=angle.valueDegrees()>lastAngle;  //приблизился ли угол к нулю.если да, то не приблизился
-									lastAngle=angle.valueDegrees();
+
+				reach_zero=angle.valueDegrees()>lastAngle;  //приблизился ли угол к нулю.если да, то не приблизился
+				lastAngle=angle.valueDegrees();
 									
 									if (reach_zero)
 									{
@@ -987,8 +978,6 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 										//LogManager::getSingleton().logMessage(StringConverter::toString(angle)+"-");
 										niNode->rotate(Vector3::UNIT_Y,Degree(-10.0f*evt.timeSinceLastFrame*TIME_SHIFT*5));
 									}
-				/*else
-				niNode->rotate(Vector3::UNIT_Y,angle);*/
 				steps=0;
 				////LogManager::getSingleton().logMessage(StringConverter::toString(dir1)+" "+StringConverter::toString(dir)+" "+StringConverter::toString(angle));
 				rotation_needed = Degree(fabs(angle.valueDegrees()))>=Degree(5.0f);
@@ -1030,15 +1019,14 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 				}
 
 				Vector3 dest = Vector3(pPosit.x,0,pPosit.z);
-				//Vector3 myPos = mHeliNode->getPosition();
 				Vector3 dir = dest-Vector3(myPos.x,0,myPos.z);
 
 				if (previous_player)
 				{
 
 					if (mProps.sounds)
-					Run3SoundRuntime::getSingleton().emitSound(mProps.soundFind,6,false,myPos,200,50,800);
-				previous_player=false;
+						Run3SoundRuntime::getSingleton().emitSound(mProps.soundFind,6,false,myPos,200,50,800);
+					previous_player=false;
 				}
 
 				if (farFindB) // NPC found player in near place
@@ -1082,9 +1070,9 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 
 									if (animated)
 									{
-									mAnimState->setEnabled(false);
-								mAnimState = heliEnt->getAnimationState("Walk");
-								mAnimState->setEnabled(true);
+										mAnimState->setEnabled(false);
+										mAnimState = heliEnt->getAnimationState("Walk");
+										mAnimState->setEnabled(true);
 									}
 									steps = dir;
 								}
@@ -1292,6 +1280,16 @@ bool npc_neutral::check_straight(Vector3 n1,Vector3 n2)
 	return true;
 }
 
+inline void npc_neutral::spawnNPCRagdoll(Vector3 pos)
+{
+			LogManager::getSingleton().logMessage("Ragdoll spawn!");
+			mHeliNode = mSceneMgr->getRootSceneNode()->createChildSceneNode(pos);
+			mHeliNode->setScale(npc_scale);
+			DotSceneLoader* dsl = LoadMap::getSingleton().dsl;
+			dsl->util_processRagDoll(mName,"auto.xml",npc_mesh,mHeliNode);
+			mHeliNode=0;  //Test for memory leak.
+}
+
 void npc_neutral::kill()
 {
 	going=false;
@@ -1302,7 +1300,7 @@ void npc_neutral::kill()
 	npcBody->setName("DEAD_NPC");
 	npcBody->freeze();
 	if (!mProps.luaOnDeath.empty())
-	RunLuaScript(global::getSingleton().getLuaState(),mProps.luaOnDeath.c_str());
+		RunLuaScript(global::getSingleton().getLuaState(),mProps.luaOnDeath.c_str());
 	mProps.applyGravity=true;
 
 	/*if (mProps.headshot)
@@ -1328,18 +1326,31 @@ void npc_neutral::kill()
 		MAKE_SOME_GORE("BMan0002-R Forearm")*/
 	//}*/
 
-	if (animated)
+	if (mProps.ragdoll)
 	{
-		mAnimState->setEnabled(false);
-		mAnimState = heliEnt->getAnimationState("Death1");
-		mAnimState->setLoop(false);
-		mAnimState->setEnabled(true);
+		Vector3 pos = getpos(npcBody);
+		dead=true;
+		flush();
+		spawnNPCRagdoll(pos);
 	}
+	else
+	{
+		if (animated)
+		{
+			mAnimState->setEnabled(false);
+			mAnimState = heliEnt->getAnimationState("Death1");
+			mAnimState->setLoop(false);
+			mAnimState->setEnabled(true);
+		}
+	}
+
+	
 }
 bool npc_neutral::frameStarted(const Ogre::FrameEvent &evt)
 {
-	step(evt);
-	if (animated)
+	if (!dead)
+		step(evt);
+	if (animated&&mAnimState)
 	{
 			if (!mAnimState->getLoop())
 			{

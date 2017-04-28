@@ -142,6 +142,8 @@ trunks3.clear();
 			}
 			trunks4.clear();*/
 		}
+	
+		void util_processRagDoll(String name,String script,String meshFile, SceneNode *pParent);
 
 		std::string _tostr(float a);
 
@@ -181,6 +183,7 @@ trunks3.clear();
 		void processPhysBlock(TiXmlElement *XMLNode, SceneNode *pParent); //added by Sgw32
 		void processPhysBox(TiXmlElement *XMLNode, SceneNode *pParent); //added by Sgw32
 		void processPhysCyl(TiXmlElement *XMLNode, SceneNode *pParent); //added by Sgw32
+		
 		void processRagDoll(TiXmlElement *XMLNode, SceneNode *pParent); //added by Sgw32
 		void processTree(TiXmlElement *XMLNode, SceneNode *pParent); //added by Sgw32
 		void processMusic(TiXmlElement *XMLNode); //added by Sgw32

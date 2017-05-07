@@ -118,8 +118,10 @@ public:
 		vector<PhysObject*> pobjects;
 	OgreNewt::MaterialPair* mMatPair;
 	const OgreNewt::MaterialID* physicalMat;
+	const OgreNewt::MaterialID* ragdollMat;
 	PhysObjectMatCallback* mPhysCallback;
-
+	RagdollMatCallback* mRagCallback;	
+	Ragdoll2RagdollMatCallback* mRag2Callback;	
 	CSerial* port;
 	Real rx1;
 	Real rx2;

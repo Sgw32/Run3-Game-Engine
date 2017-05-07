@@ -33,6 +33,7 @@ npc_neutral::npc_neutral()
 	notice=true;
 	flashLight=0;
 	dead=false;
+	LogManager::getSingleton().logMessage("NPC neutral init.");
 	//mDebugLines=0;
 }
 
@@ -348,7 +349,7 @@ bool npc_neutral::isOnEarth()
 
 inline void npc_neutral::spawnNPC()
 {
-	if (mProps.facial_animation)
+		if (mProps.facial_animation)
 		{
 			mFac=new FacialAnimation();
 			FacialAnimationManager::getSingleton().passFacial(mFac);
@@ -641,22 +642,6 @@ Run3SoundRuntime::getSingleton().emitSound("run3/sounds/explode_3.wav",4,false,n
 
 			}
 	}
-}
-
-Vector3 npc_neutral::getpos(OgreNewt::Body* bod)
-{
-		Vector3 pos;
-		Quaternion rot;
-		bod->getPositionOrientation(pos,rot);
-		return pos;
-}
-
-Quaternion npc_neutral::getorient(OgreNewt::Body* bod)
-{
-		Vector3 pos;
-		Quaternion rot;
-		bod->getPositionOrientation(pos,rot);
-		return rot;
 }
 
 void npc_neutral::transitFromCurrentAnimation(String newAnim)

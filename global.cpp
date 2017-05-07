@@ -52,10 +52,20 @@ void global::setWorld(OgreNewt::World* world)
 {
 	mWorld = world;
 	mPhysCallback = new PhysObjectMatCallback();
+	mRagCallback = new RagdollMatCallback();
+	mRag2Callback = new Ragdoll2RagdollMatCallback();
   mMatDefault = mWorld->getDefaultMaterialID();
   physicalMat= new OgreNewt::MaterialID( mWorld );
+  ragdollMat= new OgreNewt::MaterialID( mWorld );
   mMatPair = new OgreNewt::MaterialPair( mWorld, mMatDefault, physicalMat );
   mMatPair->setContactCallback( mPhysCallback );
+
+  mMatPair = new OgreNewt::MaterialPair( mWorld, mMatDefault, ragdollMat );
+  mMatPair->setContactCallback( mRagCallback );
+  mMatPair = new OgreNewt::MaterialPair( mWorld, physicalMat, ragdollMat );
+  mMatPair->setContactCallback( mRagCallback );
+  mMatPair = new OgreNewt::MaterialPair( mWorld, ragdollMat, ragdollMat );
+  mMatPair->setContactCallback( mRag2Callback );
 }
 
 OgreNewt::World* global::getWorld()

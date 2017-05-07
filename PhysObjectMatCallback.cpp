@@ -39,3 +39,16 @@ void PhysObjectMatCallback::userEnd()
 {
 
 }
+
+int RagdollMatCallback::userProcess()
+{
+	m_body1->freeze();
+	m_body0->freeze();
+	//LogManager::getSingleton().logMessage("freezing!");
+	return 1;
+}
+
+int Ragdoll2RagdollMatCallback::userProcess()
+{
+	return 0;
+}

@@ -27,7 +27,7 @@ public:
 		};
 
 		RagBone( RagDoll* creator, OgreNewt::World* world, RagBone* parent, Ogre::Bone* ogreBone, Ogre::MeshPtr mesh, Ogre::Vector3 dir, RagBone::BoneShape shape, Ogre::Vector3 size, Ogre::Real mass );
-
+		
 		~RagBone();
 
 		// newton body.
@@ -63,7 +63,7 @@ public:
 		Ogre::Vector3 getOffsetPos() { return mOffsetPos; }
 
 	private:
-
+		
 		OgreNewt::ConvexCollision* _makeConvexHull( OgreNewt::World* world, Ogre::MeshPtr mesh, Ogre::Real minWeight );
 
 		// pointer to the doll to which this bone belongs.
@@ -88,9 +88,9 @@ public:
 
 	// constructor
 	RagDoll( Ogre::String filename, OgreNewt::World* world, Ogre::SceneNode* node );
-
+	RagDoll( Ogre::String filename, OgreNewt::World* world, Ogre::SceneNode* node,Real lifetime);
 	~RagDoll();
-
+	void init(Ogre::String filename, OgreNewt::World* world, Ogre::SceneNode* node);
 	// set a different main node
 	void setSceneNode( Ogre::SceneNode* node ) { mNode = node; }
 
@@ -101,7 +101,25 @@ public:
 	// newton callbacks go here.
 	static void _placementCallback( OgreNewt::Body* me, const Ogre::Quaternion& orient, const Ogre::Vector3& pos );
 
+	inline bool getDispose(){return disposed;}
+
+	inline void dispose()
+	{
+		LogManager::getSingleton().logMessage("Ragdoll: dispose!");
+		while (mBones.size() > 0)
+		{
+			RagBone* bone = mBones.back();
+
+			delete bone;
+
+			mBones.pop_back();
+		}
+		disposed=true;
+	}
+	bool lifet;
+	Real mLifetime;
 private:
+	bool disposed;
 	
 	enum JointType
 	{

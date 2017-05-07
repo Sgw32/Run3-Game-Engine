@@ -71,7 +71,7 @@ RagDoll::RagBone::RagBone( RagDoll* creator, OgreNewt::World* world, RagDoll::Ra
 	col->calculateInertialMatrix( inertia, com );
 	
 	mBody->setMassMatrix( mass, inertia * mass );
-	mBody->setMaterialGroupID( global::getSingleton().physicalMat );
+	mBody->setMaterialGroupID( global::getSingleton().ragdollMat );
 	mBody->setCenterOfMass( com );
 	mBody->setAutoFreeze(false);
 	mBody->setCustomTransformCallback( RagDoll::_placementCallback );
@@ -86,7 +86,7 @@ void RagDoll::RagBone::bone_force_callback( OgreNewt::Body* me)
    Ogre::Vector3 inertia; 
    
    me->getMassMatrix(mass, inertia); 
-   Ogre::Vector3 force(0,GRAVITY*TIME_SHIFT,0); 
+   Ogre::Vector3 force(0,0.5f*GRAVITY*TIME_SHIFT,0); 
    force *= mass; 
 
    me->addForce( force ); 
@@ -224,10 +224,17 @@ OgreNewt::ConvexCollision* RagDoll::RagBone::_makeConvexHull( OgreNewt::World* w
 }
 
 
-
-
-RagDoll::RagDoll( Ogre::String filename, OgreNewt::World* world, Ogre::SceneNode* node )
+RagDoll::RagDoll( Ogre::String filename, OgreNewt::World* world, Ogre::SceneNode* node,Real lifetime )
 {
+	init(filename,world,node);
+	mLifetime=lifetime;
+	lifet=true;
+}
+
+void RagDoll::init(Ogre::String filename, OgreNewt::World* world, Ogre::SceneNode* node)
+{
+	mLifetime=10;
+	lifet=false;
 	mNode = node;
 	mWorld = world;
 
@@ -294,7 +301,12 @@ RagDoll::RagDoll( Ogre::String filename, OgreNewt::World* world, Ogre::SceneNode
 
 		}
 	}
+	disposed=false;
+}
 
+RagDoll::RagDoll( Ogre::String filename, OgreNewt::World* world, Ogre::SceneNode* node )
+{
+	init(filename,world,node);
 }
 
 void RagDoll::_addAllBones(RagDoll::RagBone* parent, TiXmlElement* bone)
@@ -459,6 +471,8 @@ void RagDoll::_autoAddAllBones(RagDoll::RagBone* parent, Ogre::Bone* bone)
 		Ogre::Real limit1 = 0;
 		Ogre::Real limit2 = 90;
 
+		limit2 = 10;
+
 		Ogre::Vector3 jpos = mNode->_getFullTransform() * ogrebone->_getDerivedPosition();
 		Ogre::Vector3 jpin = (mNode->getOrientation() * parent->getOgreBone()->_getDerivedOrientation()) * jointpin;
 
@@ -482,15 +496,17 @@ void RagDoll::_autoAddAllBones(RagDoll::RagBone* parent, Ogre::Bone* bone)
 
 RagDoll::~RagDoll()
 {
-	while (mBones.size() > 0)
+	if (!disposed)
 	{
-		RagBone* bone = mBones.back();
+		while (mBones.size() > 0)
+		{
+			RagBone* bone = mBones.back();
 
-		delete bone;
+			delete bone;
 
-		mBones.pop_back();
+			mBones.pop_back();
+		}
 	}
-
 }
 
 
@@ -531,10 +547,11 @@ void RagDoll::_placementCallback( OgreNewt::Body* me, const Ogre::Quaternion& or
 {
 	RagDoll::RagBone* bone = (RagDoll::RagBone*)me->getUserData();
 	RagDoll* doll = bone->getDoll();
-
+	
 	// is this the root bone?
 	if (!bone->getParent())
 	{
+		doll->mLifetime-=me->getWorld()->getTimeStep();
 		Ogre::Quaternion finalorient = (orient * bone->getOffsetOrient());
 		Ogre::Vector3 finalpos = pos + (orient * bone->getOffsetPos());
 
@@ -553,6 +570,10 @@ void RagDoll::_placementCallback( OgreNewt::Body* me, const Ogre::Quaternion& or
 
 		bone->getOgreBone()->setOrientation( localorient );
 		
+	}
+	if ((doll->mLifetime<0)&&(doll->lifet))
+	{
+		doll->dispose();
 	}
 }
 

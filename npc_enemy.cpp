@@ -18,6 +18,7 @@ cmdMode=false;
 fstTimer=0;
 fstindex=1;
 moveActivity=1.0f;
+LogManager::getSingleton().logMessage("NPC enemy init.");
 //mDebugLines=0;
 }
 
@@ -424,22 +425,6 @@ Run3SoundRuntime::getSingleton().emitSound("run3/sounds/explode_3.wav",4,false,n
 		kill();
 	}
 
-}
-
-Vector3 npc_enemy::getpos(OgreNewt::Body* bod)
-{
-		Vector3 pos;
-		Quaternion rot;
-		bod->getPositionOrientation(pos,rot);
-		return pos;
-}
-
-Quaternion npc_enemy::getorient(OgreNewt::Body* bod)
-{
-		Vector3 pos;
-		Quaternion rot;
-		bod->getPositionOrientation(pos,rot);
-		return rot;
 }
 
 void npc_enemy::step(const Ogre::FrameEvent &evt)

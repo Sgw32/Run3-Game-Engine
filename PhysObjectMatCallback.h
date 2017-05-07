@@ -26,3 +26,24 @@ public:
 	bool first;
 };
 
+class RagdollMatCallback :
+	public PhysObjectMatCallback
+{
+public:
+	RagdollMatCallback(void) : PhysObjectMatCallback(){}
+	~RagdollMatCallback(void){}
+
+	int userProcess();
+};
+
+class Ragdoll2RagdollMatCallback :
+	public PhysObjectMatCallback
+{
+public:
+	Ragdoll2RagdollMatCallback(void) : PhysObjectMatCallback(){}
+	~Ragdoll2RagdollMatCallback(void){}
+
+	int userProcess();
+};
+
+

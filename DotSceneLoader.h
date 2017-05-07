@@ -144,7 +144,7 @@ trunks3.clear();
 		}
 	
 		void util_processRagDoll(String name,String script,String meshFile, SceneNode *pParent);
-
+		void util_deleteRagDoll(String name);
 		std::string _tostr(float a);
 
 		std::vector<nodeProperty> nodeProperties;

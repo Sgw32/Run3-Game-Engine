@@ -1439,6 +1439,21 @@ void DotSceneLoader::processMirror(TiXmlElement *XMLNode, SceneNode *pParent)
 	MirrorManager::getSingleton().createNewMirror(mat,pParent,pParent->getScale());
 }
 
+void DotSceneLoader::util_deleteRagDoll(String name)
+{
+	std::vector<RagDoll*>::iterator i;
+	for (i=ragdolls.begin();i!=ragdolls.end();i++)
+	{
+		RagDoll* rd = (*i);
+		SceneNode* n = rd->getSceneNode();
+		if (n->getName()==name)
+		{
+			//mSceneMgr->destroySceneNode(n);
+			delete rd;
+		}
+	}
+}
+
 void DotSceneLoader::util_processRagDoll(String name,String scriptFile,String meshFile, SceneNode *pParent)
 {
 	dynamicObjects.push_back(name);
@@ -1447,7 +1462,7 @@ void DotSceneLoader::util_processRagDoll(String name,String scriptFile,String me
 		MeshManager::getSingleton().load(meshFile, m_sGroupName);
 		Entity* ragDoll = mSceneMgr->createEntity(name,meshFile);
 		pParent->attachObject(ragDoll);
-		RagDoll* mRagdoll = new RagDoll( scriptFile, mWorld, pParent );
+		RagDoll* mRagdoll = new RagDoll( scriptFile, mWorld, pParent,8.0f );
 		ragdolls.push_back(mRagdoll);
 	}
 	catch(Ogre::Exception &/*e*/)
@@ -1462,7 +1477,19 @@ void DotSceneLoader::processRagDoll(TiXmlElement *XMLNode, SceneNode *pParent)
 	String meshFile = getAttrib(XMLNode, "meshFile");
 	String scriptFile = getAttrib(XMLNode, "scriptFile");
 	
-	util_processRagDoll(name,scriptFile,meshFile,pParent);
+	dynamicObjects.push_back(name);
+	try
+	{
+		MeshManager::getSingleton().load(meshFile, m_sGroupName);
+		Entity* ragDoll = mSceneMgr->createEntity(name,meshFile);
+		pParent->attachObject(ragDoll);
+		RagDoll* mRagdoll = new RagDoll( scriptFile, mWorld, pParent,30.0f );
+		ragdolls.push_back(mRagdoll);
+	}
+	catch(Ogre::Exception &/*e*/)
+	{
+		LogManager::getSingleton().logMessage("[DotSceneLoader] Error loading ragdoll");
+	}
 }
 
 void DotSceneLoader::processPhysObj(TiXmlElement *XMLNode, SceneNode *pParent)

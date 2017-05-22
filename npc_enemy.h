@@ -46,23 +46,10 @@ public:
 	~npc_enemy();
 	// init NPC
 	void init(NPCSpawnProps props);
-	// check can it move
-	bool isOnEarth();
-	// return it's name
-	String getName(){return mName;};
 	// starts movement and activity
-	void start();
-	// Unused
 	void setPlayerPosition(Vector3 pos);
-	// Unused
-	void suspend();
-	// Unused
-	void resume();
-
-	Vector3 getNPCDirection()
-	{
-		return niNode->getOrientation()*Vector3::NEGATIVE_UNIT_Z;
-	}
+	bool check_straight();
+	bool check_straight(Vector3 n1,Vector3 n2);
 	// movement process here
 	void step(const Ogre::FrameEvent &evt);
 	// event callback
@@ -71,72 +58,29 @@ public:
 	void npc_force_callback( OgreNewt::Body* me);
 	// used in npc_physfollow
 	void addPoint(NPCNode* a);
-	//find path
-	bool find_path(); // return true if it isn't a straight path between player and npc, and false if it is.
-	//find path
-	bool find_path(Vector3 destPos); // return true if it isn't a straight path between player and npc, and false if it is.
 	// is NPC is killed
 	void kill();
 	//HEADSHOT!!!
 	void headshot();
-	
-	bool check_straight();
-	bool check_straight(Vector3 n1,Vector3 n2);
-
 	// feedback from NPCManager
 	bool frameStarted(const Ogre::FrameEvent &evt);
+	//
+	void spawnNPC();
 private:
-	AnimationState* mAnimState;
-	std::vector<NPCNode*> mPath;
 	Real mTime,mRealTime,mVel;
-	NPCNode* pPos;
-	Vector3 direction,pPosit,mSpawn,mStartPos;
-	Real fstTimer;
-	unsigned int fstindex;
 	int i,iter;
-	bool ttcomplete;
-	bool going;
-	bool straight;
-	bool blizko;
-	bool stopAtDist;
-	bool dyeNow;
-	bool notsetIdle;
-	bool animated;
-	bool goal_achieved;
-	bool rotation_needed;
-	bool previous_player;
-	bool cmdMode;
 	Vector3 destCMD;
-	SkeletonInstance* skel;
-	//Ogre::SceneNode*		mDebugPathNode;
-	//Ogre::ManualObject*		mDebugLines;
-	vector<Ogre::SceneNode*>	mDebugPathNodes;
 	Real yShift;
 	Real stopDist;
 	Real health;
 	Real body_rot_y;
-	bool reach_zero;
-	bool rot_dir;
-	bool sounds;
-	Real moveActivity;
 	Real rangle;
 	Vector3 axis;
-	Real attackAnimDist;
 	Real lastAngle;
-	String mName;
-	Real distToFloor;
-	Entity* heliEnt;
 	Vector3 steps;
-	Ogre::Root* mRoot;
-	Ogre::SceneNode* mHeliNode;
-	String npc_mesh;
-	Vector3 npc_scale;
 	Vector3 physPos;
 	Vector3 physSize;
 	Real farFind;
-	Ogre::SceneManager* mSceneMgr;
-	OgreNewt::World* mWorld;
-	NPCSpawnProps mProps;
 };
 
 #endif

@@ -99,21 +99,6 @@ void npc_enemy::setPlayerPosition(Vector3 pos)
 pPosit=pos;
 }
 
-void npc_enemy::start()
-{
-going=true;
-}
-
-void npc_enemy::suspend()
-{
-going=false;
-}
-
- void npc_enemy::resume()
-{
-
-}
-
 void npc_enemy::headshot()
 {
 	if (mProps.sounds)
@@ -238,75 +223,17 @@ void npc_enemy::npc_force_callback( OgreNewt::Body* me)
 	   
 }
 
-
-bool npc_enemy::isOnEarth()
+void npc_enemy::spawnNPC()
 {
-        /*if (mProps.applyGravity)
-			return true;*/
-   Ogre::Vector3 myPos = getpos(npcBody);
- AxisAlignedBox aab = heliEnt->getBoundingBox();
+			//mHeliNode = mSceneMgr->getRootSceneNode()->createChildSceneNode(mStartPos);
 			
-		Vector3	size  = aab.getSize()*npc_scale;
-   
-   OgreNewt::BasicRaycast floorRay(mWorld,myPos,myPos+Ogre::Vector3::NEGATIVE_UNIT_Y*(size.y+50));
-	int hits;
-	hits=floorRay.getHitCount();
-    if (hits > 0)
-   {           
-        OgreNewt::BasicRaycast::BasicRaycastInfo hit;
-        hit.mBody = NULL;
-      hit.mDistance = 500;
-        for(int i=0;i<floorRay.getHitCount();i++)
-        {
-            OgreNewt::BasicRaycast::BasicRaycastInfo found = floorRay.getInfoAt(i);
-         if(found.mBody != npcBody && found.mDistance < hit.mDistance)
-            {
-                //if the body I found is not my own, and is not water and is closer than last result
-                //you will probably have a different water system than me...
-                hit = found;
-                //break;
-            }
-        }
-        if(!hit.mBody)
-            return false;
-      distToFloor = hit.mDistance * (size.y+50); // calculale the distance to the floor
-	 
-      distToFloor -= size.y/2;// remove char's height; 
-      
-        
-      if(distToFloor > 0.05) //this much over the floor is considered on the floor
-      {
-		  ////LogManager::getSingleton().logMessage(StringConverter::toString(distToFloor));
-         return false;
-      }
-      else
-      {
-         return true;
-      }
-   } 
-   else
-   {
-	  // //LogManager::getSingleton().logMessage("Not on floor!");
-      return false;
-   }
-   
-}
-
-
-void npc_enemy::processEvent(int flag,String param1,String param2)
-{
-	if (flag==SPAWN_NPC)
-	{
-		
-			mHeliNode = mSceneMgr->getRootSceneNode()->createChildSceneNode(mStartPos);
-
+			//heliEnt=mSceneMgr->createEntity(mName,npc_mesh);
+			initFacialSystem();
 			if (mName=="")
 			{
 
 				mName=mHeliNode->getName();
 			}
-			
-			heliEnt=mSceneMgr->createEntity(mName,npc_mesh);
 			heliEnt->setRenderingDistance(mProps.renderDist);
 			if (!(mProps.materialName.empty()))
 				heliEnt->setMaterialName(mProps.materialName);
@@ -360,41 +287,12 @@ void npc_enemy::processEvent(int flag,String param1,String param2)
 			mAnimState = heliEnt->getAnimationState("Idle1");
 			mAnimState->setEnabled(true);
 			}
-	}
-	if (flag==RUNTO_NPC)
-	{
-		start();
-	}
-	if (flag==STOP_NPC)
-	{
-		suspend();
-	}
+}
 
-	if (flag==SETANIM_NPC)
-	{
-		if (animated)
-		{
-			mAnimState->setEnabled(false);
-			mAnimState = heliEnt->getAnimationState(param1);
-			mAnimState->setEnabled(true);
-			suspend();
-		}
-	}
+void npc_enemy::processEvent(int flag,String param1,String param2)
+{
+	processBaseEvent(flag,param1,param2);
 
-	if (flag==ALERT_NPC)
-	{
-		LogManager::getSingleton().logMessage("NPC is CRAZY");
-		moveActivity=2;
-	}
-	if (flag==FEAR_NPC)
-	{
-		LogManager::getSingleton().logMessage("NPC is trying to escape from this horrible situation");
-		moveActivity=0.3f;
-	}
-	if (flag==CRAZY_NPC)
-	{
-		moveActivity=0.3f;
-	}
 	if (flag==GOTO_NPC)
 	{
 		LogManager::getSingleton().logMessage("NPC goes to "+param1);
@@ -774,108 +672,6 @@ void npc_enemy::step(const Ogre::FrameEvent &evt)
 			return Math::ACos(f);
 
 }*/
-
-bool npc_enemy::find_path()
-{
-	//LogManager::getSingleton().logMessage("pathfind");
-	Vector3 myPos = getpos(npcBody);
-	bool straight = check_straight();
-	
-	int s = mDebugPathNodes.size();
-	
-	if (straight)
-		return false;
-	mPath.clear();
-	vector<NPCNode*> nodes = mNodeList->getNode();
-	//LogManager::getSingleton().logMessage("Nodes size:"+StringConverter::toString(nodes.size()));
-	NPCNode* pos = nodes[0];
-	NPCNode* end = nodes[0];
-	s = nodes.size();
-	
-	//LogManager::getSingleton().logMessage("finding closest nodes..."+StringConverter::toString(s));
-	for (unsigned int i=0;i!=s;i++)
-	{
-		if(check_straight(myPos,nodes[i]->getPosition()))
-		{
-		Real r1 = myPos.distance(nodes[i]->getPosition());
-		Real r2 = myPos.distance(pos->getPosition());
-		if (r1<r2)
-			pos=nodes[i];
-		}
-
-		if(check_straight(pPosit,nodes[i]->getPosition()))
-		{
-		Real r3 = pPosit.distance(nodes[i]->getPosition());
-		Real r4 = pPosit.distance(end->getPosition());
-		if (r3 <r4 )
-			end=nodes[i];
-		}
-	}
-	//LogManager::getSingleton().logMessage(StringConverter::toString("found"));
-	//LogManager::getSingleton().logMessage("to enemy"+StringConverter::toString(pos->getPosition()));
-	//LogManager::getSingleton().logMessage("to player"+StringConverter::toString(end->getPosition()));
-	//LogManager::getSingleton().logMessage("Starting pathfinding...");
-	mPath = AIManager::getSingleton().getPathFinder()->search(DEPTH_FIRST_SEARCH,pos,end);
-#ifdef _DEBUG
-	vector<NPCNode*>::iterator i2;
-	for (i2=mPath.begin();i2!=mPath.end();i2++)
-	//LogManager::getSingleton().logMessage(StringConverter::toString((*i2)->getPosition()));
-#endif
-	
-
-	return true;
-}
-
-bool npc_enemy::find_path(Vector3 destPos)
-{
-	//LogManager::getSingleton().logMessage("pathfind");
-	Vector3 myPos = getpos(npcBody);
-	bool straight = check_straight(myPos,destPos);
-	
-	int s = mDebugPathNodes.size();
-	
-	if (straight)
-		return false;
-	mPath.clear();
-	vector<NPCNode*> nodes = mNodeList->getNode();
-	//LogManager::getSingleton().logMessage("Nodes size:"+StringConverter::toString(nodes.size()));
-	NPCNode* pos = nodes[0];
-	NPCNode* end = nodes[0];
-	s = nodes.size();
-	
-	//LogManager::getSingleton().logMessage("finding closest nodes..."+StringConverter::toString(s));
-	for (unsigned int i=0;i!=s;i++)
-	{
-		if(check_straight(myPos,nodes[i]->getPosition()))
-		{
-		Real r1 = myPos.distance(nodes[i]->getPosition());
-		Real r2 = myPos.distance(pos->getPosition());
-		if (r1<r2)
-			pos=nodes[i];
-		}
-
-		if(check_straight(destPos,nodes[i]->getPosition()))
-		{
-		Real r3 = destPos.distance(nodes[i]->getPosition());
-		Real r4 = destPos.distance(end->getPosition());
-		if (r3 <r4 )
-			end=nodes[i];
-		}
-	}
-	//LogManager::getSingleton().logMessage(StringConverter::toString("found"));
-	//LogManager::getSingleton().logMessage("to enemy"+StringConverter::toString(pos->getPosition()));
-	//LogManager::getSingleton().logMessage("to player"+StringConverter::toString(end->getPosition()));
-	//LogManager::getSingleton().logMessage("Starting pathfinding...");
-	mPath = AIManager::getSingleton().getPathFinder()->search(DEPTH_FIRST_SEARCH,pos,end);
-#ifdef _DEBUG
-	vector<NPCNode*>::iterator i2;
-	for (i2=mPath.begin();i2!=mPath.end();i2++)
-	//LogManager::getSingleton().logMessage(StringConverter::toString((*i2)->getPosition()));
-#endif
-	
-
-	return true;
-}
 
 bool npc_enemy::check_straight()
 {

@@ -10,6 +10,7 @@
 #include "global.h"
 //AIR3 Headers
 #include "AIR3.h"
+
 #include "NPCSpawnProps.h"
 #include "AIManager.h"
 #include "BloodEmitter.h"
@@ -18,6 +19,7 @@
 #include "GibManager.h"
 #include "Timeshift.h"
 #include "FacialAnimation.h"
+#include "FacialAnimationManager.h"
 
 using namespace Ogre;
 using namespace std;
@@ -34,7 +36,18 @@ public:
 	virtual void init(NPCSpawnProps props){};
 	virtual bool frameStarted(const Ogre::FrameEvent &evt) {return 0;}
 	virtual void processEvent(int flag,String param1,String param2) {}
+
+	void processBaseEvent(int flag,String param1,String param2);
 	void setNodeList(NodeList* nList){STORE_NODELIST}
+
+	// starts movement and activity
+	void start();
+	// Unused
+	void suspend();
+	// Unused
+	void resume();
+	// return it's name
+	String getName(){return mName;};
 	void setMaterialGroupID(const OgreNewt::MaterialID* enemyMat)
 	{
 		if (npcBody)
@@ -55,85 +68,73 @@ public:
 	}
 
 	void setDirection(Node* t,const Vector3& vec, Node::TransformSpace relativeTo, 
-        const Vector3& localDirectionVector)
-    {
-        // Do nothing if given a zero vector
-        if (vec == Vector3::ZERO) return;
-
-        // The direction we want the local direction point to
-        Vector3 targetDir = vec.normalisedCopy();
-
-        // Transform target direction to world space
-        switch (relativeTo)
-        {
-		case Node::TS_PARENT:
-                if (t->getParent())
-                {
-                    targetDir = t->getParent()->_getDerivedOrientation() * targetDir;
-                }
-            break;
-        case Node::TS_LOCAL:
-            targetDir = t->_getDerivedOrientation() * targetDir;
-            break;
-        case Node::TS_WORLD:
-            // default orientation
-            break;
-        }
-
-        // Calculate target orientation relative to world space
-        Quaternion targetOrientation;
-      
-            const Quaternion& currentOrient = t->_getDerivedOrientation();
-
-            // Get current local direction relative to world space
-            Vector3 currentDir = currentOrient * localDirectionVector;
-
-            if ((currentDir+targetDir).squaredLength() < 0.00005f)
-            {
-                // Oops, a 180 degree turn (infinite possible rotation axes)
-                // Default to yaw i.e. use current UP
-                targetOrientation =
-                    Quaternion(-currentOrient.y, -currentOrient.z, currentOrient.w, currentOrient.x);
-            }
-            else
-            {
-                // Derive shortest arc to new direction
-                Quaternion rotQuat = currentDir.getRotationTo(targetDir);
-                targetOrientation = rotQuat * currentOrient;
-            }
-
-        // Set target orientation, transformed to parent space
-        if (t->getParent())
-           t->setOrientation(t->getParent()->_getDerivedOrientation().UnitInverse() * targetOrientation);
-        else
-           t->setOrientation(targetOrientation);
-    }
+        const Vector3& localDirectionVector);
+    
 
 	void lookAt( Node* t,const Vector3& targetPoint, Node::TransformSpace relativeTo, 
-        const Vector3& localDirectionVector)
-    {
-        // Calculate ourself origin relative to the given transform space
-        Vector3 origin;
-        switch (relativeTo)
-        {
-        default:    // Just in case
-		case Node::TS_WORLD:
-            origin = t->_getDerivedPosition();
-            break;
-        case Node::TS_PARENT:
-            origin = t->getPosition();
-            break;
-        case Node::TS_LOCAL:
-            origin = Vector3::ZERO;
-            break;
-        }
+        const Vector3& localDirectionVector);
 
-        setDirection(t,targetPoint - origin, relativeTo, localDirectionVector);
-    }
+	Vector3 getNPCDirection()
+	{
+		return niNode->getOrientation()*Vector3::NEGATIVE_UNIT_Z;
+	}
+	bool check_straight();
+	//find path
+	bool find_path();
+	bool find_path(Vector3 destPos);
+	//
+	bool check_straight(Vector3 n1,Vector3 n2);
+	// Move npcBody
+	void teleport(Vector3 pos);
+	// check can it move
+	bool isOnEarth();
+
+	void processNoticeStep();
+	//
+	void initFacialSystem();
+	//
+	virtual void spawnNPC(){};
 protected:
 	PRIVATE_NODELIST
-	OgreNewt::Body* npcBody;
-	SceneNode* niNode;
+	String mName; //Name of NPC
+	String npc_mesh;
+	OgreNewt::Body* npcBody; //Newton Physics body
+	Ogre::SceneNode* mHeliNode; //Master NPC Ogre Node
+	SceneNode* niNode; //Slave NPC Ogre Node
+	Entity* heliEnt; //Main NPC Entity
+	SkeletonInstance* skel; //NPC Skeleton(for random animations)
+	bool ttcomplete; 
+	bool going; //Is activity(goes/rotates)
+	bool straight;
+	bool blizko;
+	bool stopAtDist;
+	bool dyeNow;
+	bool notsetIdle;
+	bool animated;
+	bool goal_achieved;
+	bool rotation_needed;
+	bool previous_player;
+	bool cmdMode;
+	bool notice;
+	bool reach_zero;
+	bool rot_dir;
+	bool sounds;
+	Vector3 direction,pPosit,mSpawn,mStartPos;
+	unsigned char fstindex; //Footstep counter
+	Real moveActivity, fstTimer; //How fast NPC operates, footstep timer.
+	Real attackAnimDist;
+	Vector3 npc_scale;
+	Ogre::Root* mRoot; //Ogre Root
+	Ogre::SceneManager* mSceneMgr; //Ogre SceneManager
+	OgreNewt::World* mWorld; //Newton World
+	FacialAnimation* mFac; //Facial animation (common for every class!)
+	NPCNode* pPos; //Destination closest node
+	std::vector<NPCNode*> mPath; //Path for NPC to follow
+	NPCSpawnProps mProps; //Input properties, common for all NPCs.
+	AnimationState* mAnimState; //Current animation
+	AnimationState* mTransitAnimState; //Following animation
+	//Debug
+	vector<Ogre::SceneNode*>	mDebugPathNodes;
 };
 
 #endif

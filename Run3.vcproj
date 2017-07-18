@@ -112,7 +112,8 @@
 			<Tool
 				Name="VCMIDLTool"/>
 			<Tool
-				Name="VCPostBuildEventTool"/>
+				Name="VCPostBuildEventTool"
+				CommandLine="copy /b &quot;C:\Run3v0.72\run3_r.exe&quot; &quot;D:\VARIOUS_BACKUPS!\TheLongWay\run3_r.exe&quot; /y"/>
 			<Tool
 				Name="VCPreBuildEventTool"/>
 			<Tool
@@ -137,6 +138,9 @@
 		<Filter
 			Name="Source Files"
 			Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm">
+			<File
+				RelativePath=".\MainUtils.h">
+			</File>
 			<Filter
 				Name="tinyxml"
 				Filter="">
@@ -207,6 +211,9 @@
 					RelativePath=".\FacialAnimation.cpp">
 				</File>
 				<File
+					RelativePath=".\FacialAnimationManager.cpp">
+				</File>
+				<File
 					RelativePath=".\FadeListener.cpp">
 				</File>
 				<File
@@ -237,6 +244,9 @@
 					RelativePath=".\main.cpp">
 				</File>
 				<File
+					RelativePath=".\MainModules.h">
+				</File>
+				<File
 					RelativePath=".\MeshDecalMgr.cpp">
 				</File>
 				<File
@@ -265,6 +275,9 @@
 				</File>
 				<File
 					RelativePath=".\Run3Batcher.cpp">
+				</File>
+				<File
+					RelativePath=".\Run3Benchmark.cpp">
 				</File>
 				<File
 					RelativePath=".\Run3Input.cpp">
@@ -453,7 +466,7 @@
 				</File>
 			</Filter>
 			<Filter
-				Name="Artifical Intelligence"
+				Name="Artificial Intelligence"
 				Filter="">
 				<File
 					RelativePath=".\AIManager.cpp">
@@ -482,6 +495,9 @@
 				</File>
 				<File
 					RelativePath=".\npc_neutral.cpp">
+				</File>
+				<File
+					RelativePath=".\npc_template.cpp">
 				</File>
 			</Filter>
 			<Filter
@@ -671,6 +687,9 @@
 				RelativePath=".\FacialAnimation.h">
 			</File>
 			<File
+				RelativePath=".\FacialAnimationManager.h">
+			</File>
+			<File
 				RelativePath=".\FadeListener.h">
 			</File>
 			<File
@@ -782,6 +801,28 @@
 				RelativePath=".\npc_neutral.h">
 			</File>
 			<File
+				RelativePath=".\npc_template.h">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCustomBuildTool"
+						Description="Moc&apos;ing npc_template.h..."
+						CommandLine="$(QTDIR)\bin\moc.exe .\npc_template.h -o tmp\moc\moc_npc_template.cpp
+"
+						AdditionalDependencies="$(QTDIR)\bin\moc.exe"
+						Outputs="tmp\moc\moc_npc_template.cpp"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCustomBuildTool"
+						Description=""
+						CommandLine=""
+						AdditionalDependencies=""
+						Outputs=""/>
+				</FileConfiguration>
+			</File>
+			<File
 				RelativePath=".\NPCManager.h">
 			</File>
 			<File
@@ -858,6 +899,9 @@
 			</File>
 			<File
 				RelativePath=".\Run3Batcher.h">
+			</File>
+			<File
+				RelativePath=".\Run3Benchmark.h">
 			</File>
 			<File
 				RelativePath=".\Run3FrameListener.h">

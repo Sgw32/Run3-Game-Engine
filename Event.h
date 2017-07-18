@@ -37,6 +37,7 @@ public:
 		script_callback=true;
 		luascripts.push_back(script);
 	}
+	void addLuaScript2(String script, Real secs);
 	void interpretate_callback();
 	void dispose();
 	virtual bool frameStarted(const Ogre::FrameEvent &evt);
@@ -59,6 +60,7 @@ private:
 	vector<String> d_events;
 	vector<Real> d_secs;
 	vector<String> luascripts;
+	vector<Real> l_secs;
 	Real maxwait;
 	String mName;
 	int i;

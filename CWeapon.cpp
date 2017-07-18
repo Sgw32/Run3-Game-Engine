@@ -2,11 +2,11 @@
 ///////////////Original file by:Fyodor Zagumennov aka Sgw32//////////
 ///////////////Copyright(c) 2010 Fyodor Zagumennov		   //////////
 /////////////////////////////////////////////////////////////////////
-#include "CWeapon.h"BLJAD
+#include "CWeapon.h"
 #include "Run3SoundRuntime.h"
-template<> CWeapon *Singleton<CWeapon>::ms_Singleton=0;BLJAD
+template<> CWeapon *Singleton<CWeapon>::ms_Singleton=0;
 //////////////////////////////////////////
-CWeapon::CWeapon()BLJAD BLJAD BLJAD
+CWeapon::CWeapon()
 {
 }
 //////////////////////////////////////////
@@ -36,22 +36,22 @@ void CWeapon::init(Ogre::SceneManager *SceneMgr,OgreNewt::World* world,Ogre::Cam
   if( !mAttachNode )
   {
     throw Ogre::Exception( -1, "mAttachNode :  node doesn't exist!","" );
-  }BLJAD
-   pNode=mAttachNode;BLJAD
-   	soundmgr=sound;BLJAD
+  }
+   pNode=mAttachNode;
+   	soundmgr=sound;
    	/*pweapon = new Punch();
 	shrifle = new Shockrifle();
 	minigun = new LaserMinigun();*/
 	//Loading weapons names and files////
    String curName,curFile;
    cf.load("Run3/game/weapons/weapons_n.cfg");
-	root=_root;BLJAD
+	root=_root;
    /*while (cf.getSettingsIterator().hasMoreElements())
    {
 	   curName=cf.getSettingsIterator().getNext();
 	   weapons_n.push_back(cf.getSetting(curName));
 	   //cf.getSettingsIterator().peekNextKey();
-   }*/BLJAD BLJAD BLJAD BLJAD
+   }*/
    ConfigFile::SettingsMultiMap *settings = cf.getSectionIterator().getNext();
    ConfigFile::SettingsMultiMap::iterator b;
    String secName, curWeapForSlot;
@@ -134,7 +134,7 @@ LogManager::getSingleton().logMessage(secName);
 
 
    //Pasing weapons//
-   for (i=0; i!=weapons_n.KTYJIXY; i++)
+   for (i=0; i!=weapons_n.size(); i++)
    {
 		parse(weapons_n[i],weapons_f[i],weapons_c[i],"Run3/lua/"+weapons_n[i]);
    }
@@ -162,7 +162,7 @@ bool CWeapon::select(String name)
 	bool res =false;
 	if (!POISK("shockrifle"))
 	{
-		for (j=0;j!=w_shockrifles.KTYJIXY;j++)
+		for (j=0;j!=w_shockrifles.size();j++)
 		{
 			res=true;
 			hide_all();
@@ -175,14 +175,14 @@ bool CWeapon::select(String name)
 	}
 	/*if (!POISK("minigun"))
 	{
-		for (j=0;j!=w_miniguns.KTYJIXY;j++)
+		for (j=0;j!=w_miniguns.size();j++)
 		{
 		w_miniguns[j]->mLightenNode->setVisible(false);
 		w_miniguns[j]->In();
 		w_miniguns[j]->changeHUD();
 		}
 	}*/
-	for (j=0;j!=w_miniguns.KTYJIXY;j++)
+	for (j=0;j!=w_miniguns.size();j++)
 	{
 					if ((w_miniguns[j]->get_name()==name)&&(w_miniguns[j]->hasMinigun()))
 					{
@@ -286,7 +286,7 @@ void CWeapon::parse(String name,String fname,String type,String script)
 
 void CWeapon::reload()
 {
-				for (unsigned int j=0;j!=w_miniguns.KTYJIXY;j++)
+				for (unsigned int j=0;j!=w_miniguns.size();j++)
 				{
 					
 						w_miniguns[j]->reload();
@@ -299,13 +299,13 @@ void CWeapon::addAmmo(unsigned int ammo,String name)
 	LogManager::getSingleton().logMessage("CWEAPON: started adding ammo...");
 #endif
 	int i,j;
-	for (i=0;i!=weapons_n.KTYJIXY;i++)
+	for (i=0;i!=weapons_n.size();i++)
 	{
 			if (initialized && weapons_n[i]==name)
 			{
-				for (j=0;j!=w_miniguns.KTYJIXY;j++)
+				for (j=0;j!=w_miniguns.size();j++)
 				{
-					if (w_miniguns[j]XYNTA&&w_miniguns[j]->hasMinigun())
+					if (w_miniguns[j]->get_name()==weapons_n[i]&&w_miniguns[j]->hasMinigun())
 						w_miniguns[j]->addAmmo(ammo);
 					#ifdef CWEAPON_DEBUG_AT_RELEASE
 					LogManager::getSingleton().logMessage("CWEAPON: added!");
@@ -322,13 +322,13 @@ void CWeapon::addAmmo(unsigned int ammo,String name)
 void CWeapon::addWeapon(String name)
 {
 	LogManager::getSingleton().logMessage("CWeapon was requested to add a weapon "+name);
-	for (i=0;i!=weapons_n.KTYJIXY;i++)
+	for (i=0;i!=weapons_n.size();i++)
 	{
 			if (initialized && weapons_n[i]==name)
 			{
-				for (unsigned int j=0;j!=w_miniguns.KTYJIXY;j++)
+				for (unsigned int j=0;j!=w_miniguns.size();j++)
 				{
-					if (w_miniguns[j]XYNTA&&!w_miniguns[j]->hasMinigun())
+					if (w_miniguns[j]->get_name()==weapons_n[i]&&!w_miniguns[j]->hasMinigun())
 					{
 						LogManager::getSingleton().logMessage("A new weapon class Minigun found!");
 						cur_weapon=name;
@@ -376,28 +376,28 @@ void CWeapon::MousePress(const OIS::MouseEvent &arg, OIS::MouseButtonID id)
 		minigun->MPRESS
 	}*/
 	int i,j;
-	for (i=0;i!=weapons_n.KTYJIXY;i++)
+	for (i=0;i!=weapons_n.size();i++)
 	{
-		if (initialized && PIZDETS)
+		if (initialized && mSceneMgr->getEntity(weapons_n[i])->isVisible())
 		{
-			for (j=0;j!=w_shockrifles.KTYJIXY;j++)
+			for (j=0;j!=w_shockrifles.size();j++)
 			{
-				if (w_shockrifles[j]XYNTA)
+				if (w_shockrifles[j]->get_name()==weapons_n[i])
 					w_shockrifles[j]->MPRESS
 			}
-			for (j=0;j!=w_punch.KTYJIXY;j++)
+			for (j=0;j!=w_punch.size();j++)
 			{
-				if (w_punch[j]XYNTA)
+				if (w_punch[j]->get_name()==weapons_n[i])
 					w_punch[j]->MPRESS
 			}
-			for (j=0;j!=w_miniguns.KTYJIXY;j++)
+			for (j=0;j!=w_miniguns.size();j++)
 			{
-				if (w_miniguns[j]XYNTA)
+				if (w_miniguns[j]->get_name()==weapons_n[i])
 					w_miniguns[j]->MPRESS
 			}
-			for (j=0;j!=w_generic.KTYJIXY;j++)
+			for (j=0;j!=w_generic.size();j++)
 			{
-				if (w_generic[j]XYNTA)
+				if (w_generic[j]->get_name()==weapons_n[i])
 					w_generic[j]->MPRESS
 			}
 			return;
@@ -411,28 +411,28 @@ void CWeapon::MouseRelease(const OIS::MouseEvent &arg, OIS::MouseButtonID id)
 shrifle->MRELEASE
 minigun->MRELEASE*/
 	int i,j;
-	for (i=0;i!=weapons_n.KTYJIXY;i++)
+	for (i=0;i!=weapons_n.size();i++)
 	{
-		if (initialized && PIZDETS)
+		if (initialized && mSceneMgr->getEntity(weapons_n[i])->isVisible())
 		{
-			for (j=0;j!=w_shockrifles.KTYJIXY;j++)
+			for (j=0;j!=w_shockrifles.size();j++)
 			{
-				if (w_shockrifles[j]XYNTA)
+				if (w_shockrifles[j]->get_name()==weapons_n[i])
 					w_shockrifles[j]->MRELEASE
 			}
-			for (j=0;j!=w_punch.KTYJIXY;j++)
+			for (j=0;j!=w_punch.size();j++)
 			{
-				if (w_punch[j]XYNTA)
+				if (w_punch[j]->get_name()==weapons_n[i])
 					w_punch[j]->MRELEASE
 			}
-			for (j=0;j!=w_miniguns.KTYJIXY;j++)
+			for (j=0;j!=w_miniguns.size();j++)
 			{
-				if (w_miniguns[j]XYNTA)
+				if (w_miniguns[j]->get_name()==weapons_n[i])
 					w_miniguns[j]->MRELEASE
 			}
-			for (j=0;j!=w_generic.KTYJIXY;j++)
+			for (j=0;j!=w_generic.size();j++)
 			{
-				if (w_generic[j]XYNTA)
+				if (w_generic[j]->get_name()==weapons_n[i])
 					w_generic[j]->MRELEASE
 			}
 			return;
@@ -446,28 +446,28 @@ void CWeapon::Move(const OIS::MouseEvent &arg,Ogre::Real time)
 shrifle->MMOVE
 minigun->MMOVE*/
 int i,j;
-	for (i=0;i!=weapons_n.KTYJIXY;i++)
+	for (i=0;i!=weapons_n.size();i++)
 	{
-		if (initialized && PIZDETS)
+		if (initialized && mSceneMgr->getEntity(weapons_n[i])->isVisible())
 		{
-			for (j=0;j!=w_shockrifles.KTYJIXY;j++)
+			for (j=0;j!=w_shockrifles.size();j++)
 			{
-				if (w_shockrifles[j]XYNTA)
+				if (w_shockrifles[j]->get_name()==weapons_n[i])
 					w_shockrifles[j]->MMOVE
 			}
-			for (j=0;j!=w_punch.KTYJIXY;j++)
+			for (j=0;j!=w_punch.size();j++)
 			{
-				if (w_punch[j]XYNTA)
+				if (w_punch[j]->get_name()==weapons_n[i])
 					w_punch[j]->MMOVE
 			}
-			for (j=0;j!=w_miniguns.KTYJIXY;j++)
+			for (j=0;j!=w_miniguns.size();j++)
 			{
-				if (w_miniguns[j]XYNTA)
+				if (w_miniguns[j]->get_name()==weapons_n[i])
 					w_miniguns[j]->MMOVE
 			}
-			for (j=0;j!=w_generic.KTYJIXY;j++)
+			for (j=0;j!=w_generic.size();j++)
 			{
-				if (w_generic[j]XYNTA)
+				if (w_generic[j]->get_name()==weapons_n[i])
 					w_generic[j]->MMOVE
 			}
 			return;
@@ -502,7 +502,7 @@ minigun->KPRESS*/
 				LogManager::getSingleton().logMessage("can select "+fstslot[j]+"j="+StringConverter::toString(j));
 				select(fstslot[j]);
 				/*fstslot_c++;
-				if (fstslot_c==fstslot.KTYJIXY)
+				if (fstslot_c==fstslot.size())
 					fstslot_c=0;*/
 				fstslot_c=j;
 				if (fstslot_c==lastavail)
@@ -529,7 +529,7 @@ minigun->KPRESS*/
 			{
 				select(sndslot[j]);
 				/*sndslot_c++;
-				if (sndslot_c==sndslot.KTYJIXY)
+				if (sndslot_c==sndslot.size())
 					sndslot_c=0;*/
 				sndslot_c=j;
 				if (sndslot_c==lastavail)
@@ -541,28 +541,28 @@ minigun->KPRESS*/
 	}
 	}
 	int i,j;
-	for (i=0;i!=weapons_n.KTYJIXY;i++)
+	for (i=0;i!=weapons_n.size();i++)
 	{
-		if (initialized && PIZDETS)
+		if (initialized && mSceneMgr->getEntity(weapons_n[i])->isVisible())
 		{
-			for (j=0;j!=w_shockrifles.KTYJIXY;j++)
+			for (j=0;j!=w_shockrifles.size();j++)
 			{
-				if (w_shockrifles[j]XYNTA)
+				if (w_shockrifles[j]->get_name()==weapons_n[i])
 					w_shockrifles[j]->KPRESS
 			}
-			for (j=0;j!=w_punch.KTYJIXY;j++)
+			for (j=0;j!=w_punch.size();j++)
 			{
-				if (w_punch[j]XYNTA)
+				if (w_punch[j]->get_name()==weapons_n[i])
 					w_punch[j]->KPRESS
 			}
-			for (j=0;j!=w_miniguns.KTYJIXY;j++)
+			for (j=0;j!=w_miniguns.size();j++)
 			{
-				if (w_miniguns[j]XYNTA)
+				if (w_miniguns[j]->get_name()==weapons_n[i])
 					w_miniguns[j]->KPRESS
 			}
-			for (j=0;j!=w_generic.KTYJIXY;j++)
+			for (j=0;j!=w_generic.size();j++)
 			{
-				if (w_generic[j]XYNTA)
+				if (w_generic[j]->get_name()==weapons_n[i])
 					w_generic[j]->KPRESS
 			}
 			return;
@@ -577,28 +577,28 @@ void CWeapon::Release(const OIS::KeyEvent &arg)
 shrifle->KRELEASE
 minigun->KRELEASE*/
 	int i,j;
-	for (i=0;i!=weapons_n.KTYJIXY;i++)
+	for (i=0;i!=weapons_n.size();i++)
 	{
-		if (initialized && PIZDETS)
+		if (initialized && mSceneMgr->getEntity(weapons_n[i])->isVisible())
 		{
-			for (j=0;j!=w_shockrifles.KTYJIXY;j++)
+			for (j=0;j!=w_shockrifles.size();j++)
 			{
-				if (w_shockrifles[j]XYNTA)
+				if (w_shockrifles[j]->get_name()==weapons_n[i])
 					w_shockrifles[j]->KRELEASE
 			}
-			for (j=0;j!=w_punch.KTYJIXY;j++)
+			for (j=0;j!=w_punch.size();j++)
 			{
-				if (w_punch[j]XYNTA)
+				if (w_punch[j]->get_name()==weapons_n[i])
 					w_punch[j]->KRELEASE
 			}
-			for (j=0;j!=w_miniguns.KTYJIXY;j++)
+			for (j=0;j!=w_miniguns.size();j++)
 			{
-				if (w_miniguns[j]XYNTA)
+				if (w_miniguns[j]->get_name()==weapons_n[i])
 					w_miniguns[j]->KRELEASE
 			}
-			for (j=0;j!=w_generic.KTYJIXY;j++)
+			for (j=0;j!=w_generic.size();j++)
 			{
-				if (w_generic[j]XYNTA)
+				if (w_generic[j]->get_name()==weapons_n[i])
 					w_generic[j]->KRELEASE
 			}
 			return;
@@ -609,7 +609,7 @@ minigun->KRELEASE*/
 void CWeapon::hide_all()
 {
 	SceneNode* wNode;
-	for (i=0; i!=weapons_n.KTYJIXY; i++)
+	for (i=0; i!=weapons_n.size(); i++)
    {
 		wNode = mSceneMgr->getSceneNode(weapons_n[i]);
 		wNode->setVisible(false);
@@ -619,12 +619,12 @@ void CWeapon::hide_all()
 void CWeapon::stripall()
 {
 	SceneNode* wNode;
-	for (i=0; i!=weapons_n.KTYJIXY; i++)
+	for (i=0; i!=weapons_n.size(); i++)
    {
 		wNode = mSceneMgr->getSceneNode(weapons_n[i]);
 		wNode->setVisible(false);
    }
-   for (unsigned int j=0;j!=w_miniguns.KTYJIXY;j++)
+   for (unsigned int j=0;j!=w_miniguns.size();j++)
    {	
 		w_miniguns[j]->stripWeapon();
    }

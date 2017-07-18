@@ -594,6 +594,337 @@ inline void npc_neutral::processRandomMovements(Real time)
 		
 }
 
+void npc_neutral::processFootsteps(Vector3 myPos)
+{
+		if (fstTimer>0.5f)
+		{
+				fstindex++;
+				
+				if (mProps.sounds)
+				{
+				String fname = "run3/sounds/footsteps/"+mProps.soundFootstepPrefix;
+				fname=fname+""+StringConverter::toString(fstindex-1)+".wav";
+				Run3SoundRuntime::getSingleton().emitSound(fname,1.0f,false,myPos,200,50,800);
+				}
+				
+				if (fstindex==4)
+					fstindex=1;
+				fstTimer=0.0f;
+		}
+}
+
+void npc_neutral::checkFinishLuaExecute()
+{
+	//Very close to target position
+	if (stopAtDist)
+	{
+		#ifdef DEBUG_TARGET_BLIZKO
+					LogManager::getSingleton().logMessage("Distance to destination: "+StringConverter::toString(pPosit)+" is "+StringConverter::toString(getpos(npcBody).distance(pPosit)));
+		#endif
+		blizko = getpos(npcBody).distance(pPosit) < stopDist;
+	}
+	// Execute finish script.
+	if (blizko)
+	{
+		#ifdef DEBUG_TARGET_BLIZKO
+		LogManager::getSingleton().logMessage("NPC is near target position. Exec script.");
+		#endif
+		if (!(luaToExec.empty()))
+			RunLuaScript(global::getSingleton().getLuaState(),luaToExec.c_str());
+	}
+}
+
+void npc_neutral::checkContinuePath(bool farFindB,bool path_find)
+{
+	if (farFindB && goal_achieved) // We continue pathfinding because it finished the previous path.
+	{
+		path_find = find_path();
+		i=0;
+		if (path_find)
+			goal_achieved=false;
+	}
+	else
+	{
+#ifdef DEBUG_PATHFINDING
+LogManager::getSingleton().logMessage("No need of pathfinding.");
+LogManager::getSingleton().logMessage(StringConverter::toString(farFindB)+
+" "+StringConverter::toString(goal_achieved)+
+" "+StringConverter::toString(path_find));
+#endif
+	}
+}
+
+void npc_neutral::checkWalkAnimation()
+{
+	if (!notsetIdle&&!rotation_needed)
+	{
+						if (animated)
+						{
+							mAnimState->setEnabled(false); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+							mAnimState = heliEnt->getAnimationState("Walk");
+							mAnimState->setEnabled(true);
+							mAnimState->setWeight(1.0f);
+						}
+	}
+}
+
+void npc_neutral::processPathFoundStep(const Ogre::FrameEvent &evt,bool stra, bool farFindB,Vector3 myPos,bool path_find)
+{
+	if ((farFindB && path_find && !stra)||(cmdMode && farFindB && path_find && !stra))
+	{
+		#ifdef DEBUG_PATHFINDING
+		LogManager::getSingleton().logMessage("Direction select cycle.");
+		#endif
+		previous_player=true;
+		if (!dyeNow)
+		{
+		Vector3 dest=pPosit;
+
+		if (mPath.size()>=2)
+			dest = mPath[i]->getPosition();
+		#ifdef DEBUG_PATHFINDING
+		LogManager::getSingleton().logMessage("GOAL:"+StringConverter::toString(dest));
+		#endif
+		bool in_rad_precision = (pow((dest.x-myPos.x),2)+pow((dest.z-myPos.z),2))<=50;
+		
+		Vector3 dir = Vector3(dest.x,0,dest.z)-Vector3(myPos.x,0,myPos.z);
+		dir.normalise();
+
+		if (in_rad_precision)
+		{
+			//body_rot_y=0;
+			int b,s;
+			s=mPath.size();
+			b = i+1;
+			if (!(b>mPath.size()))
+      				i++;
+		if ((i)==mPath.size())
+		{
+			//cmdMode=false;
+			LogManager::getSingleton().logMessage("NPC finished path!");
+			goal_achieved=true;
+		}
+		else
+		{
+						
+			dest = mPath[i]->getPosition();
+			dir = Vector3(dest.x,0,dest.z)-Vector3(myPos.x,0,myPos.z);
+			dir.normalise();
+			Vector3 dir1 = getNPCDirection();
+			Degree angle;
+			angle = Vector3(dir1.x,0,dir1.z).angleBetween(dir);
+			//LogManager::getSingleton().logMessage(StringConverter::toString(dir1)+" "+StringConverter::toString(dir)+" "+StringConverter::toString(angle));
+			rotation_needed = angle>=Degree(5.0f);
+
+		}
+		}
+
+		if (!in_rad_precision&&!rotation_needed)
+		{
+			steps=dir;
+		}
+		
+		#ifdef DEBUG_PATHFINDING
+		LogManager::getSingleton().logMessage("rotation needed 1:");
+		LogManager::getSingleton().logMessage(StringConverter::toString(rotation_needed));
+		#endif
+		if (rotation_needed)
+		{
+			Vector3 dir1 = getNPCDirection();
+			Degree angle;
+			angle = Vector3(dir1.x,0,dir1.z).angleBetween(dir);
+
+			processTurnRotation(evt,angle);
+			////LogManager::getSingleton().logMessage(StringConverter::toString(dir1)+" "+StringConverter::toString(dir)+" "+StringConverter::toString(angle));
+			rotation_needed = Degree(fabs(angle.valueDegrees()))>=Degree(5.0f);
+			steps=0;
+		}
+
+		}
+	}
+}
+
+void npc_neutral::processSounds(Vector3 myPos)
+{
+		if (mProps.sounds)
+		{
+						if ((rand() % 20)==4)
+							Run3SoundRuntime::getSingleton().emitSound(mProps.soundAttack,3,false,myPos,200,50,800);
+	
+						if ((rand() % 5)==4)
+							Run3SoundRuntime::getSingleton().emitSound(mProps.soundHit,3,false,myPos,200,50,800);
+		}
+
+		if (previous_player)
+		{
+
+				if (mProps.sounds)
+					Run3SoundRuntime::getSingleton().emitSound(mProps.soundFind,6,false,myPos,200,50,800);
+				previous_player=false;
+		}
+}
+
+void npc_neutral::attack()
+{
+	//steps = dir.normalisedCopy();
+
+							steps=Vector3::ZERO;
+							if (animated)
+							{
+							mAnimState->setEnabled(false);
+							mAnimState = heliEnt->getAnimationState("Attack1");
+							mAnimState->setEnabled(true);
+							}
+}
+
+void npc_neutral::processTurnRotation(const Ogre::FrameEvent &evt,Degree angle)
+{
+	if (animated)
+	{
+	mAnimState->setEnabled(false);
+	mAnimState = heliEnt->getAnimationState("Stealth");
+	mAnimState->setEnabled(true);
+	}
+	reach_zero=angle.valueDegrees()>lastAngle;  //приблизился ли угол к нулю.если да, то не приблизился
+	lastAngle=angle.valueDegrees();
+	
+	if (reach_zero)
+	{
+		rot_dir=!rot_dir;
+	}
+	////LogManager::getSingleton().logMessage(StringConverter::toString(reach_zero));
+	
+	if (rot_dir)
+	{
+		////LogManager::getSingleton().logMessage(StringConverter::toString(angle)+"+");
+		niNode->rotate(Vector3::UNIT_Y,Degree(rotateSpeed*evt.timeSinceLastFrame*TIME_SHIFT));
+	}
+	else
+	{
+		////LogManager::getSingleton().logMessage(StringConverter::toString(angle)+"-");
+		niNode->rotate(Vector3::UNIT_Y,Degree(-rotateSpeed*evt.timeSinceLastFrame*TIME_SHIFT));
+	}
+}
+
+
+//Когда текущая "цель" - ноуд или игрок, находится в поле зрения.
+void npc_neutral::processStraightStep(const Ogre::FrameEvent &evt,bool stra, bool farFindB,Vector3 myPos,bool path_find)
+{
+	if (!path_find || (!goal_achieved && stra)) // Either path is found, and NPC is going on it, or goal is not achieved, and it is a straight path.
+	{
+		#ifdef DEBUG_PATHFINDING
+		LogManager::getSingleton().logMessage("Straight cycle.");
+		#endif
+		if (!dyeNow)
+		{
+			if (!farFindB)
+			{
+				//if (animated)
+			//mAnimState->setEnabled(false);
+				if (!notsetIdle)
+				{
+						if (animated)
+						{
+						//	mAnimState->setEnabled(false);
+		    			//		mAnimState = heliEnt->getAnimationState("Idle1");
+							//	mAnimState->setEnabled(true);
+						}
+				}
+			}
+
+			processSounds(myPos);
+
+			Vector3 dest = Vector3(pPosit.x,0,pPosit.z);
+			Vector3 dir = dest-Vector3(myPos.x,0,myPos.z);
+
+			if (farFindB) // NPC found player in near place
+			{
+					if (dir.length()<attackAnimDist)
+					{
+						attack();
+					}
+					else
+					{
+					
+					dir.normalise();
+					Vector3 dir1 = getNPCDirection();
+					Degree angle;
+					angle = Vector3(dir1.x,0,dir1.z).angleBetween(dir);
+					rotation_needed = Degree(fabs(angle.valueDegrees()))>=Degree(5.0f);
+					
+					#ifdef DEBUG_PATHFINDING
+					LogManager::getSingleton().logMessage("rotation needed 2:");
+					LogManager::getSingleton().logMessage(StringConverter::toString(rotation_needed));
+					#endif
+
+						if (!rotation_needed)
+						{
+							if (animated)
+							{
+								mAnimState->setEnabled(false);
+								mAnimState = heliEnt->getAnimationState("Walk");
+								mAnimState->setEnabled(true);
+							}
+							steps = dir;
+						}
+						else
+						{
+							processTurnRotation(evt,angle);
+						}
+					}
+			}
+		}
+	}
+}
+
+void npc_neutral::processGoing(const Ogre::FrameEvent &evt,Real mulTime)
+{
+	//If false, no real activity
+	bool farFindB = getpos(npcBody).distance(pPosit) < farFind;
+	//If there is no any other processes, NPC stays on place.
+	steps=Ogre::Vector3::ZERO;
+	if (farFindB)
+	fstTimer+=evt.timeSinceLastFrame*TIME_SHIFT*moveActivity;
+
+	Vector3 myPos = mHeliNode->getPosition();
+
+	processFootsteps(myPos);
+
+	//Recieved die flag
+	if(dyeNow)
+	{
+		kill();
+		return;
+	}
+	
+	//Old feature
+	
+	//If in command mode, go to destination.
+	if (cmdMode) 
+	{
+		pPosit=destCMD;
+	}
+
+	// If true - we are free. If false - we are doing previous task.
+	bool path_find = !goal_achieved;
+	checkFinishLuaExecute();
+	checkContinuePath(farFindB,path_find);
+	checkWalkAnimation();
+
+	bool stra=check_straight();
+	#ifdef DEBUG_PATHFINDING
+	LogManager::getSingleton().logMessage("Check straight returned "+StringConverter::toString(stra));
+	#endif
+
+#ifdef STRAIGHT_BYPASS
+	if (!goal_achieved && cmdMode && farFindB && path_find)
+		stra=false;
+#endif
+
+	processPathFoundStep(evt,stra,farFindB,myPos,path_find);
+	processStraightStep(evt,stra,farFindB,myPos,path_find);
+}
+
 void npc_neutral::step(const Ogre::FrameEvent &evt)
 {
 	// If time stopped - NPC stopped
@@ -610,11 +941,11 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 		time256=0;
 
 	// Animation in processing.
-	LogManager::getSingleton().logMessage("adsd");
+	//LogManager::getSingleton().logMessage("adsd");
 	if (animated)
 	{
 		//#ifdef DEBUG_FACIAL
-		LogManager::getSingleton().logMessage("Animation add."+mAnimState->getAnimationName()+"fsd"+StringConverter::toString(mAnimState->getEnabled()));
+		//LogManager::getSingleton().logMessage("Animation add."+mAnimState->getAnimationName()+"fsd"+StringConverter::toString(mAnimState->getEnabled()));
 		//#endif
 		mAnimState->addTime(mulTime);
 		processAnimationTransition(mulTime);
@@ -624,329 +955,7 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 	//There begins active code.
 	if (going)
 	{
-		//If false, no real activity
-		bool farFindB = getpos(npcBody).distance(pPosit) < farFind;
-		
-		//If there is no any other processes, NPC stays on place.
-		steps=Ogre::Vector3::ZERO;
-
-		if (farFindB)
-		fstTimer+=evt.timeSinceLastFrame*TIME_SHIFT*moveActivity;
-
-		Vector3 myPos = mHeliNode->getPosition();
-		if (fstTimer>0.5f)
-		{
-				fstindex++;
-				
-				if (mProps.sounds)
-				{
-				String fname = "run3/sounds/footsteps/"+mProps.soundFootstepPrefix;
-				fname=fname+""+StringConverter::toString(fstindex-1)+".wav";
-				Run3SoundRuntime::getSingleton().emitSound(fname,1.0f,false,myPos,200,50,800);
-				}
-				
-				if (fstindex==4)
-					fstindex=1;
-				fstTimer=0.0f;
-		}
-
-		//Recieved die flag
-		if(dyeNow)
-		{
-			kill();
-			return;
-		}
-		
-		//Old feature
-		
-		
-		//If in command mode, go to destination.
-		if (cmdMode) 
-		{
-			pPosit=destCMD;
-		}
-
-		// If true - we are free. If false - we are doing previous task.
-		bool path_find = !goal_achieved;
-		//Very close to target position
-		if (stopAtDist)
-		{
-			#ifdef DEBUG_TARGET_BLIZKO
-						LogManager::getSingleton().logMessage("Distance to destination: "+StringConverter::toString(pPosit)+" is "+StringConverter::toString(getpos(npcBody).distance(pPosit)));
-			#endif
-			blizko = getpos(npcBody).distance(pPosit) < stopDist;
-		}
-		// Execute finish script.
-		if (blizko)
-		{
-			#ifdef DEBUG_TARGET_BLIZKO
-			LogManager::getSingleton().logMessage("NPC is near target position. Exec script.");
-			#endif
-			if (!(luaToExec.empty()))
-				RunLuaScript(global::getSingleton().getLuaState(),luaToExec.c_str());
-		}
-		
-		if (farFindB && goal_achieved) // We continue pathfinding because it finished the previous path.
-		{
-			path_find = find_path();
-			i=0;
-			if (path_find)
-				goal_achieved=false;
-		}
-		else
-		{
-#ifdef DEBUG_PATHFINDING
-	LogManager::getSingleton().logMessage("No need of pathfinding.");
-	LogManager::getSingleton().logMessage(StringConverter::toString(farFindB)+
-	" "+StringConverter::toString(goal_achieved)+
-	" "+StringConverter::toString(path_find));
-#endif
-		}
-		
-		
-		if (!notsetIdle&&!rotation_needed)
-		{
-							if (animated)
-							{
-								mAnimState->setEnabled(false); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-								mAnimState = heliEnt->getAnimationState("Walk");
-								mAnimState->setEnabled(true);
-								mAnimState->setWeight(1.0f);
-							}
-		}
-
-		bool stra=check_straight();
-		#ifdef DEBUG_PATHFINDING
-		LogManager::getSingleton().logMessage("Check straight returned "+StringConverter::toString(stra));
-		#endif
-
-#ifdef STRAIGHT_BYPASS
-		if (!goal_achieved && cmdMode && farFindB && path_find)
-			stra=false;
-#endif
-		if ((farFindB && path_find && !stra)||(cmdMode && farFindB && path_find && !stra))
-		{
-			#ifdef DEBUG_PATHFINDING
-			LogManager::getSingleton().logMessage("Direction select cycle.");
-			#endif
-			previous_player=true;
-			if (!dyeNow)
-			{
-			Vector3 dest=pPosit;
-
-			if (mPath.size()>=2)
-				dest = mPath[i]->getPosition();
-			#ifdef DEBUG_PATHFINDING
-			LogManager::getSingleton().logMessage("GOAL:"+StringConverter::toString(dest));
-			#endif
-			bool in_rad_precision = (pow((dest.x-myPos.x),2)+pow((dest.z-myPos.z),2))<=50;
-			
-			Vector3 dir = Vector3(dest.x,0,dest.z)-Vector3(myPos.x,0,myPos.z);
-			dir.normalise();
-			//bool rotation_needed=false;
-
-			if (in_rad_precision)
-			{
-				//body_rot_y=0;
-				int b,s;
-				s=mPath.size();
-				b = i+1;
-				if (!(b>mPath.size()))
-      					i++;
-			if ((i)==mPath.size())
-			{
-				//cmdMode=false;
-				LogManager::getSingleton().logMessage("NPC finished path!");
-				goal_achieved=true;
-			}
-			else
-			{
-							
-				dest = mPath[i]->getPosition();
-				dir = Vector3(dest.x,0,dest.z)-Vector3(myPos.x,0,myPos.z);
-				dir.normalise();
-				Vector3 dir1 = getNPCDirection();
-				Degree angle;
-				angle = Vector3(dir1.x,0,dir1.z).angleBetween(dir);
-				//LogManager::getSingleton().logMessage(StringConverter::toString(dir1)+" "+StringConverter::toString(dir)+" "+StringConverter::toString(angle));
-				rotation_needed = angle>=Degree(5.0f);
-
-			}
-			}
-
-			if (!in_rad_precision&&!rotation_needed)
-			{
-				steps=dir;
-			}
-			
-			#ifdef DEBUG_PATHFINDING
-			LogManager::getSingleton().logMessage("rotation needed 1:");
-			LogManager::getSingleton().logMessage(StringConverter::toString(rotation_needed));
-			#endif
-			if (rotation_needed)
-			{
-				if (animated)
-				{
-								mAnimState->setEnabled(false);
-		    						mAnimState = heliEnt->getAnimationState("Stealth");
-									mAnimState->setEnabled(true);
-				}
-				Vector3 dir1 = getNPCDirection();
-				Degree angle;
-				angle = Vector3(dir1.x,0,dir1.z).angleBetween(dir);
-
-				reach_zero=angle.valueDegrees()>lastAngle;  //приблизился ли угол к нулю.если да, то не приблизился
-				lastAngle=angle.valueDegrees();
-									
-									if (reach_zero)
-									{
-										rot_dir=!rot_dir;
-									}
-									//LogManager::getSingleton().logMessage(StringConverter::toString(reach_zero));
-									
-									if (rot_dir)
-									{
-										//LogManager::getSingleton().logMessage(StringConverter::toString(angle)+"+");
-									niNode->rotate(Vector3::UNIT_Y,Degree(10.0f*evt.timeSinceLastFrame*TIME_SHIFT*5));
-									}
-									else
-									{
-										//LogManager::getSingleton().logMessage(StringConverter::toString(angle)+"-");
-										niNode->rotate(Vector3::UNIT_Y,Degree(-10.0f*evt.timeSinceLastFrame*TIME_SHIFT*5));
-									}
-				steps=0;
-				////LogManager::getSingleton().logMessage(StringConverter::toString(dir1)+" "+StringConverter::toString(dir)+" "+StringConverter::toString(angle));
-				rotation_needed = Degree(fabs(angle.valueDegrees()))>=Degree(5.0f);
-			}
-
-			}
-		}
-
-
-		if (!path_find || (!goal_achieved && stra)) // Either path is found, and NPC is going on it, or goal is not achieved, and it is a straight path.
-		{
-			#ifdef DEBUG_PATHFINDING
-			LogManager::getSingleton().logMessage("Straight cycle.");
-			#endif
-			if (!dyeNow)
-			{
-				if (!farFindB)
-				{
-					//if (animated)
-				//mAnimState->setEnabled(false);
-					if (!notsetIdle)
-					{
-							if (animated)
-							{
-							//	mAnimState->setEnabled(false);
-		    				//		mAnimState = heliEnt->getAnimationState("Idle1");
-								//	mAnimState->setEnabled(true);
-							}
-					}
-				}
-
-				if (mProps.sounds)
-				{
-								if ((rand() % 20)==4)
-									Run3SoundRuntime::getSingleton().emitSound(mProps.soundAttack,3,false,myPos,200,50,800);
-			
-								if ((rand() % 5)==4)
-									Run3SoundRuntime::getSingleton().emitSound(mProps.soundHit,3,false,myPos,200,50,800);
-				}
-
-				Vector3 dest = Vector3(pPosit.x,0,pPosit.z);
-				Vector3 dir = dest-Vector3(myPos.x,0,myPos.z);
-
-				if (previous_player)
-				{
-
-					if (mProps.sounds)
-						Run3SoundRuntime::getSingleton().emitSound(mProps.soundFind,6,false,myPos,200,50,800);
-					previous_player=false;
-				}
-
-				if (farFindB) // NPC found player in near place
-				{
-
-
-							if (dir.length()<attackAnimDist)
-							{
-								//steps = dir.normalisedCopy();
-
-								steps=Vector3::ZERO;
-								if (animated)
-								{
-								mAnimState->setEnabled(false);
-								mAnimState = heliEnt->getAnimationState("Attack1");
-								mAnimState->setEnabled(true);
-								}
-							}
-							else
-							{
-									dir.normalise();
-							Vector3 dir1 = getNPCDirection();
-							Degree angle;
-							angle = Vector3(dir1.x,0,dir1.z).angleBetween(dir);
-
-							/*if (dir1.z<dir.z)
-								angle+=Degree(180);*/
-							//bool rot_needed2 = rotation_needed;
-							rotation_needed = Degree(fabs(angle.valueDegrees()))>=Degree(5.0f);
-							/*if (rot_needed2!=rotation_needed)
-							{
-								if ((rand() % 3)==2)
-									angle=-angle;
-							}*/
-							#ifdef DEBUG_PATHFINDING
-							LogManager::getSingleton().logMessage("rotation needed 2:");
-							LogManager::getSingleton().logMessage(StringConverter::toString(rotation_needed));
-							#endif
-								if (!rotation_needed)
-								{
-
-									if (animated)
-									{
-										mAnimState->setEnabled(false);
-										mAnimState = heliEnt->getAnimationState("Walk");
-										mAnimState->setEnabled(true);
-									}
-									steps = dir;
-								}
-								else
-								{
-									if (animated)
-									{
-									mAnimState->setEnabled(false);
-		    						mAnimState = heliEnt->getAnimationState("Stealth");
-									mAnimState->setEnabled(true);
-									}
-									reach_zero=angle.valueDegrees()>lastAngle;  //приблизился ли угол к нулю.если да, то не приблизился
-									lastAngle=angle.valueDegrees();
-									
-									if (reach_zero)
-									{
-										rot_dir=!rot_dir;
-									}
-									////LogManager::getSingleton().logMessage(StringConverter::toString(reach_zero));
-									
-									if (rot_dir)
-									{
-										////LogManager::getSingleton().logMessage(StringConverter::toString(angle)+"+");
-										niNode->rotate(Vector3::UNIT_Y,Degree(rotateSpeed*evt.timeSinceLastFrame*TIME_SHIFT));
-									}
-									else
-									{
-										////LogManager::getSingleton().logMessage(StringConverter::toString(angle)+"-");
-										niNode->rotate(Vector3::UNIT_Y,Degree(-rotateSpeed*evt.timeSinceLastFrame*TIME_SHIFT));
-									}
-								}
-							}
-				}
-			}
-		}
-
-
-		
+		processGoing(evt,mulTime);
 	}
 	/*#ifdef DEBUG_FACIAL
 	LogManager::getSingleton().logMessage("neutral end step");

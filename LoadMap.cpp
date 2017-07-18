@@ -5,6 +5,7 @@
 #include "LoadMap.h"
 #include "AIManager.h"
 #include "Loader.h"
+#include "Run3Benchmark.h"
 
 template<> LoadMap *Singleton<LoadMap>::ms_Singleton=0;
 
@@ -47,70 +48,70 @@ void LoadMap::init(SceneManager *SceneMgr,OgreNewt::World* world,Camera* camera,
 
 void LoadMap::LoadM(const String &map, const String &title, const String &sdir,const String &mapdir,const String& groupName, SceneManager *mSceneMgr)
 {
+	if (map!="none")
+		SaveGame::getSingleton().saveLast(map);
 
-if (map!="none")
-SaveGame::getSingleton().saveLast(map);
-
-String x1,x2,y1,y2,z1,z2;
-sound->stopAllAudio();
-String fpath;
-String spath;
-String scenefile,sequence;
-String skybox;
-ConfigFile cf;
-	//String &map,String &title,String &sdir,String &mapdir,const String& groupName, SceneManager *mSceneMgr
-fpath = mapdir+"/"+Loader::getSingleton().getPrefix()+map;
-spath = mapdir+"/"+sdir;
-LogManager::getSingleton().logMessage("loading map..");
+	String x1,x2,y1,y2,z1,z2;
+	sound->stopAllAudio();
+	String fpath;
+	String spath;
+	String scenefile,sequence;
+	String skybox;
+	ConfigFile cf;
+		//String &map,String &title,String &sdir,String &mapdir,const String& groupName, SceneManager *mSceneMgr
+	fpath = mapdir+"/"+Loader::getSingleton().getPrefix()+map;
+	spath = mapdir+"/"+sdir;
+	LogManager::getSingleton().logMessage("loading map..");
 	try
 	{
-cf.load(mapdir+"/"+Loader::getSingleton().getPrefix()+map+"/scene.cfg");
-LogManager::getSingleton().logMessage("map "+fpath+" loaded!");
-scenefile = cf.getSetting("Scene");
-LogManager::getSingleton().logMessage("a");
-sequence = "/" +cf.getSetting("Sequence","","none");
-LogManager::getSingleton().logMessage("b");
-scenefile = "/" +scenefile;
-LogManager::getSingleton().logMessage("c");
-x1=cf.getSetting("NewtonWX1");
-y1=cf.getSetting("NewtonWY1");
-z1=cf.getSetting("NewtonWZ1");
-x2=cf.getSetting("NewtonWX2");
-y2=cf.getSetting("NewtonWY2");
-z2=cf.getSetting("NewtonWz2");
-LogManager::getSingleton().logMessage("d");
-lOverlay=cf.getSetting("LoadingMat");
-LogManager::getSingleton().logMessage("e");
-global::getSingleton().setNULLChange();
-LogManager::getSingleton().logMessage("f");
-if (lOverlay=="random")
-{
-SceneLoadOverlay::getSingleton().SetRandom();
-}
-//DEBUG LOAD
-LogManager::getSingleton().logMessage("0");
-SceneLoadOverlay::getSingleton().Show(lOverlay);
-LogManager::getSingleton().logMessage("1");
-mWorld->setWorldSize( Vector3(atof(x1.c_str()),atof(y1.c_str()),atof(z1.c_str())),Vector3(atof(x2.c_str()),atof(y2.c_str()),atof(z2.c_str())));
-LogManager::getSingleton().logMessage("2");
-Run3Batcher::getSingleton().prepareBatch();
-LogManager::getSingleton().logMessage("3");
-dsl->parseDotScene(mapdir+"/"+Loader::getSingleton().getPrefix()+map+scenefile,groupName,mSceneMgr,mnode,"",mWorld,mCamera,sound,player);
-LogManager::getSingleton().logMessage("4");
-Run3Batcher::getSingleton().buildBatch();
-LogManager::getSingleton().logMessage("5");
-SceneLoadOverlay::getSingleton().Hide_all();
-LogManager::getSingleton().logMessage("6");
-scriptOnExit="";
-Sequence::getSingleton().SetSceneSeq(sequence);
-LogManager::getSingleton().logMessage("7");
+		cf.load(mapdir+"/"+Loader::getSingleton().getPrefix()+map+"/scene.cfg");
+		LogManager::getSingleton().logMessage("map "+fpath+" loaded!");
+		scenefile = cf.getSetting("Scene");
+		LogManager::getSingleton().logMessage("a");
+		sequence = "/" +cf.getSetting("Sequence","","none");
+		LogManager::getSingleton().logMessage("b");
+		scenefile = "/" +scenefile;
+		LogManager::getSingleton().logMessage("c");
+		x1=cf.getSetting("NewtonWX1");
+		y1=cf.getSetting("NewtonWY1");
+		z1=cf.getSetting("NewtonWZ1");
+		x2=cf.getSetting("NewtonWX2");
+		y2=cf.getSetting("NewtonWY2");
+		z2=cf.getSetting("NewtonWz2");
+		LogManager::getSingleton().logMessage("d");
+		lOverlay=cf.getSetting("LoadingMat");
+		LogManager::getSingleton().logMessage("e");
+		global::getSingleton().setNULLChange();
+		LogManager::getSingleton().logMessage("f");
+		if (lOverlay=="random")
+		{
+		SceneLoadOverlay::getSingleton().SetRandom();
+		}
+		//DEBUG LOAD
+		LogManager::getSingleton().logMessage("0");
+		SceneLoadOverlay::getSingleton().Show(lOverlay);
+		LogManager::getSingleton().logMessage("1");
+		mWorld->setWorldSize( Vector3(atof(x1.c_str()),atof(y1.c_str()),atof(z1.c_str())),Vector3(atof(x2.c_str()),atof(y2.c_str()),atof(z2.c_str())));
+		LogManager::getSingleton().logMessage("2");
+		Run3Batcher::getSingleton().prepareBatch();
+		LogManager::getSingleton().logMessage("3");
+		dsl->parseDotScene(mapdir+"/"+Loader::getSingleton().getPrefix()+map+scenefile,groupName,mSceneMgr,mnode,"",mWorld,mCamera,sound,player);
+		LogManager::getSingleton().logMessage("4");
+		Run3Batcher::getSingleton().buildBatch();
+		LogManager::getSingleton().logMessage("5");
+		SceneLoadOverlay::getSingleton().Hide_all();
+		LogManager::getSingleton().logMessage("6");
+		scriptOnExit="";
+		if (!Run3Benchmark::getSingleton().benchMarkEnabled())
+			Sequence::getSingleton().SetSceneSeq(sequence);
+		LogManager::getSingleton().logMessage("7");
 
 	}
 	catch(...)
 	{
 		//We'll just log, and continue on gracefully
 		LogManager::getSingleton().logMessage("[LoadMap] Error loading map. (Maybe doesn't exist?)");
-		
+		Run3Benchmark::getSingleton().gameStarted();
 		return;
 	}
 	prevMap=map;
@@ -119,6 +120,7 @@ LogManager::getSingleton().logMessage("7");
 OgreConsole::getSingleton().print("setting skybox...");
 mSceneMgr->setSkyBox(true,skybox);*/
 //player->show_overlay();
+	Run3Benchmark::getSingleton().gameStarted();
 }
 
 void LoadMap::MergeM(String map)

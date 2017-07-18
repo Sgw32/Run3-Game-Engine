@@ -37,7 +37,7 @@ public:
 			return true;
 	}
 
-	for (unsigned int j=0;j!=w_miniguns.KTYJIXY;j++)
+	for (unsigned int j=0;j!=w_miniguns.size();j++)
 	{
 					if ((w_miniguns[j]->get_name()==name)&&(w_miniguns[j]->hasMinigun()))
 					{

@@ -113,7 +113,13 @@ void Event::interpretate_callback()
 						{
 							for (i=0;i!=luascripts.size();i++)
 							{
+								//LogManager::getSingleton().logMessage(StringConverter::toString(timeAfterrun));
+								//LogManager::getSingleton().logMessage(luascripts[i]);
+								if (l_secs[i]<timeAfterrun)
+								{
+								l_secs[i]=maxwait+1;
 								RunLuaScript(pLuaState,luascripts[i].c_str());
+								}
 							}
 						}
 						if (door_callback)
@@ -158,4 +164,13 @@ bool Event::frameStarted(const Ogre::FrameEvent &evt)
 			started=false;
 	}
 	return true;
+}
+
+void Event::addLuaScript2(String script, Real secs)
+{
+		script_callback=true;
+		luascripts.push_back(script);
+		l_secs.push_back(secs);
+		if (secs>maxwait)
+			maxwait=secs;
 }

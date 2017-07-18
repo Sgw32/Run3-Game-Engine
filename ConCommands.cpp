@@ -5,6 +5,7 @@
 #include "ConCommands.h"
 #include "Loader.h"
 #include "NPCManager.h"
+#include "Run3Benchmark.h"
 
 template<> ConCommands *Singleton<ConCommands>::ms_Singleton=0;
 
@@ -59,6 +60,7 @@ void ConCommands::Compile()
 	OgreConsole::getSingleton().addCommand("essao",this->enablessao);
 	OgreConsole::getSingleton().addCommand("spawnzom",this->spawnzom);
 	OgreConsole::getSingleton().addCommand("lua",this->lua);
+	OgreConsole::getSingleton().addCommand("benchmark",this->benchmark);
 }
 
 void ConCommands::buyWeapon(vector<String>& param)
@@ -69,6 +71,11 @@ void ConCommands::buyWeapon(vector<String>& param)
 void ConCommands::ts(vector<String>& param)
 {
 	Timeshift::getSingleton().toggleTStop();
+}
+
+void ConCommands::benchmark(vector<String>& param)
+{
+	Run3Benchmark::getSingleton().benchMarkMap(param[1]);
 }
 
 void ConCommands::spawnzom(vector<String>& param)

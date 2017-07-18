@@ -37,6 +37,13 @@
 class TiXmlElement;
 using namespace CaduneTree;
 
+//BENCHMARK выходит когда мы не достигли нужную итерацию.
+//То есть запрещеает выполнение каких-либо функций до достижения нужной итерации.
+
+
+#define BENCHMARK1(i) if (!(Run3Benchmark::getSingleton().benchMarkIteration(i))){ delete XMLDoc; return; } 
+#define BENCHMARK2(i) if (!(Run3Benchmark::getSingleton().benchMarkIteration(i))){ return; } 
+
 namespace Ogre
 {
 	// Forward declarations

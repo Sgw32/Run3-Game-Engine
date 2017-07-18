@@ -14,7 +14,14 @@ Command Lines
 </font></table><table width=* cellspacing=0 cellpadding=0><tr><td width=0 bgcolor=#EDEDF5>&nbsp;</td><td width=0 bgcolor=#FFFFFF>&nbsp;</td><td width=*><pre>Creating temporary file "d:\Various_backups!\src v0.72\Release\RSP000001.rsp" with contents
 [
 /O2 /Op /Ot /GL /G7 /GA /I "..\include" /I "D:\OgreSDK\\include" /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "RUN3" /D "_MBCS" /Gm /EHsc /MD /Fo"Release/" /Fd"Release/vc70.pdb" /W3 /c /Wp64 /Zi /TP
+".\npc_neutral.cpp"
+".\Player.cpp"
+".\EventChangeLevel.cpp"
+".\SequenceLuaCallback.cpp"
+".\Sequence.cpp"
 ".\main.cpp"
+".\LoadMap.cpp"
+".\DotSceneLoader.cpp"
 ]
 Creating command line "cl.exe @"d:\Various_backups!\src v0.72\Release\RSP000001.rsp" /nologo"
 Creating temporary file "d:\Various_backups!\src v0.72\Release\RSP000002.rsp" with contents
@@ -38,6 +45,7 @@ Creating temporary file "d:\Various_backups!\src v0.72\Release\RSP000002.rsp" wi
 ".\Release\Energy.obj"
 ".\Release\ExplosionManager.obj"
 ".\Release\FacialAnimation.obj"
+".\Release\FacialAnimationManager.obj"
 ".\Release\FadeListener.obj"
 ".\Release\GibManager.obj"
 ".\Release\global.obj"
@@ -58,6 +66,7 @@ Creating temporary file "d:\Various_backups!\src v0.72\Release\RSP000002.rsp" wi
 ".\Release\PreVideoViewer.obj"
 ".\Release\PSSMShadowListener.obj"
 ".\Release\Run3Batcher.obj"
+".\Release\Run3Benchmark.obj"
 ".\Release\Run3Input.obj"
 ".\Release\Run3Shadowing.obj"
 ".\Release\SaveGame.obj"
@@ -121,6 +130,7 @@ Creating temporary file "d:\Various_backups!\src v0.72\Release\RSP000002.rsp" wi
 ".\Release\npc_enemy.obj"
 ".\Release\npc_friend.obj"
 ".\Release\npc_neutral.obj"
+".\Release\npc_template.obj"
 ".\Release\AmbientLight.obj"
 ".\Release\DeferredShading.obj"
 ".\Release\GeomUtils.obj"
@@ -139,20 +149,75 @@ Creating temporary file "d:\Various_backups!\src v0.72\Release\RSP000002.rsp" wi
 ".\Release\Run3 Engine.res"
 ]
 Creating command line "link.exe @"d:\Various_backups!\src v0.72\Release\RSP000002.rsp""
+Creating temporary file "d:\Various_backups!\src v0.72\Release\BAT000003.bat" with contents
+[
+@echo off
+copy /b "C:\Run3v0.72\run3_r.exe" "D:\VARIOUS_BACKUPS!\TheLongWay\run3_r.exe" /y
+if errorlevel 1 goto VCReportError
+goto VCEnd
+:VCReportError
+echo Project : error PRJ0019: A tool returned an error code from "Performing Post-Build Event..."
+exit 1
+:VCEnd
+]
+Creating command line ""d:\Various_backups!\src v0.72\Release\BAT000003.bat""
 </pre></table><table width=100% bgcolor=#DFDFE5><tr><td><font face=arial size=+2>
 Output Window
 </font></table><table width=* cellspacing=0 cellpadding=0><tr><td width=0 bgcolor=#EDEDF5>&nbsp;</td><td width=0 bgcolor=#FFFFFF>&nbsp;</td><td width=*><pre>Compiling...
+npc_neutral.cpp
+d:\VARIOUS_BACKUPS!\src v0.72\Sequence.h(945) : warning C4267: 'argument' : conversion from 'size_t' to 'int', possible loss of data
+npc_neutral.cpp(68) : warning C4267: 'initializing' : conversion from 'size_t' to 'int', possible loss of data
+npc_neutral.cpp(697) : warning C4267: '=' : conversion from 'size_t' to 'int', possible loss of data
+npc_neutral.cpp(699) : warning C4018: '>' : signed/unsigned mismatch
+Compiling...
+Player.cpp
+d:\VARIOUS_BACKUPS!\src v0.72\Sequence.h(945) : warning C4267: 'argument' : conversion from 'size_t' to 'int', possible loss of data
+Player.cpp(692) : warning C4804: '<' : unsafe use of type 'bool' in operation
+Player.cpp(694) : warning C4804: '>' : unsafe use of type 'bool' in operation
+EventChangeLevel.cpp
+d:\VARIOUS_BACKUPS!\src v0.72\Sequence.h(945) : warning C4267: 'argument' : conversion from 'size_t' to 'int', possible loss of data
+SequenceLuaCallback.cpp
+d:\VARIOUS_BACKUPS!\src v0.72\Sequence.h(945) : warning C4267: 'argument' : conversion from 'size_t' to 'int', possible loss of data
+Sequence.cpp
+d:\VARIOUS_BACKUPS!\src v0.72\Sequence.h(945) : warning C4267: 'argument' : conversion from 'size_t' to 'int', possible loss of data
 main.cpp
 d:\VARIOUS_BACKUPS!\src v0.72\Run3FrameListener.h(106) : warning C4267: 'argument' : conversion from 'size_t' to 'unsigned int', possible loss of data
 d:\VARIOUS_BACKUPS!\src v0.72\Sequence.h(945) : warning C4267: 'argument' : conversion from 'size_t' to 'int', possible loss of data
+LoadMap.cpp
+d:\VARIOUS_BACKUPS!\src v0.72\Sequence.h(945) : warning C4267: 'argument' : conversion from 'size_t' to 'int', possible loss of data
+LoadMap.cpp(216) : warning C4267: 'argument' : conversion from 'size_t' to 'unsigned int', possible loss of data
+DotSceneLoader.cpp
+d:\VARIOUS_BACKUPS!\src v0.72\Sequence.h(945) : warning C4267: 'argument' : conversion from 'size_t' to 'int', possible loss of data
+DotSceneLoader.cpp(599) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(763) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(865) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(870) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(875) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(878) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(1188) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(1193) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(1295) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(1300) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(1528) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(1533) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(1575) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(1580) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(1619) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(1624) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(1668) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(1673) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(1951) : warning C4390: ';' : empty controlled statement found; is this the intent?
+DotSceneLoader.cpp(1956) : warning C4390: ';' : empty controlled statement found; is this the intent?
 Linking...
 LINK : warning LNK4098: defaultlib 'LIBCMT' conflicts with use of other libs; use /NODEFAULTLIB:library
 Generating code
 d:\various_backups!\src v0.72\run3shadowing.h(32) : warning C4700: local variable 'cam' used without having been initialized
 Finished generating code
+Performing Post-Build Event...
+Скопировано файлов:         1.
 </pre></table><table width=100% bgcolor=#DFDFE5><tr><td><font face=arial size=+2>
 Results
 </font></table><table width=* cellspacing=0 cellpadding=0><tr><td width=0 bgcolor=#EDEDF5>&nbsp;</td><td width=0 bgcolor=#FFFFFF>&nbsp;</td><td width=*><pre>
 Build log was saved at "file://d:\Various_backups!\src v0.72\Release\BuildLog.htm"
-Run3 Engine - 0 error(s), 4 warning(s)</pre></table><table   width=100% height=20 bgcolor=#CFCFE5><tr><td><font face=arial size=+2>
+Run3 Engine - 0 error(s), 37 warning(s)</pre></table><table   width=100% height=20 bgcolor=#CFCFE5><tr><td><font face=arial size=+2>
 </font></table></body></html>

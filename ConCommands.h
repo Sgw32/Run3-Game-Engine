@@ -58,6 +58,7 @@ public:
    static void enablessao(vector<String>& param);
    static void timesh(vector<String>& param);
    static void spawnzom(vector<String>& param);
+   static void benchmark(vector<String>& param);
 private:
 	SceneManager* mSceneMgr;
 	Root* mRoot;

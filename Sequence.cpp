@@ -86,6 +86,7 @@ void Sequence::init(Ogre::Root* root,SceneManager* scene,SoundManager* sound)
 	lua_register(pLuaState, "setAccTrain",setAccTrain);
 	lua_register(pLuaState, "setAccDoor",setAccDoor);
 	lua_register(pLuaState, "stopTrain",stopTrain);
+	lua_register(pLuaState, "startEvent",startEvent);
 	lua_register(pLuaState, "powerComputer",powerComputer);
 	lua_register(pLuaState, "enableTrainSaveMode",enableTrainSaveMode);
 	lua_register(pLuaState, "disableTrainSaveMode",disableTrainSaveMode);
@@ -182,6 +183,7 @@ void Sequence::init(Ogre::Root* root,SceneManager* scene,SoundManager* sound)
 	lua_register(pLuaState,"turnoff__Sequence",turnoff__Sequence);
 	lua_register(pLuaState,"turnoff__NPCManager",turnoff__NPCManager);
 	lua_register(pLuaState,"setNPCManagerStep",setNPCManagerStep);
+
 	//Load-on-the-go
 	lua_register(pLuaState,"processSequence",processSequence);
 	lua_register(pLuaState,"processDotScene",processDotScene);
@@ -1241,7 +1243,8 @@ void Sequence::processEvent(TiXmlElement *XMLNode)
 	while(pElement)
 	{
 		String luascr = getAttrib(pElement,"script","run3/lua/empty.lua");
-		event->addLuaScript(luascr);
+		Real secs = getAttribReal(pElement,"secs",0);
+		event->addLuaScript2(luascr,secs);
 		pElement = pElement->NextSiblingElement("lua");
 	}
 	// <cutscene>

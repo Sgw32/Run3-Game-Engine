@@ -782,7 +782,7 @@ public:
 			vector<PhysObject*> pobj = global::getSingleton().pobjects;
 			for (int i=0;i!=pobj.size();i++)
 			{
-				if (pobj[i]->getName()==tex)
+				if ((pobj[i]->getName()==tex)||(tex=="*"))
 					pobj[i]->freezeBod();
 
 			}
@@ -1309,7 +1309,7 @@ static int emitSound2(lua_State* pL)
 		{
 			String tex = lua_tostring(pL, 1);
 			Real dur = StringConverter::parseReal(lua_tostring(pL, 2));
-			Run3SoundRuntime::getSingleton().emitSound(tex,dur,false,Vector3(StringConverter::parseReal(lua_tostring(pL, 3)),StringConverter::parseReal(lua_tostring(pL, 4)),StringConverter::parseReal(lua_tostring(pL, 5))),200,50,800);
+			Run3SoundRuntime::getSingleton().emitSound(tex,dur,false,Vector3(StringConverter::parseReal(lua_tostring(pL, 3)),StringConverter::parseReal(lua_tostring(pL, 4)),StringConverter::parseReal(lua_tostring(pL, 5))),50,1,100);
 			//Run3SoundRuntime::getSingleton().emitSound(tex,dur,false);
 		}
 		return 1;
@@ -2635,6 +2635,29 @@ static int player__getdiry(lua_State* pL)
 		{
 			String tex = lua_tostring(pL, 1);
 			Sequence::getSingleton().s_trainStop(tex);
+		}
+			
+		return 1;
+	}
+
+	static int startEvent(lua_State* pL)
+	{
+		int n = lua_gettop(pL);
+		if (n!=1)
+		{
+			return 0;
+		}
+		if (lua_isstring(pL, 1))
+		{
+			String tex = lua_tostring(pL, 1);
+			vector<Event*>::iterator i;
+			for (i=Sequence::getSingleton().s_events.begin();i!=Sequence::getSingleton().s_events.end();i++)
+			{
+				if ((*i)->getName()==tex)
+				{
+					(*i)->trigger();
+				}
+			}
 		}
 			
 		return 1;

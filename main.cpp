@@ -12,117 +12,8 @@ extern "C"
   #include <lauxlib.h>
 }
 
-// AI Section
-#include "AIManager.h"
-#include "NPCManager.h"
-// finished AI Section
-#include "MagicManager.h"
-#include "OgreMagic.h"
-#include <CEGUI/CEGUISchemeManager.h>
-#include <CEGUI/CEGUIWindowManager.h>
-#include <CEGUI/CEGUIWindow.h>
-#include <CEGUI/CEGUI.h>
-#include <OIS/OIS.h>
-#include <OgreCEGUIRenderer.h>
-#include <OgreNewt.h>
-#include "Run3Application.h"
-#include "Run3LoadingBar.h"
-#include "Display.h"
-#include "DisplayLuaCallback.h"
-#include "SequenceLuaCallback.h"
-#include "SharedLuaCallback.h"
-#include "SoundManager.h"
-#include "ogreconsole.h"
-#include "LoadMap.h"
-#include "Player.h"
-#include "oalufmod.h"
-#include "FadeListener.h"
-#include "ConCommands.h"
-#include "CWeapon.h"
-#include "HUD.h"
-#include "Loader.h"
-#include "SceneLoadOverlay.h"
-#include "Sequence.h"
-#include "global.h"
-#include "SuperFX.h"
-#include "Run3Input.h"
-#include "POs.h"
-#include "Energy.h"
-#include "LuaHelperFunctions.h"
-#include "Run3Shadowing.h"
-#include "Run3SoundRuntime.h"
-#include "MirrorManager.h"
-#include "Modulator.h"
-#include "MusicPlayer.h"
-#include "WaterManager.h"
-#include "Credits.h"
-#include "BloodEmitter.h"
-#include "ExplosionManager.h"
-#include "BlastWave.h"
-#include "CrosshairOp.h"
-#include "GibManager.h"
-#include "LightPerfomanceManager.h"
-#include "BulletHitManager.h"
-#include "Generator.h"
-#include "Run3Batcher.h"
-#include "ZonePortalManager.h"
-#include "Timeshift.h"
-#include "SkyManager.h"
-#include "SaveGame.h"
-#include "ChapterController.h"
-#include "SoftwareOcclusionCulling.h"
-#include "FacialAnimationManager.h"
-//#include "ZonePortalManager.h"
-
-SoundManager* soundMgr;
-Overlay* g_MenuOverlayUnsafe = NULL;
-bool g_ShutdownRequested = NULL;
-//bool global::getSingleton().GUIorGame = NULL;
-bool g_MouseVisible = NULL;
-bool first;
-bool ingame = NULL;
-bool noclip;
-bool display = false;
-bool menuShown;
-String overlay;
-//LoadMap* ml = new LoadMap;
-lua_State* pL;
-CEGUI::Window* sheet;
-SceneManager* MapSm = NULL;
-OgreNewt::World* mWorld;
-OgreNewt::BasicFrameListener* mOgreNewtListener;
-Player* player = new Player;
-String backMap;
-StringVector backMaps;
-/*test maps*/
-String chapter01;
-unsigned int audioId;
-unsigned int backMaps_number;
-Viewport *gLeftViewport = NULL;
-Viewport *gRightViewport = NULL;
-ChapterController mChCtrl;
-NODELIST_SPAWN
-
-std::vector<managerTemplate*> managers;
-
-
-CEGUI::MouseButton convertButton(OIS::MouseButtonID buttonID)
-{
-    switch (buttonID)
-    {
-    case OIS::MB_Left:
-        return CEGUI::LeftButton;
-
-    case OIS::MB_Right:
-        return CEGUI::RightButton;
-
-    case OIS::MB_Middle:
-        return CEGUI::MiddleButton;
-
-    default:
-        return CEGUI::LeftButton;
-    }
-}
+#include "MainModules.h" //Все глобальные там.
+#include "MainUtils.h" //Функции
 
 class MainListener : public Run3FrameListener, public OIS::MouseListener, public OIS::KeyListener
 {
@@ -201,18 +92,6 @@ public:
 			}
 		}
 	}
-
-    /*static void  Noclip(vector<String>& param)
-	{ 
-		if (param[1] == "0")
-		{
-			player->noclip=false;
-		}
-		else
-		{
-			player->noclip=true;
-		}
-	}*/
 
 	static void Map(vector<String>& param)
 	{ 
@@ -349,6 +228,7 @@ public:
 			for (unsigned int i=0;i!=managers.size();i++)
 				managers[i]->upd(evt);
 		}
+		Run3Benchmark::getSingleton().frameStarted(evt);
 		//LogManager::getSingleton().logMessage("g26");
 		return mContinue;
     }
@@ -459,108 +339,13 @@ public:
 				mConsole=!mConsole;		
 			    return true;
 		}
-		/*if (arg.key == OIS::KC_E)
-		{
-				display=!display;
-				if (display)
-					Display::getSingleton().show();
-				if (!display)
-					Display::getSingleton().hide();
-			    return true;
-		}*/
-		//Only in menu:
-		/*
-		if (global::getSingleton().GUIorGame)
-		{
-		CEGUI::System *sys = CEGUI::System::getSingletonPtr();
-        sys->injectKeyDown(arg.key);
-        sys->injectChar(arg.text);
-        CEGUI::System::getSingleton().injectKeyUp(arg.key);
-
-
-
-		if (arg.key == OIS::KC_ESCAPE && ingame)
-		{
-			hideOverlay();
-			sheet->hide();
-			OgreConsole::getSingleton().print("unpaused..");
-			CEGUI::MouseCursor::getSingleton().hide();
-			HUD::getSingleton().Show();
-			global::getSingleton().GUIorGame=false;
-             return true;
-		}
-		}
-		//Forever:
-		if (arg.key == OIS::KC_PERIOD)
-		{
-				OgreConsole::getSingleton().setVisible(mConsole);
-				mConsole=!mConsole;		
-			    return true;
-		}
-
-		if (!global::getSingleton().GUIorGame)
-		{
-				if (arg.key == OIS::KC_ESCAPE)
-				{
-					global::getSingleton().GUIorGame=true;
-					mMenuOverlay->show();
-					sheet->show();
-					 CEGUI::MouseCursor::getSingleton().show();
-					 OgreConsole::getSingleton().print("paused..");
-					 HUD::getSingleton().Hide();
-					return true;
-				}
-				if (arg.key==OIS::KC_F)
-				{
-					player->cnoclip();
-				}
-				if (arg.key==OIS::KC_P)
-				{
-					player->debug=!player->debug;
-				}
-				player->FCPress(arg);
-		}
-		//Only ingame with noclip:
-		if (!global::getSingleton().GUIorGame && player->noclip)
-		{
-			switch (arg.key)
-			{
-				case OIS::KC_ESCAPE: 
-					global::getSingleton().GUIorGame=true;
-					mMenuOverlay->show();
-					sheet->show();
-					 CEGUI::MouseCursor::getSingleton().show();
-					 OgreConsole::getSingleton().print("paused..");
-					 HUD::getSingleton().Hide();
-					break;
-				default:
-					break;
-        }
-		}
-
-		if (!global::getSingleton().GUIorGame && !noclip)
-		{
-
-		}
-		*/
         return true;
-		
     }
 
     bool keyReleased(const OIS::KeyEvent &arg)
     {
 		//ingame noclip
 		Run3Input::getSingleton().processRelease(arg,global::getSingleton().GUIorGame,ingame);
-
-		/*if (!global::getSingleton().GUIorGame && player->noclip)
-		{
-	    switch (arg.key)
-        {
-
-        default:
-            break;
-        } // switch
-		}*/
 		//ingame
 		if (!global::getSingleton().GUIorGame && !OgreConsole::getSingleton().isVisible())
 		{
@@ -571,7 +356,6 @@ public:
 		{
 			
 		}
-
         return true;
     }
 
@@ -636,6 +420,7 @@ public:
 		new SaveGame;
 		new SoftwareOcclusionCulling;
 		new FacialAnimationManager;
+		new Run3Benchmark;
 	}
 
     ~Run3App() 
@@ -872,6 +657,7 @@ protected:
 		  }*/
 		//cfg.load("run3/core/magic.cfg");
 		MagicManager::getSingleton().init(mCamera,mWindow,"");//cfg.getSetting("magicPath","","run3/"));
+
 		//camera defs
         /*nodeC = mSceneMgr->getRootSceneNode()->createChildSceneNode("CamNode1", Vector3(-400, 200, 400));
         nodeC->yaw(Degree(-45));
@@ -892,17 +678,7 @@ protected:
         soundMgr->init(); 
 		global::getSingleton().setSoundManager(soundMgr);
 		soundMgr->setAudioPath((char*)".\\");
-        //soundMgr->loadAudio( sound, &audioId, true);
-		//soundMgr->loadAudio( sound, &audioId, true);
-       
-		/*soundMgr->loadAudio( click, &audioId2, false);
-        /*soundMgr->loadAudio( click, &audioId5, false);
-	    soundMgr->loadAudio( click, &audioId6, false);
-        soundMgr->loadAudio( move, &audioId3, false);*/
-        /*soundMgr->loadAudio( move, &audioId4, false);
-		soundMgr->loadAudio( move, &audioId6, false);*/
-		//soundMgr->loadAudio( click, &audioId7, false);
-		//soundMgr->loadAudio( "tone_alley.wav", &audioId8, false);
+        
 		soundMgr->setListenerPosition(Vector3(0,0,0),Vector3::ZERO,Quaternion::IDENTITY);
 		MusicPlayer::getSingleton().init();
 
@@ -960,9 +736,6 @@ protected:
 		SceneLoadOverlay::getSingleton().init(mRoot);
 		//sequence int
 		Sequence::getSingleton().init(mRoot,mSceneMgr,soundMgr);
-		
-		
-
     }
 
     void createFrameListener(void)

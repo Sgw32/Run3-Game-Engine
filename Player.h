@@ -220,7 +220,7 @@ else
 	bool noclip;
 	bool dump;
 	Vector3 tr_v;
-
+	void setOnLadder(bool ladder);
 	void playerShake(Real ma0,Real mb,Real mw)
 	{
 		if (st=-1.0f)
@@ -276,10 +276,13 @@ else
 		return skippingCutScene;
 	}
 	String getCurrentFootstepPrefix();
+
+	//Use only outside ladders! No ladder use.
 	void setCurrentFootstepPrefix(String footstep)
 	{
-		mFootstep=footstep;
-	}
+		if (mFootstep!="ladder")
+			mFootstep=footstep;
+	}	
 	Real getMouseSensivity()
 	{
 		return mRotate;
@@ -398,6 +401,8 @@ private:
 	std::vector<unsigned int> footsteps;
 	Real fstTimer;
 	int fstindex;
+	bool mLadder;
+	String fstPrf_before;
 	Real regen_Time;
 	OgreNewt::Collision* duckcol;
 	OgreNewt::Collision* col;

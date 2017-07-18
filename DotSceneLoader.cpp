@@ -1,6 +1,7 @@
 #include "DotSceneLoader.h"
 #include "tinyxml.h"
 #include "Sequence.h"
+#include "Run3Benchmark.h"
 
 #include <Ogre.h>
 
@@ -89,6 +90,7 @@ void DotSceneLoader::parseDotScene(const String &SceneName, const String &groupN
 		delete XMLDoc;      
 		return;
 	}
+	BENCHMARK1(0)
 	if (XMLRoot->FirstChildElement("integratedSequence"))
 		Sequence::getSingleton().SetSceneSeq(XMLRoot->FirstChildElement("integratedSequence"));
 	if (StringConverter::parseInt(getAttrib(XMLRoot,"tLod","-1"))!=-1)
@@ -113,6 +115,7 @@ void DotSceneLoader::parseDotScene(const String &SceneName, const String &groupN
 		CompositorManager::getSingleton().setCompositorEnabled(mCamera->getViewport(), "Glow", true);
 		Inventory::getSingleton().setGlowWasActive(true);
 	}
+	BENCHMARK1(1)
 	sceneMultiplier=getAttribReal(XMLRoot,"multiplier",1);
 	// figure out where to attach any nodes we create
 	mAttachNode = pAttachNode;
@@ -283,35 +286,36 @@ void DotSceneLoader::processScene(TiXmlElement *XMLRoot)
 	LogManager::getSingleton().logMessage(message);
 
 	TiXmlElement *pElement;
-
 	// Process nodes (?)
 	pElement = XMLRoot->FirstChildElement("nodes");
 	if(pElement)
 		processNodes(pElement);
+	BENCHMARK2(2)
 	// Process AI
 	pElement = XMLRoot->FirstChildElement("aiNodes");
 	if(pElement)
 		processNPCNodes(pElement);
+	BENCHMARK2(3)
 	// Process externals (?)
 	pElement = XMLRoot->FirstChildElement("externals");
 	if(pElement)
 		processExternals(pElement);
-
+	BENCHMARK2(4)
 	// Process environment (?)
 	pElement = XMLRoot->FirstChildElement("environment");
 	if(pElement)
 		processEnvironment(pElement);
-
+	BENCHMARK2(5)
 	// Process sounds (?)
 	pElement = XMLRoot->FirstChildElement("sounds");
 	if(pElement)
 		processSounds(pElement);
-
+	BENCHMARK2(6)
 	// Process terrain (?)
 	pElement = XMLRoot->FirstChildElement("terrain");
 	if(pElement)
 		processTerrain(pElement);
-
+	BENCHMARK2(7)
 	// Process portals (?)
 	pElement = XMLRoot->FirstChildElement("portal");
 	while (pElement)
@@ -319,17 +323,17 @@ void DotSceneLoader::processScene(TiXmlElement *XMLRoot)
 		processPortals(pElement);
 		pElement = pElement->NextSiblingElement("portal");
 	}
-	
+	BENCHMARK2(8)
 	// Process userDataReference (?)
 	pElement = XMLRoot->FirstChildElement("userDataReference");
 	if(pElement)
 		processUserDataReference(pElement);
-
+	BENCHMARK2(9)
 	// Process octree (?)
 	pElement = XMLRoot->FirstChildElement("octree");
 	if(pElement)
 		processOctree(pElement);
-
+	BENCHMARK2(10)
 	// Process light (?)
 	pElement = XMLRoot->FirstChildElement("light");
 	while (pElement)
@@ -337,7 +341,7 @@ void DotSceneLoader::processScene(TiXmlElement *XMLRoot)
 		processLight(pElement);
 		pElement = pElement->NextSiblingElement("light");
 	}
-
+	BENCHMARK2(11)
 // Process light (?)
 	/*pElement = XMLRoot->FirstChildElement("light");
 	while (pElement)
@@ -474,11 +478,17 @@ void DotSceneLoader::processPortals(TiXmlElement *XMLNode)
 void DotSceneLoader::processNodes(TiXmlElement *XMLNode)
 {
 	TiXmlElement *pElement;
-
+	float nodeCnt=0;
 	// Process node (*)
 	pElement = XMLNode->FirstChildElement("node");
 	while(pElement)
 	{
+		nodeCnt+=0.02;
+		BENCHMARK2((int)(11.0f+nodeCnt));
+		if (Run3Benchmark::getSingleton().benchMarkEnabled())
+		{
+			Run3Benchmark::getSingleton().setIterationCommentary(getAttrib(pElement, "name"));
+		}
 		processNode(pElement);
 		pElement = pElement->NextSiblingElement("node");
 	}

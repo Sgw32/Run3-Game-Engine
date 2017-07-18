@@ -27,6 +27,7 @@ Player::Player()
 	mFootstep="tile";
 	allowsubtitles=true;
 	regen_Mul=1.0f;
+	mLadder=false;
 }
 //////////////////////////////////////////
 Player::~Player()
@@ -499,7 +500,7 @@ void Player::camera_force_callback( OgreNewt::Body* me )
    Ogre::Quaternion q;
    Ogre::Vector3 qq,s;
    q=Quaternion::IDENTITY;
-   Vector3 stdAddForce = me->getStdAddForce()*60000*(y_rotation_cont+120)/210;
+   Vector3 stdAddForce = me->getStdAddForce()*60000*(y_rotation_cont+200)/290;
    me->setStandartAddForce(Vector3::ZERO);
 
    if (front_jump && onEarth)
@@ -1571,6 +1572,27 @@ void Player::setHealthRegeneration(Real rMul,Real maxHealth)
 	mMaxHealth=maxHealth;
 }
 //////////////////////////////////////////
+void Player::setOnLadder(bool ladder)
+{
+	if (ladder)
+	{
+		//LogManager::getSingleton().logMessage("Test test test" + mFootstep);
+		mFootstep="ladder";
+	}
+	if ((ladder)&&(!mLadder))
+	{
+		//LogManager::getSingleton().logMessage("Set footstep");
+		if (mFootstep!="ladder")
+			fstPrf_before = mFootstep;
+	}
+	if ((!ladder)&&(mLadder))
+	{
+		//LogManager::getSingleton().logMessage("ReSet footstep 2");
+		mFootstep=fstPrf_before;
+	}
+	mLadder=ladder;
+}
+//////////////////////////////////////////
 void Player::FCUpdate(const FrameEvent &evt)
 {
 	sound->setListenerPosition(get_body_position(bod),Vector3::ZERO,mViewNode->_getDerivedOrientation());
@@ -1580,8 +1602,7 @@ void Player::FCUpdate(const FrameEvent &evt)
 		st+=evt.timeSinceLastFrame;
 		shakeAmplitude();
 	}
-	//flashLight->setPosition(mViewNode->_getDerivedPosition());
-	//flashLight->setOrinetation(mViewNode->_getDerivedOrientation());
+
 	if (!global::getSingleton().computer_mode)
 	{
 	if (razbros!=0.0f)
@@ -1609,10 +1630,6 @@ void Player::FCUpdate(const FrameEvent &evt)
 		BloodEmitter::getSingleton().emitBlood(get_location(),Vector3(0.3,0.3,0.3));
 		HUD::getSingleton().SSBlood();
 		Run3SoundRuntime::getSingleton().emitSound("run3/sounds/pl_fallpain1.wav",1.0f,false);
-		/*FadeListener::getSingleton().rebuild("Materials/BloodMaterial",true);
-		FadeListener::getSingleton().setDuration(3);
-		FadeListener::getSingleton().setDurationF(0.5);
-		FadeListener::getSingleton().startIN();*/
 	}
 	}
 	if (health<0 && alive)
@@ -1644,23 +1661,12 @@ void Player::FCUpdate(const FrameEvent &evt)
 
 	if ((m_FrontVelocity!=0)||(m_StrafeVelocity!=0))
 	{
-		if (isOnEarth())
+		if (isOnEarth()||mLadder)
 		{
 			fstTimer+=evt.timeSinceLastFrame;
-//			int i;
-			/*for (i=0;i!=footsteps.size();i++);
-				sound->stopAudio(footsteps[i]);*/
 			if (fstTimer>((1/fps_speed)*0.5f))
 			{
 				fstindex++;
-				//fstindex=rand() % 4;
-				/*sound->setSoundPosition(footsteps[fstindex],get_location(),Vector3::ZERO,Vector3::ZERO);
-				sound->stopAudio(footsteps[fstindex]);
-				sound->playAudio(footsteps[fstindex],true);
-				fstindex++;
-				if (fstindex>footsteps.size()-1)
-					fstindex=0;
-				fstTimer=0.0f;*/
 				String fname="";
 				fname = fname + "run3/sounds/footsteps/"+mFootstep+StringConverter::toString(fstindex)+".wav";
 				Run3SoundRuntime::getSingleton().emitSound(fname,0.3f,false);
@@ -1668,6 +1674,8 @@ void Player::FCUpdate(const FrameEvent &evt)
 				if (fstindex==4)
 					fstindex=1;
 				fstTimer=0.0f;
+				//LogManager::getSingleton().logMessage("Reset footstep");
+				setOnLadder(false);
 			}
 		}
 	}

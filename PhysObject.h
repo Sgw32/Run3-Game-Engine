@@ -117,8 +117,11 @@ public:
 	
 	void updateAttached()
 	{
-		bod->setPositionOrientation(deltaToObject+attachedToParent->_getDerivedOrientation()*attachedToBone->_getDerivedPosition()*attachedToParent->_getDerivedScale()+
-		   attachedToParent->_getDerivedPosition(),deltaQuat*attachedToBone->_getDerivedOrientation());
+		if (attachedToParent&&attachedToBone)
+		{
+			bod->setPositionOrientation(deltaToObject+attachedToParent->_getDerivedOrientation()*attachedToBone->_getDerivedPosition()*attachedToParent->_getDerivedScale()+
+			attachedToParent->_getDerivedPosition(),deltaQuat*attachedToBone->_getDerivedOrientation());
+		}
 	}
 
 	void detachFromBone()

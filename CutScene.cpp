@@ -215,7 +215,7 @@ bool CutScene::frameStarted(const Ogre::FrameEvent &ev)
 					}
 				}*/
 				// Oh my fucking shit!!! I need to use my "Sgw32" deleter...
-				bool stop=true;
+				/*bool stop=true;
 				
 				while (stop)
 				{
@@ -242,6 +242,20 @@ bool CutScene::frameStarted(const Ogre::FrameEvent &ev)
 				
 				
 				}
+				}*/
+				k=scripts.begin();
+				for (j=scripts_s.begin();j!=scripts_s.end();)
+				{
+					if ((*j)==-1)
+					{
+						LogManager::getSingleton().logMessage("Erasing a lua script...");
+						scripts_s.erase(j);
+						scripts.erase(k);
+						continue;
+						
+					}	
+					j++;
+					k++;
 				}
 			//}
 				//Process frames

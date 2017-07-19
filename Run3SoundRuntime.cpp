@@ -277,8 +277,9 @@ bool Run3SoundRuntime::frameStarted(const Ogre::FrameEvent &evt)
 	
 	//part to just-in-time delete sounds from list - "Sgw32 Deleter"
 	bool stop=true;
-				
-				while (stop)
+//#define DELETE_ITER_SOUND(it,v) it=v.begin();advance(it,i);v.erase(it);	
+
+				/*while (stop)
 				{
 					stop=false;
 					i=0;
@@ -289,7 +290,7 @@ bool Run3SoundRuntime::frameStarted(const Ogre::FrameEvent &evt)
 						if ((*j)==0.0f)
 						{
 							durations.erase(j);
-#define DELETE_ITER_SOUND(it,v) it=v.begin();advance(it,i);v.erase(it);
+
 							//DELETE_ITER_SOUND(l,durations)
 							DELETE_ITER_SOUND(l,dists)
 							DELETE_ITER_SOUND(p,sounds)
@@ -307,9 +308,37 @@ bool Run3SoundRuntime::frameStarted(const Ogre::FrameEvent &evt)
 					
 					
 					}
-				}
+				}*/
+#define DELETE_ITER_SOUND(it,v) v.erase(it);	
 
-#undef DELETE_ITER_SOUND
+	l = dists.begin();
+	p = sounds.begin();
+	k = poss.begin();
+	o = optim.begin();
+	m = fileNames.begin();
+
+	for (j=durations.begin();j!=durations.end();)
+	{
+		if ((*j)==0.0f)
+		{
+			durations.erase(j);
+			DELETE_ITER_SOUND(l,dists)
+			DELETE_ITER_SOUND(p,sounds)
+			DELETE_ITER_SOUND(k,poss)
+			DELETE_ITER_SOUND(o,optim)
+			DELETE_ITER_SOUND(m,fileNames)
+			continue;
+		}	
+		j++;
+		l++;
+		p++;
+		k++;
+		o++;
+		m++;
+	}
+
+//#undef DELETE_ITER_SOUND
+
 	for(unsigned int m=0;m!=durations.size();m++)
 	{
 		Real d =durations[m];

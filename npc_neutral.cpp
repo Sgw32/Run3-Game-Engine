@@ -499,15 +499,25 @@ Run3SoundRuntime::getSingleton().emitSound("run3/sounds/explode_3.wav",4,false,n
 	if (flag==DETACH_PHYSOBJECT2)
 	{
 		vector<PhysObject*>::iterator i;
-			for (i=attachedPhysObjects.begin();i!=attachedPhysObjects.end();i++)
+			for (i=attachedPhysObjects.begin();i!=attachedPhysObjects.end();)
 			{
 				if ((*i)->getName()==param1)
 				{
+					LogManager::getSingleton().logMessage("1");
+					PhysObject* obj = (*i);
+					LogManager::getSingleton().logMessage("2");
 					attachedPhysObjects.erase(i);
-					(*i)->detachFromBone();
+					LogManager::getSingleton().logMessage("3");
+					obj->detachFromBone();
+					LogManager::getSingleton().logMessage("4");
+				}
+				else
+				{
+					i++;
 				}
 
 			}
+			LogManager::getSingleton().logMessage("5");
 	}
 }
 

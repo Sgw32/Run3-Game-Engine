@@ -113,16 +113,6 @@ private:
 	inline void processLook(Real time);
 	inline void processRandomMovements(Real time);
 	inline void spawnNPCRagdoll(Vector3 pos);
-	void processGoing(const Ogre::FrameEvent &evt,Real mulTime);
-	void processFootsteps(Vector3 myPos);
-	void checkFinishLuaExecute();
-	void checkContinuePath(bool farFindB,bool path_find);
-	void checkWalkAnimation();
-	void processPathFoundStep(const Ogre::FrameEvent &evt,bool stra, bool farFindB,Vector3 myPos,bool path_find);
-	void processStraightStep(const Ogre::FrameEvent &evt,bool stra, bool farFindB,Vector3 myPos,bool path_find);
-	void processSounds(Vector3 myPos);
-	void attack();
-	void processTurnRotation(const Ogre::FrameEvent &evt,Degree angle);
 	//PRIVATE_NODELIST
 	Real transitState;
 	Real time256;

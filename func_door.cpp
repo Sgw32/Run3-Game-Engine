@@ -740,7 +740,7 @@ void func_door::fullOpened()
 	if (!lDoorFopened.empty())
 	{
 	LogManager::getSingleton().logMessage("Running script:"+lDoorFopened);
-RunLuaScript(global::getSingleton().getLuaState(),lDoorFopened.c_str());
+	RunLuaScript(global::getSingleton().getLuaState(),lDoorFopened.c_str());
 	}
 }
 

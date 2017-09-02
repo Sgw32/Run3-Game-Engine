@@ -18,8 +18,10 @@ Event::Event(Ogre::Root* root,bool on,String name)
 	once=false;
 	cutscene_callback=false;
 	script_callback=false;
+	started=false;
 	mName=name;
 	pLuaState=global::getSingleton().getLuaState();
+	timeAfterrun=0;
 }
 
 Event::~Event()
@@ -73,6 +75,8 @@ void Event::setOpenDoor(func_door* door,String event,Real secs)
 void Event::trigger()
 {
 		started=true;
+		timeAfterrun=0;
+		l_secs=l_secs2;
 }
 
 void Event::interpretate_callback()
@@ -171,6 +175,7 @@ void Event::addLuaScript2(String script, Real secs)
 		script_callback=true;
 		luascripts.push_back(script);
 		l_secs.push_back(secs);
+		l_secs2.push_back(secs);
 		if (secs>maxwait)
 			maxwait=secs;
 }

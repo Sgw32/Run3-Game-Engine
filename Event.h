@@ -61,6 +61,7 @@ private:
 	vector<Real> d_secs;
 	vector<String> luascripts;
 	vector<Real> l_secs;
+	vector<Real> l_secs2;
 	Real maxwait;
 	String mName;
 	int i;

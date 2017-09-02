@@ -183,6 +183,7 @@ void Sequence::init(Ogre::Root* root,SceneManager* scene,SoundManager* sound)
 	lua_register(pLuaState,"turnoff__Sequence",turnoff__Sequence);
 	lua_register(pLuaState,"turnoff__NPCManager",turnoff__NPCManager);
 	lua_register(pLuaState,"setNPCManagerStep",setNPCManagerStep);
+	lua_register(pLuaState,"deleteDoor",deleteDoor);
 
 	//Load-on-the-go
 	lua_register(pLuaState,"processSequence",processSequence);

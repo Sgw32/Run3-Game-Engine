@@ -896,6 +896,33 @@ public:
 		return 1;
 	}
 
+	static int deleteDoor(lua_State* pL)
+	{
+		int n = lua_gettop(pL);
+		if (n!=1)
+		{
+			return 0;
+		}
+		if (lua_isstring(pL, 1))
+		{
+			String tex = lua_tostring(pL, 1);
+			vector<func_door*> pobj;
+			pobj = Sequence::getSingleton().doors;
+			vector<func_door*>::iterator i;
+			for (i=pobj.begin();i!=pobj.end();i++)
+			{
+				if ((*i)->getname()==tex)
+				{
+					(*i)->unload();
+					delete (*i);
+					pobj.erase(i);
+					break;
+				}
+			}
+		}
+		return 1;
+	}
+
 	static int setRotSpeed(lua_State* pL)
 	{
 		int n = lua_gettop(pL);

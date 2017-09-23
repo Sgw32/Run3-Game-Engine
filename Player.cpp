@@ -73,6 +73,7 @@ void Player::init(Ogre::SceneManager* scene,OgreNewt::World* world,Ogre::Camera*
 	props.stairEffect=Ogre::StringConverter::parseReal(cf.getSetting("stairEffect","","-1"));
 	props.trainForce=Ogre::StringConverter::parseReal(cf.getSetting("trainForce","","400"));
 	props.nearClip=Ogre::StringConverter::parseReal(cf.getSetting("nearClip","","10"));
+	props.devMode=Ogre::StringConverter::parseBool(cf.getSetting("devMode","","false"));
 	regen_Time=Ogre::StringConverter::parseReal(cf.getSetting("stdVel","","200"));
 	allowsubtitles=props.allowsubtitles = Ogre::StringConverter::parseBool(cf.getSetting("allowSubtitles","","true"));
 	props.allowflashlight=Ogre::StringConverter::parseBool(cf.getSetting("allowFlashLight","","true"));
@@ -802,19 +803,22 @@ camera_rotation_x=0;
 //////////////////////////////////////////
 void Player::cnoclip()
 {
-	noclip=!noclip;
-	if (noclip)
+	if (mProps.devMode)
 	{
-		mCamera->detatchFromParent();
-		mNoclipNode->attachObject(mCamera);
-		mNoclipNode->setOrientation(mViewNode->getOrientation());
-		bod->freeze();
-	}
-	if (!noclip)
-	{
-		mCamera->detatchFromParent();
-		mViewNode->attachObject(mCamera);
-		bod->unFreeze();
+		noclip=!noclip;
+		if (noclip)
+		{
+			mCamera->detatchFromParent();
+			mNoclipNode->attachObject(mCamera);
+			mNoclipNode->setOrientation(mViewNode->getOrientation());
+			bod->freeze();
+		}
+		if (!noclip)
+		{
+			mCamera->detatchFromParent();
+			mViewNode->attachObject(mCamera);
+			bod->unFreeze();
+		}
 	}
 }
 
@@ -1699,7 +1703,7 @@ void Player::FCUpdate(const FrameEvent &evt)
 		UnDuck();
 		awaitingunduck=false;
 	}
-	if (debug>3)
+	if ((debug>3)||(!mProps.devMode))
 		debug=0;
 	if (debug!=0)
 	{

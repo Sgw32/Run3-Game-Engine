@@ -54,6 +54,7 @@ public:
 	Real nearClip;
 	Real farClip;
 	int contcoll;
+	bool devMode;
 	
 };
 #endif

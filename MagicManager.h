@@ -106,17 +106,20 @@ public:
 	
 	static int buttonGUI_getX(lua_State* pL)
 	{
-		int x,y;
+		short x,y;
+		x=y=0;
 		//buttonGUI::relativePosition rel = buttonGUI::relativePosition::TOP_LEFT;
 		String name = lua_tostring(pL, 1);
 		MagicManager::getSingleton().getBMgr()->getButton(name)->getPosition((short &)x,(short &)y);
+		LogManager::getSingleton().logMessage(StringConverter::toString(x));
 		lua_pushnumber(pL,x);
 		return 1;
 	}
 
 	static int buttonGUI_getY(lua_State* pL)
 	{
-		int x,y;
+		short x,y;
+		x=y=0;
 		//buttonGUI::relativePosition rel = buttonGUI::relativePosition::TOP_LEFT;
 		String name = lua_tostring(pL, 1);
 		MagicManager::getSingleton().getBMgr()->getButton(name)->getPosition((short &)x,(short &)y);

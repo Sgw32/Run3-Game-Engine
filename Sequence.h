@@ -1704,14 +1704,15 @@ static int emitSound2(lua_State* pL)
 		{
 			String tex = lua_tostring(pL, 1);
 			Trigger* cscene;
-		for (unsigned int i=0; i!=Sequence::getSingleton().triggers.size();i++)
-	{
-		if (Sequence::getSingleton().triggers[i]->getname() == tex)
-		{
-			cscene = Sequence::getSingleton().triggers[i];
-		}
-	}
-		cscene->setEnabled(true);
+			for (unsigned int i=0; i!=Sequence::getSingleton().triggers.size();i++)
+			{
+				if (Sequence::getSingleton().triggers[i]->getname() == tex)
+				{
+					cscene = Sequence::getSingleton().triggers[i];
+					cscene->setEnabled(true);
+				}
+			}
+		
 		}
 		return 1;
 	}
@@ -1728,13 +1729,14 @@ static int disableTrigger(lua_State* pL)
 			String tex = lua_tostring(pL, 1);
 			Trigger* cscene;
 			for (unsigned int i=0; i!=Sequence::getSingleton().triggers.size();i++)
-	{
-		if (Sequence::getSingleton().triggers[i]->getname() == tex)
-		{
-			cscene = Sequence::getSingleton().triggers[i];
-		}
-	}
-		cscene->setEnabled(false);
+			{
+				if (Sequence::getSingleton().triggers[i]->getname() == tex)
+				{
+					cscene = Sequence::getSingleton().triggers[i];
+					cscene->setEnabled(false);
+				}
+			}
+		
 		}
 		return 1;
 	}
@@ -1756,9 +1758,10 @@ static int disableTrigger(lua_State* pL)
 				if (Sequence::getSingleton().fires[i]->getName() == tex)
 				{
 					firee = Sequence::getSingleton().fires[i];
+					firee->fire();
 				}
 			}
-			firee->fire();
+			
 		}
 		return 1;
 	}
@@ -1773,15 +1776,15 @@ static int disableTrigger(lua_State* pL)
 		if (lua_isstring(pL, 1))
 		{
 			String tex = lua_tostring(pL, 1);
-			Fire* firee;
+			Fire* firee=0;
 			for (unsigned int i=0; i!=Sequence::getSingleton().fires.size();i++)
 			{
 				if (Sequence::getSingleton().fires[i]->getName() == tex)
 				{
 					firee = Sequence::getSingleton().fires[i];
+					firee->toggle();
 				}
 			}
-			firee->toggle();
 		}
 		return 1;
 	}
@@ -1802,9 +1805,9 @@ static int disableTrigger(lua_State* pL)
 				if (Sequence::getSingleton().fires[i]->getName() == tex)
 				{
 					firee = Sequence::getSingleton().fires[i];
+					firee->extinguish();
 				}
 			}
-			firee->extinguish();
 		}
 		return 1;
 	}

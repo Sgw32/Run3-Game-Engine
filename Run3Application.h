@@ -207,6 +207,7 @@ public:
 protected:
     Root *mRoot;
 	TiXmlDocument   *SequenceDoc;
+	bool startmode;
 	TiXmlElement   *SequenceRoot;
     Camera* mCamera;
     SceneManager* mSceneMgr;
@@ -236,6 +237,16 @@ protected:
         mRoot = OGRE_NEW Root(pluginsPath, 
 mResourcePath + "ogre.cfg", mResourcePath + "Run3.log");
 
+		//Это позволит загрузить start.xml
+		ResourceGroupManager::getSingleton().addResourceLocation(
+                    "run3/core/", "FileSystem", "General");
+
+
+		startmode = getStartMode();
+		if (startmode)
+		{
+			system("GraphSetup.exe");
+		}
         setupResources();
 
         bool carryOn = configure();
@@ -275,7 +286,7 @@ mResourcePath + "ogre.cfg", mResourcePath + "Run3.log");
         // You can skip this and use root.restoreConfig() to load configuration
         // settings if you were sure there are valid ones saved in ogre.cfg
 
-		bool startmode = getStartMode();
+		
 		bool debugmode = getDebugMode();
 		
 		if (debugmode)

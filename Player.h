@@ -188,6 +188,8 @@ else
 		mFullP=false;
 		health=100;
 		mCamera->setFOVy(Degree(mProps.fov));
+		resetNearClip();
+		resetFarClip();
 		y_rotation_cont = 0;
 		bod->setPositionOrientation(get_location(),Quaternion::IDENTITY);
 		mViewNode->setOrientation(Quaternion::IDENTITY);
@@ -285,11 +287,11 @@ else
 	}	
 	Real getMouseSensivity()
 	{
-		return mRotate;
+		return mRotate/2.0f;
 	}
 	void setMouseSensivity(Real mSens)
 	{
-		mRotate=mSens;
+		mRotate=mSens*2.0f;
 		LogManager::getSingleton().logMessage("Now sens is:"+StringConverter::toString(mRotate));
 		String data = StringConverter::toString(mSens);
 		String nam = "mouseSensivity";

@@ -606,6 +606,12 @@ inline void npc_neutral::processRandomMovements(Real time)
 
 void npc_neutral::step(const Ogre::FrameEvent &evt)
 {
+        if (dyeNow)
+                mStateMachine.setState(NPCState::Dead);
+        else if (going)
+                mStateMachine.setState(NPCState::Moving);
+        else
+                mStateMachine.setState(NPCState::Idle);
 	// If time stopped - NPC stopped
 	if (TIME_SHIFT==0.0f)
 		return;
@@ -805,7 +811,7 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 				Degree angle;
 				angle = Vector3(dir1.x,0,dir1.z).angleBetween(dir);
 
-				reach_zero=angle.valueDegrees()>lastAngle;  //ïðèáëèçèëñÿ ëè óãîë ê íóëþ.åñëè äà, òî íå ïðèáëèçèëñÿ
+				reach_zero=angle.valueDegrees()>lastAngle;  //Ã¯Ã°Ã¨Ã¡Ã«Ã¨Ã§Ã¨Ã«Ã±Ã¿ Ã«Ã¨ Ã³Ã£Ã®Ã« Ãª Ã­Ã³Ã«Ã¾.Ã¥Ã±Ã«Ã¨ Ã¤Ã , Ã²Ã® Ã­Ã¥ Ã¯Ã°Ã¨Ã¡Ã«Ã¨Ã§Ã¨Ã«Ã±Ã¿
 				lastAngle=angle.valueDegrees();
 									
 									if (reach_zero)
@@ -930,7 +936,7 @@ void npc_neutral::step(const Ogre::FrameEvent &evt)
 		    						mAnimState = heliEnt->getAnimationState("Stealth");
 									mAnimState->setEnabled(true);
 									}
-									reach_zero=angle.valueDegrees()>lastAngle;  //ïðèáëèçèëñÿ ëè óãîë ê íóëþ.åñëè äà, òî íå ïðèáëèçèëñÿ
+									reach_zero=angle.valueDegrees()>lastAngle;  //Ã¯Ã°Ã¨Ã¡Ã«Ã¨Ã§Ã¨Ã«Ã±Ã¿ Ã«Ã¨ Ã³Ã£Ã®Ã« Ãª Ã­Ã³Ã«Ã¾.Ã¥Ã±Ã«Ã¨ Ã¤Ã , Ã²Ã® Ã­Ã¥ Ã¯Ã°Ã¨Ã¡Ã«Ã¨Ã§Ã¨Ã«Ã±Ã¿
 									lastAngle=angle.valueDegrees();
 									
 									if (reach_zero)

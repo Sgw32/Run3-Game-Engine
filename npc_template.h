@@ -20,6 +20,7 @@
 #include "Timeshift.h"
 #include "FacialAnimation.h"
 #include "FacialAnimationManager.h"
+#include "NPCStateMachine.h"
 
 using namespace Ogre;
 using namespace std;
@@ -135,6 +136,8 @@ protected:
 	AnimationState* mTransitAnimState; //Following animation
 	//Debug
 	vector<Ogre::SceneNode*>	mDebugPathNodes;
+        // State machine controlling NPC behaviour
+        NPCStateMachine mStateMachine;
 };
 
 #endif

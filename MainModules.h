@@ -57,6 +57,7 @@
 #include "SaveGame.h"
 #include "ChapterController.h"
 #include "SoftwareOcclusionCulling.h"
+#include "PolygonOcclusionCulling.h"
 #include "FacialAnimationManager.h"
 #include "Run3Benchmark.h"
 //#include "ZonePortalManager.h"

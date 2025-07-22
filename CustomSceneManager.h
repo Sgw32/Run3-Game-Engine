@@ -7,7 +7,7 @@
  
 using namespace std;
 
-//#define OCCLUSION_CULLING
+#define OCCLUSION_CULLING
 //#define OCCLUSION_CULLING2
 
 class CustomSceneManagerFactory : public Ogre::SceneManagerFactory

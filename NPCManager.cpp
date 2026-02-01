@@ -1,4 +1,5 @@
 #include "NPCManager.h"
+#include "NPCFactory.h"
 
 template<> NPCManager *Singleton<NPCManager>::ms_Singleton=0;
 
@@ -41,7 +42,13 @@ mMatDefault = global::getSingleton().getPlayer()->getPlayerMat();
   mMatPair->setDefaultElasticity(0.0f);
   mMatPair = new OgreNewt::MaterialPair( mWorld, neutralMat, enemyMat );
   mMatPair->setContactCallback( mPhysCallback );
-	
+
+  // Register default NPC types
+  NPCFactory::getSingleton().registerType("npc_enemy", [](){ return new npc_enemy(); });
+  NPCFactory::getSingleton().registerType("npc_friend", [](){ return new npc_friend(); });
+  NPCFactory::getSingleton().registerType("npc_neutral", [](){ return new npc_neutral(); });
+  NPCFactory::getSingleton().registerType("npc_aerial", [](){ return new npc_aerial(); });
+
 }
 
 void NPCManager::npc_spawn(NPCSpawnProps npc)
@@ -54,70 +61,28 @@ void NPCManager::npc_spawn(NPCSpawnProps npc)
 	int relation = details.relation;*/
 	String className = details.spCName;
 
-	if (className == "npc_enemy")
-	{
-		LogManager::getSingleton().logMessage("Npc Manager: npc enemy requested for a spawn:");
-		npc_enemy* enemy = new npc_enemy();
-		enemy->init(npc);
-		LogManager::getSingleton().logMessage("Setting node list..."+StringConverter::toString(mNodeList->getNode().size()));
-		enemy->setNodeList(mNodeList);
-		LogManager::getSingleton().logMessage("Spawning...");
-		enemy->processEvent(SPAWN_NPC,"","");
-		LogManager::getSingleton().logMessage("Setting material!");
-		enemy->setMaterialGroupID(enemyMat);
-		LogManager::getSingleton().logMessage("Running started!");
-		enemy->processEvent(RUNTO_NPC,"","");
-		LogManager::getSingleton().logMessage("Npc Manager: end of NPC spawn");
-		enemies.push_back(enemy);
-	}
-	if (className == "npc_neutral")
-	{
-		LogManager::getSingleton().logMessage("Npc Manager: npc neutral requested for a spawn:");
-		npc_neutral* neutral = new npc_neutral();
-		neutral->init(npc);
-		LogManager::getSingleton().logMessage("Setting node list..."+StringConverter::toString(mNodeList->getNode().size()));
-		neutral->setNodeList(mNodeList);
-		LogManager::getSingleton().logMessage("Spawning...");
-		neutral->processEvent(SPAWN_NPC,"","");
-		LogManager::getSingleton().logMessage("Setting material!");
-		neutral->setMaterialGroupID(neutralMat);
-		LogManager::getSingleton().logMessage("Running started!");
-		neutral->processEvent(RUNTO_NPC,"","");
-		LogManager::getSingleton().logMessage("Npc Manager: end of NPC spawn");
-		neutrals.push_back(neutral);
-	}
-	if (className == "npc_friend")
-	{
-		LogManager::getSingleton().logMessage("Npc Manager: npc friend requested for a spawn:");
-		npc_friend* frnd = new npc_friend();
-		frnd->init(npc);
-		LogManager::getSingleton().logMessage("Setting node list..."+StringConverter::toString(mNodeList->getNode().size()));
-		frnd->setNodeList(mNodeList);
-		LogManager::getSingleton().logMessage("Spawning...");
-		frnd->processEvent(SPAWN_NPC,"","");
-		LogManager::getSingleton().logMessage("Setting material!");
-		frnd->setMaterialGroupID(enemyMat);
-		LogManager::getSingleton().logMessage("Running started!");
-		frnd->processEvent(RUNTO_NPC,"","");
-		LogManager::getSingleton().logMessage("Npc Manager: end of NPC spawn");
-		friends.push_back(frnd);
-	}
-	if (className == "npc_aerial")
-	{
-		LogManager::getSingleton().logMessage("Npc Manager: npc aerial requested for a spawn:");
-		npc_aerial* frnd = new npc_aerial();
-		frnd->init(npc);
-		LogManager::getSingleton().logMessage("Setting node list..."+StringConverter::toString(mNodeList->getNode().size()));
-		frnd->setNodeList(mNodeList);
-		LogManager::getSingleton().logMessage("Spawning...");
-		frnd->processEvent(SPAWN_NPC,"","");
-		LogManager::getSingleton().logMessage("Setting material!");
-		frnd->setMaterialGroupID(enemyMat);
-		LogManager::getSingleton().logMessage("Running started!");
-		frnd->processEvent(RUNTO_NPC,"","");
-		LogManager::getSingleton().logMessage("Npc Manager: end of NPC spawn");
-		aerials.push_back(frnd);
-	}
+        npc_template* baseNpc = NPCFactory::getSingleton().create(className);
+        if(!baseNpc) {
+                LogManager::getSingleton().logMessage("Unknown NPC type: "+className);
+                return;
+        }
+        baseNpc->init(npc);
+        baseNpc->setNodeList(mNodeList);
+        baseNpc->processEvent(SPAWN_NPC,"","");
+        if(className == "npc_neutral")
+                baseNpc->setMaterialGroupID(neutralMat);
+        else
+                baseNpc->setMaterialGroupID(enemyMat);
+        baseNpc->processEvent(RUNTO_NPC,"","");
+
+        if(className == "npc_enemy")
+                enemies.push_back(static_cast<npc_enemy*>(baseNpc));
+        else if(className == "npc_friend")
+                friends.push_back(static_cast<npc_friend*>(baseNpc));
+        else if(className == "npc_neutral")
+                neutrals.push_back(static_cast<npc_neutral*>(baseNpc));
+        else if(className == "npc_aerial")
+                aerials.push_back(static_cast<npc_aerial*>(baseNpc));
 }
 
 void NPCManager::npc_kill(String name)

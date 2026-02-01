@@ -22,6 +22,7 @@
 #include "npc_neutral.h"
 #include "npc_aerial.h"
 #include "enemyMatCallback.h"
+#include "NPCFactory.h"
 #include "neutralMatCallback.h"
 
 using namespace Ogre;

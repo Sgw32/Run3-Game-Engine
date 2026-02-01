@@ -328,6 +328,12 @@ Run3SoundRuntime::getSingleton().emitSound("run3/sounds/explode_3.wav",4,false,n
 void npc_enemy::step(const Ogre::FrameEvent &evt)
 {
 	Real angleSwitch = 0;
+        if (dyeNow)
+                mStateMachine.setState(NPCState::Dead);
+        else if (going)
+                mStateMachine.setState(NPCState::Moving);
+        else
+                mStateMachine.setState(NPCState::Idle);
 	if (TIME_SHIFT==0.0f)
 		return;
 	if (animated)
@@ -487,7 +493,7 @@ void npc_enemy::step(const Ogre::FrameEvent &evt)
 				////LogManager::getSingleton().logMessage(StringConverter::toString(dir1)+" "+StringConverter::toString(dir)+" "+StringConverter::toString(angle));
 				////LogManager::getSingleton().logMessage("Rotating in Player not found");
 				//if (angle>Degree(10.0f))
-									reach_zero=angle.valueDegrees()>lastAngle;  //ïðèáëèçèëñÿ ëè óãîë ê íóëþ.åñëè äà, òî íå ïðèáëèçèëñÿ
+									reach_zero=angle.valueDegrees()>lastAngle;  //Ã¯Ã°Ã¨Ã¡Ã«Ã¨Ã§Ã¨Ã«Ã±Ã¿ Ã«Ã¨ Ã³Ã£Ã®Ã« Ãª Ã­Ã³Ã«Ã¾.Ã¥Ã±Ã«Ã¨ Ã¤Ã , Ã²Ã® Ã­Ã¥ Ã¯Ã°Ã¨Ã¡Ã«Ã¨Ã§Ã¨Ã«Ã±Ã¿
 									lastAngle=angle.valueDegrees();
 									
 									if (reach_zero)
@@ -619,7 +625,7 @@ void npc_enemy::step(const Ogre::FrameEvent &evt)
 		    						mAnimState = heliEnt->getAnimationState("Stealth");
 									mAnimState->setEnabled(true);
 									}
-									reach_zero=angle.valueDegrees()>lastAngle;  //ïðèáëèçèëñÿ ëè óãîë ê íóëþ.åñëè äà, òî íå ïðèáëèçèëñÿ
+									reach_zero=angle.valueDegrees()>lastAngle;  //Ã¯Ã°Ã¨Ã¡Ã«Ã¨Ã§Ã¨Ã«Ã±Ã¿ Ã«Ã¨ Ã³Ã£Ã®Ã« Ãª Ã­Ã³Ã«Ã¾.Ã¥Ã±Ã«Ã¨ Ã¤Ã , Ã²Ã® Ã­Ã¥ Ã¯Ã°Ã¨Ã¡Ã«Ã¨Ã§Ã¨Ã«Ã±Ã¿
 									lastAngle=angle.valueDegrees();
 									
 									if (reach_zero)

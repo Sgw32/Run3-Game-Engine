@@ -4,7 +4,10 @@ template<> SoftwareOcclusionCulling *Ogre::Singleton<SoftwareOcclusionCulling>::
 
 SoftwareOcclusionCulling::SoftwareOcclusionCulling()
 {
-	cnt=1.0f;
+        cnt = 0.0f;
+        mInterval = 0.1f;
+        mPixelThreshold = 5;
+        enable = true;
 }
 
 SoftwareOcclusionCulling::~SoftwareOcclusionCulling()
@@ -13,7 +16,17 @@ SoftwareOcclusionCulling::~SoftwareOcclusionCulling()
 
 void SoftwareOcclusionCulling::init()
 {
-	mgr = (CustomSceneManager*)global::getSingleton().getSceneManager(); //TODO Replace with your mSceneMgr SceneManager
+        mgr = static_cast<CustomSceneManager*>(global::getSingleton().getSceneManager());
+
+        // Automatically gather all existing entities
+        SceneManager::MovableObjectIterator it = mgr->getMovableObjectIterator("Entity");
+        while (it.hasMoreElements())
+        {
+                MovableObject* mo = it.getNext();
+                Entity* e = dynamic_cast<Entity*>(mo);
+                if (e)
+                        zps.push_back(e);
+        }
 }
 
 void SoftwareOcclusionCulling::upd(const FrameEvent& evt) // Feed it from some registered framelistener
@@ -21,10 +34,10 @@ void SoftwareOcclusionCulling::upd(const FrameEvent& evt) // Feed it from some r
 	
 	if (!enable)
 		return;
-	cnt-=evt.timeSinceLastFrame;
-	if (cnt<0)
-	{
-		cnt=1.0f;
+        cnt -= evt.timeSinceLastFrame;
+        if (cnt <= 0)
+        {
+                cnt = mInterval;
 		#ifdef DEBUG_CULLING
 		LogManager::getSingleton().logMessage("Occlusion culling processing");
 	#endif
@@ -49,7 +62,7 @@ void SoftwareOcclusionCulling::upd(const FrameEvent& evt) // Feed it from some r
 					LogManager::getSingleton().logMessage("Processing subentity.");
 					LogManager::getSingleton().logMessage("Pixel count is:"+StringConverter::toString(pixelc));
 					#endif
-					if ((pixelc<100)&&(pixelc!=-1))
+                                        if ((pixelc < (int)mPixelThreshold) && (pixelc != -1))
 					{
 						#ifdef DEBUG_CULLING
 						LogManager::getSingleton().logMessage("Setting off "+cur->getName()+" num:"+StringConverter::toString(j));

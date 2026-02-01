@@ -12,8 +12,8 @@ extern "C"
   #include <lauxlib.h>
 }
 
-#include "MainModules.h" //Все глобальные там.
-#include "MainUtils.h" //Функции
+#include "MainModules.h" //Г‚Г±ГҐ ГЈГ«Г®ГЎГ Г«ГјГ­Г»ГҐ ГІГ Г¬.
+#include "MainUtils.h" //Г”ГіГ­ГЄГ¶ГЁГЁ
 
 class MainListener : public Run3FrameListener, public OIS::MouseListener, public OIS::KeyListener
 {
@@ -360,14 +360,14 @@ public:
     }
 
 private:
-    Real mRotate;          // Константа вращения
-    Real mMove;            // Констана перемещения
-    bool mContinue;        // Продолжать рендеринг или нет
-	bool mConsole;         // Открыта ли консоль
-	Real time;				// Время с предыдущего фрэйма(не используется)
-    Vector3 mDirection;     // Значения перемещения в правильном направлении
-	SceneManager *mSceneMgr;   // Текущий SceneManager
-    SceneNode *mCamNode;   // SceneNode, к которому присоединена текущая Камера
+    Real mRotate;          // ГЉГ®Г­Г±ГІГ Г­ГІГ  ГўГ°Г Г№ГҐГ­ГЁГї
+    Real mMove;            // ГЉГ®Г­Г±ГІГ Г­Г  ГЇГҐГ°ГҐГ¬ГҐГ№ГҐГ­ГЁГї
+    bool mContinue;        // ГЏГ°Г®Г¤Г®Г«Г¦Г ГІГј Г°ГҐГ­Г¤ГҐГ°ГЁГ­ГЈ ГЁГ«ГЁ Г­ГҐГІ
+	bool mConsole;         // ГЋГІГЄГ°Г»ГІГ  Г«ГЁ ГЄГ®Г­Г±Г®Г«Гј
+	Real time;				// Г‚Г°ГҐГ¬Гї Г± ГЇГ°ГҐГ¤Г»Г¤ГіГ№ГҐГЈГ® ГґГ°ГЅГ©Г¬Г (Г­ГҐ ГЁГ±ГЇГ®Г«ГјГ§ГіГҐГІГ±Гї)
+    Vector3 mDirection;     // Г‡Г­Г Г·ГҐГ­ГЁГї ГЇГҐГ°ГҐГ¬ГҐГ№ГҐГ­ГЁГї Гў ГЇГ°Г ГўГЁГ«ГјГ­Г®Г¬ Г­Г ГЇГ°Г ГўГ«ГҐГ­ГЁГЁ
+	SceneManager *mSceneMgr;   // Г’ГҐГЄГіГ№ГЁГ© SceneManager
+    SceneNode *mCamNode;   // SceneNode, ГЄ ГЄГ®ГІГ®Г°Г®Г¬Гі ГЇГ°ГЁГ±Г®ГҐГ¤ГЁГ­ГҐГ­Г  ГІГҐГЄГіГ№Г Гї ГЉГ Г¬ГҐГ°Г 
 	Overlay* mMenuOverlay;
 	bool mShutdownRequested;
 };
@@ -419,6 +419,7 @@ public:
 		new SkyManager;
 		new SaveGame;
 		new SoftwareOcclusionCulling;
+                new PolygonOcclusionCulling;
 		new FacialAnimationManager;
 		new Run3Benchmark;
 	}
@@ -572,6 +573,7 @@ protected:
 		managers.push_back(FacialAnimationManager::getSingletonPtr());
 		managers.push_back(ZonePortalManager::getSingletonPtr());
 		managers.push_back(SoftwareOcclusionCulling::getSingletonPtr());
+                managers.push_back(PolygonOcclusionCulling::getSingletonPtr());
 #ifdef MULTIHEAD
 		/*** Multihead : add a viewport to the second screen */
 		if(mWindow2)
@@ -581,6 +583,7 @@ protected:
 		Run3Batcher::getSingleton().init(mSceneMgr);
 		global::getSingleton().setSceneManager(mSceneMgr);
 		SoftwareOcclusionCulling::getSingleton().init();
+                PolygonOcclusionCulling::getSingleton().init();
 		Timeshift::getSingleton().init();
 		global::getSingleton().setLuaState(pL);
 		global::getSingleton().setCamera(mCamera);

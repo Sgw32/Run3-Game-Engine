@@ -25,3 +25,4 @@ This documentation section will grow with additional guides and references.
 ## References
 
 - [Sequence XML entities](ENTITIES.md)
+- [NPC classes](NPCS.md)

@@ -21,3 +21,7 @@ At a high level the engine is organized into a few major modules:
 - **Game Systems** – gameplay logic, AI, scripting and other utilities.
 
 This documentation section will grow with additional guides and references.
+
+## References
+
+- [Sequence XML entities](ENTITIES.md)

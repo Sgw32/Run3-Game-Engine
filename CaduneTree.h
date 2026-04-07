@@ -24,10 +24,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-#include <Ogre.h>
 #include "CTPrerequisites.h"
+#include <Ogre.h>
 
 #include "CTParameters.h"
 #include "CTSerializer.h"
-//#include "CTSection.h"
+// #include "CTSection.h"
 #include "CTStem.h"

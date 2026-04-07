@@ -1,4 +1,1 @@
-class Run3ShadowListener: public Ogre::ShadowListener
-{
-
-}
+class Run3ShadowListener : public Ogre::ShadowListener {}

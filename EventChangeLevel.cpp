@@ -4,24 +4,15 @@
 /////////////////////////////////////////////////////////////////////
 #include "EventChangeLevel.h"
 
-template<> EventChangeLevel *Singleton<EventChangeLevel>::ms_Singleton=0;
+template <> EventChangeLevel *Singleton<EventChangeLevel>::ms_Singleton = 0;
 
-EventChangeLevel::EventChangeLevel()
-{
+EventChangeLevel::EventChangeLevel() {}
 
-}
+EventChangeLevel::~EventChangeLevel() {}
 
-EventChangeLevel::~EventChangeLevel()
-{
+void EventChangeLevel::init(SceneManager *scene) { mSceneMgr = scene; }
 
-}
-
-void EventChangeLevel::init(SceneManager* scene)
-{
-	mSceneMgr = scene;
-}
-
-void EventChangeLevel::fire(String map)
-{
-	LoadMap::getSingleton().LoadM("/" + map,"MAP","/scripts","run3/maps","General",mSceneMgr);
+void EventChangeLevel::fire(String map) {
+  LoadMap::getSingleton().LoadM("/" + map, "MAP", "/scripts", "run3/maps",
+                                "General", mSceneMgr);
 }

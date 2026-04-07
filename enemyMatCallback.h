@@ -1,16 +1,13 @@
 #pragma once
 
 #include <OgreNewt.h>
-using namespace Ogre; 
+using namespace Ogre;
 
-class enemyMatCallback :
-	public OgreNewt::ContactCallback
-{
+class enemyMatCallback : public OgreNewt::ContactCallback {
 public:
-	enemyMatCallback(void);
-	~enemyMatCallback(void);
+  enemyMatCallback(void);
+  ~enemyMatCallback(void);
 
-	// in this example we only need the Process() function.
-	int userProcess();
+  // in this example we only need the Process() function.
+  int userProcess();
 };
-

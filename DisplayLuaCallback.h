@@ -3,119 +3,87 @@
 
 using namespace Ogre;
 
-class DisplayLuaCallback:public Singleton<DisplayLuaCallback>
-{
+class DisplayLuaCallback : public Singleton<DisplayLuaCallback> {
 public:
-	DisplayLuaCallback();
-	~DisplayLuaCallback();
-	void setWriteLnText(String text)
-	{
-		wrtLn=text;
-	}
+  DisplayLuaCallback();
+  ~DisplayLuaCallback();
+  void setWriteLnText(String text) { wrtLn = text; }
 
-	String getWriteLnText(void)
-	{
-	String twrt = wrtLn;
-	wrtLn="";
-	return twrt;
-	}
-	
-	void setFirstChar(String text)
-	{
-		fChar=text;
-	}
+  String getWriteLnText(void) {
+    String twrt = wrtLn;
+    wrtLn = "";
+    return twrt;
+  }
 
-	String getFirstChar(void)
-	{
-		String twrt = fChar;
-		fChar="";
-		return twrt;
-	}
+  void setFirstChar(String text) { fChar = text; }
 
-	void setDTex(String tex)
-	{
-		dtex=tex;
-	}
+  String getFirstChar(void) {
+    String twrt = fChar;
+    fChar = "";
+    return twrt;
+  }
 
-	void setDimensions(Real x1,Real y1,Real x2,Real y2);
+  void setDTex(String tex) { dtex = tex; }
 
-	void resetDimensions();
+  void setDimensions(Real x1, Real y1, Real x2, Real y2);
 
-	void setFont(String font)
-	{
-		dfont=font;
-	}
+  void resetDimensions();
 
-	void setLines(String tex)
-	{
-		lines=StringConverter::parseInt(tex);
-	}
-	
-	void shutdown();
+  void setFont(String font) { dfont = font; }
 
-	int getLines(void)
-	{
-		Real lines2=lines;
-		lines=-1;
-		return lines2;
-	}
+  void setLines(String tex) { lines = StringConverter::parseInt(tex); }
 
-	String getFont(void)
-	{
-		String dfont2 = dfont;
-		dfont="";
-		return dfont2;
-	}
+  void shutdown();
 
-	void setNewLine(void)
-	{
-		newLine=true;
-	}
+  int getLines(void) {
+    Real lines2 = lines;
+    lines = -1;
+    return lines2;
+  }
 
-	bool getNewLine(void)
-	{
-		bool newLine2 = newLine;
-		newLine=false;
-		return newLine2;
-	}
+  String getFont(void) {
+    String dfont2 = dfont;
+    dfont = "";
+    return dfont2;
+  }
 
-	void setFontSize(String font)
-	{
-		fontSize=font;
-	}
+  void setNewLine(void) { newLine = true; }
 
-	String getFontSize(void)
-	{
-		String dfont2 = fontSize;
-		fontSize="";
-		return dfont2;
-	}
+  bool getNewLine(void) {
+    bool newLine2 = newLine;
+    newLine = false;
+    return newLine2;
+  }
 
-	void setClear()
-	{
-		doClear=true;
-	}
+  void setFontSize(String font) { fontSize = font; }
 
-	String getDTex(void)
-	{
-	String twrt = dtex;
-	dtex="";
-	return twrt;
-	}
+  String getFontSize(void) {
+    String dfont2 = fontSize;
+    fontSize = "";
+    return dfont2;
+  }
 
-	bool getClear(void)
-	{
-	bool dClear=doClear;
-	doClear=false;
-	return dClear;
-	}
+  void setClear() { doClear = true; }
+
+  String getDTex(void) {
+    String twrt = dtex;
+    dtex = "";
+    return twrt;
+  }
+
+  bool getClear(void) {
+    bool dClear = doClear;
+    doClear = false;
+    return dClear;
+  }
+
 private:
-	bool doClear;
-	bool newLine;
-	Real lines;
-	String wrtLn;
-	String fontSize;
-	String dtex;
-	String fChar;
-	String dfont;
+  bool doClear;
+  bool newLine;
+  Real lines;
+  String wrtLn;
+  String fontSize;
+  String dtex;
+  String fChar;
+  String dfont;
 };

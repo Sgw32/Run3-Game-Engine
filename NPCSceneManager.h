@@ -3,27 +3,28 @@ NPCScene Manager by Sgw32 2011
 */
 #pragma once
 
-#include "Ogre.h"
-#include "global.h"
 #include "Manager_Template.h"
 #include "NPCScene.h"
+#include "Ogre.h"
+#include "global.h"
 
 using namespace Ogre;
 using namespace std;
- 
 
-
-class NPCSceneManager : public Singleton<NPCSceneManager>, public managerTemplate
-{
+class NPCSceneManager : public Singleton<NPCSceneManager>,
+                        public managerTemplate {
 public:
-	NPCSceneManager(String manName){LogManager::getSingleton().logMessage(manName+" manager initialized!");}
-	NPCSceneManager();
-	virtual ~NPCSceneManager();
-	virtual void init();
-	
-	virtual void upd(const FrameEvent& evt);
-	virtual void cleanup();
+  NPCSceneManager(String manName) {
+    LogManager::getSingleton().logMessage(manName + " manager initialized!");
+  }
+  NPCSceneManager();
+  virtual ~NPCSceneManager();
+  virtual void init();
+
+  virtual void upd(const FrameEvent &evt);
+  virtual void cleanup();
+
 private:
-	vector<NPCScene*> zps;
-	NPCScene* curZP;
+  vector<NPCScene *> zps;
+  NPCScene *curZP;
 };

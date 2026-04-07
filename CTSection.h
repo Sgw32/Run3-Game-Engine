@@ -35,40 +35,43 @@ THE SOFTWARE.
 
 namespace CaduneTree {
 
-	/// @class Section
-	/// Objects of this type hold information about vertices, their normals and texture coordinates (one set).
-	/// This is used only internally in methods of Stem class. Thus there is no need to document the code.
+/// @class Section
+/// Objects of this type hold information about vertices, their normals and
+/// texture coordinates (one set). This is used only internally in methods of
+/// Stem class. Thus there is no need to document the code.
 
-	/// Used only internally.
-	class Section {
-	public:
-		Section();
-		~Section();
+/// Used only internally.
+class Section {
+public:
+  Section();
+  ~Section();
 
-		void create( unsigned int numLobes, float lobeDepth, float radius, unsigned int numVertices );
-		void setOrientation( const Ogre::Quaternion& orientation );
-		void setGlobalOrigin( const Ogre::Vector3& globalOrigin );
-		void setOrigin( const Ogre::Vector3& origin );
-		void setTexVCoord( float v );
+  void create(unsigned int numLobes, float lobeDepth, float radius,
+              unsigned int numVertices);
+  void setOrientation(const Ogre::Quaternion &orientation);
+  void setGlobalOrigin(const Ogre::Vector3 &globalOrigin);
+  void setOrigin(const Ogre::Vector3 &origin);
+  void setTexVCoord(float v);
 
-		std::vector< Ogre::Vector3 >* getGlobalVertices();
-		std::vector< Ogre::Vector3 >* getNormals();
-		std::vector< float >* getTexUCoords();
+  std::vector<Ogre::Vector3> *getGlobalVertices();
+  std::vector<Ogre::Vector3> *getNormals();
+  std::vector<float> *getTexUCoords();
 
-		Ogre::Quaternion getOrientation() const;
-		Ogre::Vector3 getOrigin() const;
-		Ogre::Vector3 getGlobalOrigin() const;
-		float getTexVCoord() const;
-	private:
-		Ogre::Vector3 mOrigin;
-		Ogre::Vector3 mGlobalOrigin;
-		Ogre::Quaternion mOrientation;
-		std::vector< Ogre::Vector3 > mGlobalVertices;
-		std::vector< Ogre::Vector3 > mNormals;
-		std::vector< float > mTexUCoords;
-		float mTexVCoord;
-	};
+  Ogre::Quaternion getOrientation() const;
+  Ogre::Vector3 getOrigin() const;
+  Ogre::Vector3 getGlobalOrigin() const;
+  float getTexVCoord() const;
 
-} // CaduneTree
+private:
+  Ogre::Vector3 mOrigin;
+  Ogre::Vector3 mGlobalOrigin;
+  Ogre::Quaternion mOrientation;
+  std::vector<Ogre::Vector3> mGlobalVertices;
+  std::vector<Ogre::Vector3> mNormals;
+  std::vector<float> mTexUCoords;
+  float mTexVCoord;
+};
+
+} // namespace CaduneTree
 
 #endif

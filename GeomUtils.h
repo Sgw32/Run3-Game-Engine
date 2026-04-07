@@ -18,31 +18,23 @@ LGPL like the rest of the engine.
 #include "OgreString.h"
 #include "OgreVertexIndexData.h"
 
-class GeomUtils
-{
+class GeomUtils {
 public:
-	// Create a Mesh with a given name, radius, number of rings and number of segments
-	static void createSphere(const Ogre::String& strName
-		, const float radius
-		, const int nRings, const int nSegments
-		, bool bNormals
-		, bool bTexCoords
-		);
+  // Create a Mesh with a given name, radius, number of rings and number of
+  // segments
+  static void createSphere(const Ogre::String &strName, const float radius,
+                           const int nRings, const int nSegments, bool bNormals,
+                           bool bTexCoords);
 
+  // Fill up a fresh copy of VertexData and IndexData with a sphere's coords
+  // given the number of rings and the number of segments
+  static void createSphere(Ogre::VertexData *&vertexData,
+                           Ogre::IndexData *&indexData, float radius,
+                           int nRings, int nSegments, bool bNormals,
+                           bool bTexCoords);
 
-	// Fill up a fresh copy of VertexData and IndexData with a sphere's coords given the number of rings and the number of segments
-	static void createSphere(Ogre::VertexData*& vertexData, Ogre::IndexData*& indexData
-		, float radius
-		, int nRings, int nSegments
-		, bool bNormals
-		, bool bTexCoords);
-
-
-	// Fill up a fresh copy of VertexData with a normalized quad
-	static void createQuad(Ogre::VertexData*& vertexData);
-
-
+  // Fill up a fresh copy of VertexData with a normalized quad
+  static void createQuad(Ogre::VertexData *&vertexData);
 };
-
 
 #endif

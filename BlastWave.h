@@ -1,31 +1,30 @@
 #pragma once
-#include "OgreNewt.h"
 #include "Manager_Template.h"
+#include "OgreNewt.h"
 
 using namespace OgreNewt;
 
-class BlastWave:public managerTemplate
-{
+class BlastWave : public managerTemplate {
 public:
-	BlastWave(String blastLog);
-	BlastWave();
-	virtual ~BlastWave();
-	virtual void init();
-	void blast(Vector3 pos,Vector3 size,Real power);
-	virtual void upd(const FrameEvent& evt);
-	virtual void cleanup();
-	/* from Energy.h */
-	Vector3 get_pos(OgreNewt::Body* bod)
-	{
-		Vector3 pos;
-		Quaternion quat;
-		bod->getPositionOrientation(pos,quat);
-		return pos;
-	}
-	void getBodyOnDegree(Vector3 pos,int deg);
+  BlastWave(String blastLog);
+  BlastWave();
+  virtual ~BlastWave();
+  virtual void init();
+  void blast(Vector3 pos, Vector3 size, Real power);
+  virtual void upd(const FrameEvent &evt);
+  virtual void cleanup();
+  /* from Energy.h */
+  Vector3 get_pos(OgreNewt::Body *bod) {
+    Vector3 pos;
+    Quaternion quat;
+    bod->getPositionOrientation(pos, quat);
+    return pos;
+  }
+  void getBodyOnDegree(Vector3 pos, int deg);
+
 private:
-	Real mPower;
-	bool startExp;
-	OgreNewt::World* mWorld;
-	Real blastDist;
+  Real mPower;
+  bool startExp;
+  OgreNewt::World *mWorld;
+  Real blastDist;
 };

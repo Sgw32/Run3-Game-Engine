@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////
 //		Soundscape module ported from HL2                            //
-//		Started 24.12.2016											 //
-//		by Sgw32													 //
-//		leave this comment if you want to use it in your own code!	 //
+//		Started 24.12.2016
+//// 		by Sgw32
+//// 		leave this comment if you want to use it in your own code!	 //
 ///////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////
 ///////////////Original file by:Fyodor Zagumennov aka Sgw32//////////
@@ -13,17 +13,16 @@
 #include <Ogre.h>
 #include <OgreNewt.h>
 #include <vector>
-//#include "DotScene.h"
+// #include "DotScene.h"
 using namespace Ogre;
 
-class Soundscape
-{
+class Soundscape {
 public:
-	Soundscape();
-	~Soundscape();
-	void init();
+  Soundscape();
+  ~Soundscape();
+  void init();
 
-	void cleanup();
+  void cleanup();
 
-	void upd(const FrameEvent &evt);
+  void upd(const FrameEvent &evt);
 };

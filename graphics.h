@@ -1,7 +1,7 @@
-#if !defined (GRAPHICS_H)
+#if !defined(GRAPHICS_H)
 #define GRAPHICS_H
-#include <windows.h>
 #include <cstdio>
+#include <windows.h>
 
 #define DARK_BLUE 1
 #define GREEN 2
@@ -19,10 +19,9 @@
 #define YELLOW 14
 #define WHITE 15
 
-
-BOOL settextcolor( WORD color );
-BOOL setbkcolor( WORD color );
-BOOL gotoxy( short x, short y );
-void GetHandle( HANDLE &hStdout );
+BOOL settextcolor(WORD color);
+BOOL setbkcolor(WORD color);
+BOOL gotoxy(short x, short y);
+void GetHandle(HANDLE &hStdout);
 
 #endif

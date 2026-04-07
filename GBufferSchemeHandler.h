@@ -12,12 +12,11 @@ same license as the rest of the engine.
 -----------------------------------------------------------------------------
 */
 
-
 #ifndef _GBUFFERSCHEMEHANDLER_H
 #define _GBUFFERSCHEMEHANDLER_H
 
-#include <OgreMaterialManager.h>
 #include "GBufferMaterialGenerator.h"
+#include <OgreMaterialManager.h>
 
 /** Class for handling materials who did not specify techniques for rendering
  *  themselves into the GBuffer. This class allows deferred shading to be used,
@@ -26,48 +25,52 @@ same license as the rest of the engine.
  *  in order to support more, either expand this class or specify the techniques
  *  in the materials.
  */
-class GBufferSchemeHandler : public Ogre::MaterialManager::Listener
-{
+class GBufferSchemeHandler : public Ogre::MaterialManager::Listener {
 public:
-	/** @copydoc MaterialManager::Listener::handleSchemeNotFound */
-	virtual Ogre::Technique* handleSchemeNotFound(unsigned short schemeIndex, 
-		const Ogre::String& schemeName, Ogre::Material* originalMaterial, unsigned short lodIndex, 
-		const Ogre::Renderable* rend);
+  /** @copydoc MaterialManager::Listener::handleSchemeNotFound */
+  virtual Ogre::Technique *
+  handleSchemeNotFound(unsigned short schemeIndex,
+                       const Ogre::String &schemeName,
+                       Ogre::Material *originalMaterial,
+                       unsigned short lodIndex, const Ogre::Renderable *rend);
+
 protected:
-	//The material generator
-	GBufferMaterialGenerator mMaterialGenerator;
-	
-	//The string that will be checked in textures to determine whether they are normal maps
-	static const Ogre::String NORMAL_MAP_PATTERN;
+  // The material generator
+  GBufferMaterialGenerator mMaterialGenerator;
 
-	//A structure for containing the properties of a material, relevant to GBuffer rendering
-	//You might need to expand this class to support more options
-	struct PassProperties 
-	{
-		PassProperties() : isDeferred(true), normalMap(0), isSkinned(false) {}
+  // The string that will be checked in textures to determine whether they are
+  // normal maps
+  static const Ogre::String NORMAL_MAP_PATTERN;
 
-		bool isDeferred;
-		Ogre::vector<Ogre::TextureUnitState*>::type regularTextures;
-		Ogre::TextureUnitState* normalMap;
-		bool isSkinned;
-        bool hasDiffuseColour;
-		
-		//Example of possible extension : vertex colours
-		//Ogre::TrackVertexColourType vertexColourType;
-	};
+  // A structure for containing the properties of a material, relevant to
+  // GBuffer rendering You might need to expand this class to support more
+  // options
+  struct PassProperties {
+    PassProperties() : isDeferred(true), normalMap(0), isSkinned(false) {}
 
-	//Inspect a technique and return its relevant properties
-	PassProperties inspectPass(Ogre::Pass* pass, 
-		unsigned short lodIndex, const Ogre::Renderable* rend);
+    bool isDeferred;
+    Ogre::vector<Ogre::TextureUnitState *>::type regularTextures;
+    Ogre::TextureUnitState *normalMap;
+    bool isSkinned;
+    bool hasDiffuseColour;
 
-	//Get the permutation of material flags that fit a certain property sheet
-	MaterialGenerator::Perm getPermutation(const PassProperties& props);
+    // Example of possible extension : vertex colours
+    // Ogre::TrackVertexColourType vertexColourType;
+  };
 
-	//Fill a pass with the specific data from the pass it is based on
-	void fillPass(Ogre::Pass* gBufferPass, Ogre::Pass* originalPass, const PassProperties& props);
+  // Inspect a technique and return its relevant properties
+  PassProperties inspectPass(Ogre::Pass *pass, unsigned short lodIndex,
+                             const Ogre::Renderable *rend);
 
-	//Check if a texture is a normal map, and fill property sheet accordingly
-	bool checkNormalMap(Ogre::TextureUnitState* tus, PassProperties& props);
+  // Get the permutation of material flags that fit a certain property sheet
+  MaterialGenerator::Perm getPermutation(const PassProperties &props);
+
+  // Fill a pass with the specific data from the pass it is based on
+  void fillPass(Ogre::Pass *gBufferPass, Ogre::Pass *originalPass,
+                const PassProperties &props);
+
+  // Check if a texture is a normal map, and fill property sheet accordingly
+  bool checkNormalMap(Ogre::TextureUnitState *tus, PassProperties &props);
 };
 
 #endif

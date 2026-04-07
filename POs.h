@@ -3,14 +3,14 @@
 #include "PhysObject.h"
 #include <vector>
 
-class POs:public Ogre::Singleton<POs>
-{
+class POs : public Ogre::Singleton<POs> {
 public:
-	POs();
-	~POs();
-	void addPO(PhysObject* po);
-	void clear();
-	std::vector<PhysObject*> getObjects(){return pobjects;}
+  POs();
+  ~POs();
+  void addPO(PhysObject *po);
+  void clear();
+  std::vector<PhysObject *> getObjects() { return pobjects; }
+
 private:
-	std::vector<PhysObject*> pobjects;
+  std::vector<PhysObject *> pobjects;
 };

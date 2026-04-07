@@ -21,36 +21,36 @@ Description: Base class for all the OGRE examples
 #ifndef __Run3Application_H__
 #define __Run3Application_H__
 
+#include "CustomSceneManager.h"
 #include "Ogre.h"
 #include "OgreConfigFile.h"
 #include "PreVideoViewer.h"
-#include "tinyxml.h"
 #include "Run3FrameListener.h"
-#include "CustomSceneManager.h"
+#include "tinyxml.h"
 #if OGRE_PLATFORM == OGRE_PLATFORM_APPLE
 #include <CoreFoundation/CoreFoundation.h>
 
 // This function will locate the path to our application on OS X,
 // unlike windows you can not rely on the curent working directory
 // for locating your configuration files and resources.
-std::string macBundlePath()
-{
-    char path[1024];
-    CFBundleRef mainBundle = CFBundleGetMainBundle();
-    assert(mainBundle);
+std::string macBundlePath() {
+  char path[1024];
+  CFBundleRef mainBundle = CFBundleGetMainBundle();
+  assert(mainBundle);
 
-    CFURLRef mainBundleURL = CFBundleCopyBundleURL(mainBundle);
-    assert(mainBundleURL);
+  CFURLRef mainBundleURL = CFBundleCopyBundleURL(mainBundle);
+  assert(mainBundleURL);
 
-    CFStringRef cfStringRef = CFURLCopyFileSystemPath( mainBundleURL, kCFURLPOSIXPathStyle);
-    assert(cfStringRef);
+  CFStringRef cfStringRef =
+      CFURLCopyFileSystemPath(mainBundleURL, kCFURLPOSIXPathStyle);
+  assert(cfStringRef);
 
-    CFStringGetCString(cfStringRef, path, 1024, kCFStringEncodingASCII);
+  CFStringGetCString(cfStringRef, path, 1024, kCFStringEncodingASCII);
 
-    CFRelease(mainBundleURL);
-    CFRelease(cfStringRef);
+  CFRelease(mainBundleURL);
+  CFRelease(cfStringRef);
 
-    return std::string(path);
+  return std::string(path);
 }
 #endif
 
@@ -59,374 +59,335 @@ using namespace Ogre;
 /** Base class which manages the standard startup of an Ogre application.
     Designed to be subclassed for specific examples if required.
 */
-class Run3Application
-{
+class Run3Application {
 public:
-    /// Standard constructor
-    Run3Application()
-    {
-        mFrameListener = 0;
-        mRoot = 0;
-		// Provide a nice cross platform solution for locating the configuration files
-		// On windows files are searched for in the current working directory, on OS X however
-		// you must provide the full path, the helper function macBundlePath does this for us.
+  /// Standard constructor
+  Run3Application() {
+    mFrameListener = 0;
+    mRoot = 0;
+    // Provide a nice cross platform solution for locating the configuration
+    // files On windows files are searched for in the current working directory,
+    // on OS X however you must provide the full path, the helper function
+    // macBundlePath does this for us.
 #if OGRE_PLATFORM == OGRE_PLATFORM_APPLE
-		mResourcePath = macBundlePath() + "/Contents/Resources/";
+    mResourcePath = macBundlePath() + "/Contents/Resources/";
 #else
-		mResourcePath = "Run3/core/";
+    mResourcePath = "Run3/core/";
 #endif
+  }
+  /// Standard destructor
+  virtual ~Run3Application() {
+    if (mFrameListener)
+      delete mFrameListener;
+    if (mRoot)
+      OGRE_DELETE mRoot;
+  }
+
+  bool getStartMode() {
+    try {
+      // Strip the path
+      Ogre::String basename, path;
+      Ogre::StringUtil::splitFilename("run3/core/start.xml", basename, path);
+
+      DataStreamPtr pStream = ResourceGroupManager::getSingleton().openResource(
+          basename, "General");
+
+      String data = pStream->getAsString();
+      // Open the .xml File
+      SequenceDoc = new TiXmlDocument();
+      SequenceDoc->Parse(data.c_str());
+      pStream->close();
+      pStream.setNull();
+
+      if (SequenceDoc->Error()) {
+        // We'll just log, and continue on gracefully
+        LogManager::getSingleton().logMessage(
+            "[Run3] Error loading startup setup option.");
+        return "";
+      }
+    } catch (...) {
+      // rest=true;
+      // We'll just log, and continue on gracefully
+      LogManager::getSingleton().logMessage("[Run3] Error in file start xml.");
+      return "";
     }
-    /// Standard destructor
-    virtual ~Run3Application()
-    {
-        if (mFrameListener)
-            delete mFrameListener;
-        if (mRoot)
-            OGRE_DELETE mRoot;
+
+    SequenceRoot = SequenceDoc->RootElement();
+    if (String(SequenceRoot->Value()) != "first") {
+      LogManager::getSingleton().logMessage(
+          "[Run3] Error: Invalid .xml File. Missing <first>");
+      return "";
+    }
+    String out = SequenceRoot->Attribute("start");
+    LogManager::getSingleton().logMessage("[Run3] start=" + out);
+    delete SequenceDoc;
+    return out == "true";
+  }
+
+  bool getDebugMode() {
+    try {
+      // Strip the path
+      Ogre::String basename, path;
+      Ogre::StringUtil::splitFilename("run3/core/start.xml", basename, path);
+
+      DataStreamPtr pStream = ResourceGroupManager::getSingleton().openResource(
+          basename, "General");
+
+      String data = pStream->getAsString();
+      // Open the .xml File
+      SequenceDoc = new TiXmlDocument();
+      SequenceDoc->Parse(data.c_str());
+      pStream->close();
+      pStream.setNull();
+
+      if (SequenceDoc->Error()) {
+        // We'll just log, and continue on gracefully
+        LogManager::getSingleton().logMessage(
+            "[Run3] Error loading startup setup option.");
+        return "";
+      }
+    } catch (...) {
+      // rest=true;
+      // We'll just log, and continue on gracefully
+      LogManager::getSingleton().logMessage("[Run3] Error in file start xml.");
+      return true;
     }
 
-	bool getStartMode()
-	{
-		try
-		{
-			// Strip the path
-			Ogre::String basename, path;
-			Ogre::StringUtil::splitFilename("run3/core/start.xml", basename, path);
-
-			DataStreamPtr pStream = ResourceGroupManager::getSingleton().
-				openResource( basename, "General" );
-
-			String data = pStream->getAsString();
-			// Open the .xml File
-			SequenceDoc = new TiXmlDocument();
-			SequenceDoc->Parse( data.c_str() );
-			pStream->close();
-			pStream.setNull();
-
-			if( SequenceDoc->Error() )
-			{
-				//We'll just log, and continue on gracefully
-				LogManager::getSingleton().logMessage("[Run3] Error loading startup setup option.");
-				return "";
-			}
-		}
-		catch(...)
-		{
-			//rest=true;
-			//We'll just log, and continue on gracefully
-			LogManager::getSingleton().logMessage("[Run3] Error in file start xml.");
-			return "";
-		}
-
-		SequenceRoot = SequenceDoc->RootElement();
-		if( String( SequenceRoot->Value()) != "first"  ) {
-			LogManager::getSingleton().logMessage( "[Run3] Error: Invalid .xml File. Missing <first>" );     
-			return "";
-		}
-		String out = SequenceRoot->Attribute("start");
-		LogManager::getSingleton().logMessage("[Run3] start="+out);
-		delete SequenceDoc;
-		return out=="true";
-	}
-
-
-	bool getDebugMode()
-	{
-		try
-		{
-			// Strip the path
-			Ogre::String basename, path;
-			Ogre::StringUtil::splitFilename("run3/core/start.xml", basename, path);
-
-			DataStreamPtr pStream = ResourceGroupManager::getSingleton().
-				openResource( basename, "General" );
-
-			String data = pStream->getAsString();
-			// Open the .xml File
-			SequenceDoc = new TiXmlDocument();
-			SequenceDoc->Parse( data.c_str() );
-			pStream->close();
-			pStream.setNull();
-
-			if( SequenceDoc->Error() )
-			{
-				//We'll just log, and continue on gracefully
-				LogManager::getSingleton().logMessage("[Run3] Error loading startup setup option.");
-				return "";
-			}
-		}
-		catch(...)
-		{
-			//rest=true;
-			//We'll just log, and continue on gracefully
-			LogManager::getSingleton().logMessage("[Run3] Error in file start xml.");
-			return true;
-		}
-
-		SequenceRoot = SequenceDoc->RootElement();
-		if( String( SequenceRoot->Value()) != "first"  ) {
-			LogManager::getSingleton().logMessage( "[Run3] Error: Invalid .xml File. Missing <first>" );     
-			return true;
-		}
-		String out = SequenceRoot->Attribute("debug");
-		LogManager::getSingleton().logMessage("[Run3] debug="+out);
-		delete SequenceDoc;
-		return out=="true";
-	}
-
-	void setNoSetupMode()
-	{
-		try
-		{
-		TiXmlDocument doc;
-
-		TiXmlElement * scene = new TiXmlElement( "first" );
-		//scene attrib setup
-		scene->SetAttribute("start","false");
-		scene->SetAttribute("debug","false");
-		doc.LinkEndChild( scene );
-		doc.SaveFile( "run3/core/start.xml" );
-		}
-		catch(...)
-		{
-			LogManager::getSingleton().logMessage("[Run3] Save Error. TiXml reporated an error.");
-		}
-	}
-    /// Start the example
-    virtual void go(void)
-    {
-        if (!setup())
-            return;
-
-        mRoot->startRendering();
-
-        // clean up
-        destroyScene();
+    SequenceRoot = SequenceDoc->RootElement();
+    if (String(SequenceRoot->Value()) != "first") {
+      LogManager::getSingleton().logMessage(
+          "[Run3] Error: Invalid .xml File. Missing <first>");
+      return true;
     }
+    String out = SequenceRoot->Attribute("debug");
+    LogManager::getSingleton().logMessage("[Run3] debug=" + out);
+    delete SequenceDoc;
+    return out == "true";
+  }
+
+  void setNoSetupMode() {
+    try {
+      TiXmlDocument doc;
+
+      TiXmlElement *scene = new TiXmlElement("first");
+      // scene attrib setup
+      scene->SetAttribute("start", "false");
+      scene->SetAttribute("debug", "false");
+      doc.LinkEndChild(scene);
+      doc.SaveFile("run3/core/start.xml");
+    } catch (...) {
+      LogManager::getSingleton().logMessage(
+          "[Run3] Save Error. TiXml reporated an error.");
+    }
+  }
+  /// Start the example
+  virtual void go(void) {
+    if (!setup())
+      return;
+
+    mRoot->startRendering();
+
+    // clean up
+    destroyScene();
+  }
 
 protected:
-    Root *mRoot;
-	TiXmlDocument   *SequenceDoc;
-	bool startmode;
-	TiXmlElement   *SequenceRoot;
-    Camera* mCamera;
-    SceneManager* mSceneMgr;
-    Run3FrameListener* mFrameListener;
-    RenderWindow* mWindow;
-	Ogre::String mResourcePath;
-    ConfigFile game;
-	Ogre::String mGamePath;
-    Ogre::String mGameMenu;
-    Ogre::String mSoundPath;
-	Ogre::String mMapsPath;
-	Ogre::String mTitle;
+  Root *mRoot;
+  TiXmlDocument *SequenceDoc;
+  bool startmode;
+  TiXmlElement *SequenceRoot;
+  Camera *mCamera;
+  SceneManager *mSceneMgr;
+  Run3FrameListener *mFrameListener;
+  RenderWindow *mWindow;
+  Ogre::String mResourcePath;
+  ConfigFile game;
+  Ogre::String mGamePath;
+  Ogre::String mGameMenu;
+  Ogre::String mSoundPath;
+  Ogre::String mMapsPath;
+  Ogre::String mTitle;
 
-    // These internal methods package up the stages in the startup process
-    /** Sets up the application - returns false if the user chooses to abandon configuration. */
-    virtual bool setup(void)
-    {
-		PreVideoViewer vv;
-		vv.showVideo("sgl_intro.wmv");
-		
-		String pluginsPath;
-		// only use plugins.cfg if not static
+  // These internal methods package up the stages in the startup process
+  /** Sets up the application - returns false if the user chooses to abandon
+   * configuration. */
+  virtual bool setup(void) {
+    PreVideoViewer vv;
+    vv.showVideo("sgl_intro.wmv");
+
+    String pluginsPath;
+    // only use plugins.cfg if not static
 #ifndef OGRE_STATIC_LIB
-		pluginsPath = mResourcePath + "plugins.cfg";
+    pluginsPath = mResourcePath + "plugins.cfg";
 #endif
-		
-        mRoot = OGRE_NEW Root(pluginsPath, 
-mResourcePath + "ogre.cfg", mResourcePath + "Run3.log");
 
-		//Это позволит загрузить start.xml
-		ResourceGroupManager::getSingleton().addResourceLocation(
-                    "run3/core/", "FileSystem", "General");
+    mRoot = OGRE_NEW Root(pluginsPath, mResourcePath + "ogre.cfg",
+                          mResourcePath + "Run3.log");
 
+    //    start.xml
+    ResourceGroupManager::getSingleton().addResourceLocation(
+        "run3/core/", "FileSystem", "General");
 
-		startmode = getStartMode();
-		if (startmode)
-		{
-			system("GraphSetup.exe");
-		}
-        setupResources();
+    startmode = getStartMode();
+    if (startmode) {
+      system("GraphSetup.exe");
+    }
+    setupResources();
 
-        bool carryOn = configure();
-        if (!carryOn) return false;
+    bool carryOn = configure();
+    if (!carryOn)
+      return false;
 
-		
-		
-        chooseSceneManager();
-        createCamera();
-        createViewports();
+    chooseSceneManager();
+    createCamera();
+    createViewports();
 
-        // Set default mipmap level (NB some APIs ignore this)
-        TextureManager::getSingleton().setDefaultNumMipmaps(5);
+    // Set default mipmap level (NB some APIs ignore this)
+    TextureManager::getSingleton().setDefaultNumMipmaps(5);
 
-		// Create any resource listeners (for loading screens)
-		createResourceListener();
-		// Load resources
-		loadResources();
+    // Create any resource listeners (for loading screens)
+    createResourceListener();
+    // Load resources
+    loadResources();
 
-		// Create the scene
-        createScene();
+    // Create the scene
+    createScene();
 
-        createFrameListener();
+    createFrameListener();
 
+    return true;
+  }
+  /** Configures the application - returns false if the user chooses to abandon
+   * configuration. */
+  virtual bool configure(void) {
+    // Title
+    mGamePath = "Run3/game/";
+    mGameMenu = "Run3/game/menu";
+    mSoundPath = "Run3/sounds/";
+    mMapsPath = "Run3/maps/";
+    // Show the configuration dialog and initialise the system
+    // You can skip this and use root.restoreConfig() to load configuration
+    // settings if you were sure there are valid ones saved in ogre.cfg
+
+    bool debugmode = getDebugMode();
+
+    if (debugmode) {
+      if (mRoot->showConfigDialog()) {
+        // If returned true, user clicked OK so initialise
+        // Here we choose to let the system create a default rendering window by
+        // passing 'true'
+        mWindow = mRoot->initialise(true, "Run3");
         return true;
-
-    }
-    /** Configures the application - returns false if the user chooses to abandon configuration. */
-    virtual bool configure(void)
-    {
-		//Title 
-		mGamePath = "Run3/game/";
-        mGameMenu = "Run3/game/menu";
-		mSoundPath = "Run3/sounds/";
-		mMapsPath = "Run3/maps/";
-        // Show the configuration dialog and initialise the system
-        // You can skip this and use root.restoreConfig() to load configuration
-        // settings if you were sure there are valid ones saved in ogre.cfg
-
-		
-		bool debugmode = getDebugMode();
-		
-		if (debugmode)
-		{
-			if(mRoot->showConfigDialog())
-			{
-				// If returned true, user clicked OK so initialise
-				// Here we choose to let the system create a default rendering window by passing 'true'
-				mWindow = mRoot->initialise(true,"Run3");
-				return true;
-			}
-			else
-			{
-				return false;
-			}
-		}
-		else
-		{
-			if (startmode)
-			{
-				if(mRoot->showConfigDialog())
-				{
-					// If returned true, user clicked OK so initialise
-					// Here we choose to let the system create a default rendering window by passing 'true'
-					mWindow = mRoot->initialise(true,"Run3");
-					setNoSetupMode();
-					return true;
-				}
-				else
-				{
-					return false;
-				}
-			}
-			else
-			{
-				mRoot->restoreConfig();
-				mWindow = mRoot->initialise(true,"Run3");
-					return true;
-			}
-		}
-		return false;
-    }
-
-    virtual void chooseSceneManager(void)
-    {
-        // Create the SceneManager, in this case a generic one
-		// Warning!!! The code below is added to support occlusion culling. If not working, please change to other.
-
-		//mSceneMgr
-		CustomSceneManagerFactory* fact = new CustomSceneManagerFactory();
-		mRoot->addSceneManagerFactory(fact);
-		mSceneMgr = mRoot->createSceneManager("CustomSceneManager", "ExampleSMInstance");
-        //mSceneMgr = mRoot->createSceneManager(ST_GENERIC, "ExampleSMInstance");
-    }
-    virtual void createCamera(void)
-    {
-        // Create the camera
-        mCamera = mSceneMgr->createCamera("PlayerCam");
-
-        // Position it at 500 in Z direction
-        mCamera->setPosition(Vector3(0,0,500));
-        // Look back along -Z
-        mCamera->lookAt(Vector3(0,0,-300));
-        mCamera->setNearClipDistance(5);
-
-    }
-    virtual void createFrameListener(void)
-    {
-        mFrameListener= new Run3FrameListener(mWindow, mCamera);
-        mFrameListener->showDebugOverlay(true);
-        mRoot->addFrameListener(mFrameListener);
-    }
-
-    virtual void createScene(void) = 0;    // pure virtual - this has to be overridden
-
-    virtual void destroyScene(void){}    // Optional to override this
-
-    virtual void createViewports(void)
-    {
-        // Create one viewport, entire window
-        Viewport* vp = mWindow->addViewport(mCamera);
-        vp->setBackgroundColour(ColourValue(0,0,0));
-
-        // Alter the camera aspect ratio to match the viewport
-        mCamera->setAspectRatio(
-            Real(vp->getActualWidth()) / Real(vp->getActualHeight()));
-    }
-
-    /// Method which will define the source of resources (other than current folder)
-    virtual void setupResources(void)
-    {
-        // Load resource paths from config file
-        ConfigFile cf;
-        cf.load(mResourcePath + "resources.cfg");
-
-        // Go through all sections & settings in the file
-        ConfigFile::SectionIterator seci = cf.getSectionIterator();
-
-        String secName, typeName, archName;
-        while (seci.hasMoreElements())
-        {
-            secName = seci.peekNextKey();
-            ConfigFile::SettingsMultiMap *settings = seci.getNext();
-            ConfigFile::SettingsMultiMap::iterator i;
-            for (i = settings->begin(); i != settings->end(); ++i)
-            {
-                typeName = i->first;
-                archName = i->second;
-#if OGRE_PLATFORM == OGRE_PLATFORM_APPLE
-                // OS X does not set the working directory relative to the app,
-                // In order to make things portable on OS X we need to provide
-                // the loading with it's own bundle path location
-                ResourceGroupManager::getSingleton().addResourceLocation(
-                    String(macBundlePath() + "/" + archName), typeName, secName);
-#else
-                ResourceGroupManager::getSingleton().addResourceLocation(
-                    archName, typeName, secName);
-#endif
-            }
+      } else {
+        return false;
+      }
+    } else {
+      if (startmode) {
+        if (mRoot->showConfigDialog()) {
+          // If returned true, user clicked OK so initialise
+          // Here we choose to let the system create a default rendering window
+          // by passing 'true'
+          mWindow = mRoot->initialise(true, "Run3");
+          setNoSetupMode();
+          return true;
+        } else {
+          return false;
         }
+      } else {
+        mRoot->restoreConfig();
+        mWindow = mRoot->initialise(true, "Run3");
+        return true;
+      }
     }
+    return false;
+  }
 
-	/// Optional override method where you can create resource listeners (e.g. for loading screens)
-	virtual void createResourceListener(void)
-	{
+  virtual void chooseSceneManager(void) {
+    // Create the SceneManager, in this case a generic one
+    // Warning!!! The code below is added to support occlusion culling. If not
+    // working, please change to other.
 
-	}
+    // mSceneMgr
+    CustomSceneManagerFactory *fact = new CustomSceneManagerFactory();
+    mRoot->addSceneManagerFactory(fact);
+    mSceneMgr =
+        mRoot->createSceneManager("CustomSceneManager", "ExampleSMInstance");
+    // mSceneMgr = mRoot->createSceneManager(ST_GENERIC, "ExampleSMInstance");
+  }
+  virtual void createCamera(void) {
+    // Create the camera
+    mCamera = mSceneMgr->createCamera("PlayerCam");
 
-	/// Optional override method where you can perform resource group loading
-	/// Must at least do ResourceGroupManager::getSingleton().initialiseAllResourceGroups();
-	virtual void loadResources(void)
-	{
-		// Initialise, parse scripts etc
-		ResourceGroupManager::getSingleton().initialiseAllResourceGroups();
+    // Position it at 500 in Z direction
+    mCamera->setPosition(Vector3(0, 0, 500));
+    // Look back along -Z
+    mCamera->lookAt(Vector3(0, 0, -300));
+    mCamera->setNearClipDistance(5);
+  }
+  virtual void createFrameListener(void) {
+    mFrameListener = new Run3FrameListener(mWindow, mCamera);
+    mFrameListener->showDebugOverlay(true);
+    mRoot->addFrameListener(mFrameListener);
+  }
 
-	}
+  virtual void
+  createScene(void) = 0; // pure virtual - this has to be overridden
 
+  virtual void destroyScene(void) {} // Optional to override this
 
+  virtual void createViewports(void) {
+    // Create one viewport, entire window
+    Viewport *vp = mWindow->addViewport(mCamera);
+    vp->setBackgroundColour(ColourValue(0, 0, 0));
 
+    // Alter the camera aspect ratio to match the viewport
+    mCamera->setAspectRatio(Real(vp->getActualWidth()) /
+                            Real(vp->getActualHeight()));
+  }
+
+  /// Method which will define the source of resources (other than current
+  /// folder)
+  virtual void setupResources(void) {
+    // Load resource paths from config file
+    ConfigFile cf;
+    cf.load(mResourcePath + "resources.cfg");
+
+    // Go through all sections & settings in the file
+    ConfigFile::SectionIterator seci = cf.getSectionIterator();
+
+    String secName, typeName, archName;
+    while (seci.hasMoreElements()) {
+      secName = seci.peekNextKey();
+      ConfigFile::SettingsMultiMap *settings = seci.getNext();
+      ConfigFile::SettingsMultiMap::iterator i;
+      for (i = settings->begin(); i != settings->end(); ++i) {
+        typeName = i->first;
+        archName = i->second;
+#if OGRE_PLATFORM == OGRE_PLATFORM_APPLE
+        // OS X does not set the working directory relative to the app,
+        // In order to make things portable on OS X we need to provide
+        // the loading with it's own bundle path location
+        ResourceGroupManager::getSingleton().addResourceLocation(
+            String(macBundlePath() + "/" + archName), typeName, secName);
+#else
+        ResourceGroupManager::getSingleton().addResourceLocation(
+            archName, typeName, secName);
+#endif
+      }
+    }
+  }
+
+  /// Optional override method where you can create resource listeners (e.g. for
+  /// loading screens)
+  virtual void createResourceListener(void) {}
+
+  /// Optional override method where you can perform resource group loading
+  /// Must at least do
+  /// ResourceGroupManager::getSingleton().initialiseAllResourceGroups();
+  virtual void loadResources(void) {
+    // Initialise, parse scripts etc
+    ResourceGroupManager::getSingleton().initialiseAllResourceGroups();
+  }
 };
-
 
 #endif

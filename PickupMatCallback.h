@@ -2,14 +2,12 @@
 
 #include <OgreNewt.h>
 
-class PickupMatCallback :
-	public OgreNewt::ContactCallback
-{
+class PickupMatCallback : public OgreNewt::ContactCallback {
 public:
-	PickupMatCallback(void);
-	~PickupMatCallback(void);
+  PickupMatCallback(void);
+  ~PickupMatCallback(void);
 
-	// in this example we only need the Process() function.
-	int userProcess();
-	bool contact;
+  // in this example we only need the Process() function.
+  int userProcess();
+  bool contact;
 };

@@ -11,7 +11,7 @@
 // #define BENCHMARK
 
 #ifdef __cplusplus
-	extern "C" {
+extern "C" {
 #endif
 
 /* int uFMOD_OALPlaySong(
@@ -74,7 +74,7 @@
      Once playback has started, it's not necessary to check for "buffer
      starvation", since uFMOD performs buffer recovering automatically.
 */
-int __stdcall uFMOD_OALPlaySong(void*, void*, int, unsigned int);
+int __stdcall uFMOD_OALPlaySong(void *, void *, int, unsigned int);
 #define uFMOD_StopSong() uFMOD_OALPlaySong(0, 0, 0, 0)
 
 /* void uFMOD_Jump2Pattern(
@@ -215,9 +215,9 @@ unsigned int __stdcall uFMOD_GetTime();
       settings used while recompiling the library.
 */
 #ifdef UNICODE
-	unsigned short* __stdcall uFMOD_GetTitle();
+unsigned short *__stdcall uFMOD_GetTitle();
 #else
-	unsigned char* __stdcall uFMOD_GetTitle();
+unsigned char *__stdcall uFMOD_GetTitle();
 #endif
 
 /* void uFMOD_SetVolume(
@@ -247,23 +247,23 @@ unsigned int __stdcall uFMOD_GetTime();
 void __stdcall uFMOD_SetVolume(unsigned int);
 
 #ifdef BENCHMARK
-	/* uFMOD_tsc holds a performance counter. It measures the number of
-	   clock cycles consumed in the internal thread to produce ~21 ms of
-	   sound @ 48KHz. The lower - the better. Set UF_MODE to BENCHMARK
-	   and recompile the library to make uFMOD_tsc available.
-	*/
-	unsigned int uFMOD_tsc;
+/* uFMOD_tsc holds a performance counter. It measures the number of
+   clock cycles consumed in the internal thread to produce ~21 ms of
+   sound @ 48KHz. The lower - the better. Set UF_MODE to BENCHMARK
+   and recompile the library to make uFMOD_tsc available.
+*/
+unsigned int uFMOD_tsc;
 #endif
 
 #ifdef __cplusplus
-	}
+}
 #endif
 
-#define XM_RESOURCE       0
-#define XM_MEMORY         1
-#define XM_FILE           2
-#define XM_NOLOOP         8
-#define XM_SUSPENDED      16
-#define uFMOD_MIN_VOL     0
-#define uFMOD_MAX_VOL     25
+#define XM_RESOURCE 0
+#define XM_MEMORY 1
+#define XM_FILE 2
+#define XM_NOLOOP 8
+#define XM_SUSPENDED 16
+#define uFMOD_MIN_VOL 0
+#define uFMOD_MAX_VOL 25
 #define uFMOD_DEFAULT_VOL uFMOD_MAX_VOL

@@ -1,21 +1,20 @@
-#include <OgreNewt.h>
 #include <Ogre.h>
+#include <OgreNewt.h>
 /*#include "Player.h"
 #include "global.h"*/
 
-class PlayerCollisionForceAdder: public OgreNewt::ContactCallback
-{
+class PlayerCollisionForceAdder : public OgreNewt::ContactCallback {
 public:
-   PlayerCollisionForceAdder();
-   ~PlayerCollisionForceAdder();
+  PlayerCollisionForceAdder();
+  ~PlayerCollisionForceAdder();
 
-   int userBegin();
+  int userBegin();
 
-   int userProcess();
+  int userProcess();
 
-   void userEnd();
+  void userEnd();
 
 private:
-	OgreNewt::Body* mBody01;
-	OgreNewt::Body* mBody02;
+  OgreNewt::Body *mBody01;
+  OgreNewt::Body *mBody02;
 };

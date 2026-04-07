@@ -29,15 +29,15 @@ THE SOFTWARE.
 
 namespace CaduneTree {
 
-	// Class declarations
-	class Parameters;
-	class Serializer;
-	class Section;
-	class Stem;
+// Class declarations
+class Parameters;
+class Serializer;
+class Section;
+class Stem;
 
-	// Enumeration declarations
-	enum ShapeEnum;
+// Enumeration declarations
+enum ShapeEnum;
 
-} // CaduneTree
+} // namespace CaduneTree
 
 #endif

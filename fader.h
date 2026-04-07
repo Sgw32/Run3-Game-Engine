@@ -1,39 +1,37 @@
 #pragma once
 
-
 namespace Ogre {
-	class TextureUnitState;
-	class Overlay;
-}
+class TextureUnitState;
+class Overlay;
+} // namespace Ogre
 
-class FaderCallback
-{
+class FaderCallback {
 public:
-	virtual void fadeInCallback(void) {}
-	virtual void fadeOutCallback(void) {}
+  virtual void fadeInCallback(void) {}
+  virtual void fadeOutCallback(void) {}
 };
 
-class Fader
-{
+class Fader {
 public:
-	Fader(const char *OverlayName, const char *MaterialName, FaderCallback *instance = 0);
-	~Fader(void);
+  Fader(const char *OverlayName, const char *MaterialName,
+        FaderCallback *instance = 0);
+  ~Fader(void);
 
-	void startFadeIn(double duration = 1.0f);
-	void startFadeOut(double duration = 1.0f);
-	void fade(double timeSinceLastFrame);
+  void startFadeIn(double duration = 1.0f);
+  void startFadeOut(double duration = 1.0f);
+  void fade(double timeSinceLastFrame);
 
 protected:
-	double _alpha;
-	double _current_dur;
-	double _total_dur;
-	FaderCallback *_inst;
-	Ogre::TextureUnitState *_tex_unit;
-	Ogre::Overlay *_overlay;
+  double _alpha;
+  double _current_dur;
+  double _total_dur;
+  FaderCallback *_inst;
+  Ogre::TextureUnitState *_tex_unit;
+  Ogre::Overlay *_overlay;
 
-	enum _fadeop {
-		FADE_NONE,
-		FADE_IN,
-		FADE_OUT,
-	} _fadeop;
+  enum _fadeop {
+    FADE_NONE,
+    FADE_IN,
+    FADE_OUT,
+  } _fadeop;
 };

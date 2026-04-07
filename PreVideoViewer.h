@@ -3,17 +3,17 @@
 
 using namespace std;
 
-class PreVideoViewer
-{
+class PreVideoViewer {
 public:
-	PreVideoViewer();
-	~PreVideoViewer();
-	void showVideo(string vid);
+  PreVideoViewer();
+  ~PreVideoViewer();
+  void showVideo(string vid);
+
 private:
- IGraphBuilder *pGraphBuilder;
- IMediaControl *pMediaControl;
- IMediaEvent *pMediaEvent;
- long eventCode;
-// string videoFileName;
- IVideoWindow *pVideoWindow;
+  IGraphBuilder *pGraphBuilder;
+  IMediaControl *pMediaControl;
+  IMediaEvent *pMediaEvent;
+  long eventCode;
+  // string videoFileName;
+  IVideoWindow *pVideoWindow;
 };

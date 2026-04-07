@@ -6,13 +6,10 @@
 using namespace Ogre;
 using namespace std;
 
-
-class NPCScene
-{
+class NPCScene {
 public:
-	NPCScene(){};
-	virtual ~NPCScene(){};
+  NPCScene() {};
+  virtual ~NPCScene() {};
 
 private:
-
 };

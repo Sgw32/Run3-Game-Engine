@@ -11,19 +11,17 @@ void trimRight(std::string &str, char c);
 bool replace(std::string &str, std::string oldsubstr, std::string newsubstr);
 bool remove(std::string &str, std::string substr);
 
-void UpperCase( std::string &str );
-void LowerCase( std::string &str );
+void UpperCase(std::string &str);
+void LowerCase(std::string &str);
 
 int find(vstring v, std::string str);
 int rfind(vstring v, std::string str);
 
-template<typename T>
-void shuffle(T &array, size_t size) {
-	for(int i = 0; i < size; ++i) {
-		int index = rand() % size;
-		std::swap(array[i], array[index]);
-	}
+template <typename T> void shuffle(T &array, size_t size) {
+  for (int i = 0; i < size; ++i) {
+    int index = rand() % size;
+    std::swap(array[i], array[index]);
+  }
 }
-
 
 #endif

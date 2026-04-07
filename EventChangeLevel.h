@@ -3,18 +3,18 @@
 ///////////////Copyright(c) 2010 Fyodor Zagumennov		   //////////
 /////////////////////////////////////////////////////////////////////
 #pragma once
-#include <Ogre.h>
 #include "LoadMap.h"
+#include <Ogre.h>
 
-class EventChangeLevel: public Singleton<EventChangeLevel>
-{
+class EventChangeLevel : public Singleton<EventChangeLevel> {
 public:
   EventChangeLevel();
-   ~EventChangeLevel();
-   void init(SceneManager* scene);
-   void fire(String map);
+  ~EventChangeLevel();
+  void init(SceneManager *scene);
+  void fire(String map);
+
 private:
-	vector<String> entc_name;
-	SceneManager* mSceneMgr;
-//	LoadMap* ml;
+  vector<String> entc_name;
+  SceneManager *mSceneMgr;
+  //	LoadMap* ml;
 };

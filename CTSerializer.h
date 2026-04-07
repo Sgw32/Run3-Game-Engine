@@ -28,31 +28,34 @@ THE SOFTWARE.
 #define _CTSerializer_h_
 
 #include "CTPrerequisites.h"
-#include <string>
 #include <fstream>
+#include <string>
 
 /// @file
 
 namespace CaduneTree {
 
-	/// @class Serializer
-	/// Using this class one can import from file (every previous version is supported) parameters, as well as export them (only most current version of file format).
-	
-	/// Class used for import and export of parameters.
-	class Serializer {
-	public:
-		/// Export parameters to file
-		/// @param filename - path to file or file name (only direct)
-		/// @param params - pointer to Paramaters object, which will be exported
-		static void exportDefinition( const std::string &filename, Parameters *params );
-		/// Import parameters from file
-		/// @param filename - path to file or file name (only direct)
-		static Parameters* importDefinition( const std::string &filename );
-	private:
-		/// Import, file format version 0.6
-		static Parameters* import006( std::ifstream *file );
-	};
+/// @class Serializer
+/// Using this class one can import from file (every previous version is
+/// supported) parameters, as well as export them (only most current version of
+/// file format).
 
-} // CaduneTree
+/// Class used for import and export of parameters.
+class Serializer {
+public:
+  /// Export parameters to file
+  /// @param filename - path to file or file name (only direct)
+  /// @param params - pointer to Paramaters object, which will be exported
+  static void exportDefinition(const std::string &filename, Parameters *params);
+  /// Import parameters from file
+  /// @param filename - path to file or file name (only direct)
+  static Parameters *importDefinition(const std::string &filename);
+
+private:
+  /// Import, file format version 0.6
+  static Parameters *import006(std::ifstream *file);
+};
+
+} // namespace CaduneTree
 
 #endif

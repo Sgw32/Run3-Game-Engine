@@ -1,32 +1,32 @@
 #pragma once
-#include "Ogre.h"
 #include "Manager_Template.h"
+#include "Ogre.h"
 
 using namespace Ogre;
 using namespace std;
 
 #define MAX_DECALS 50
 
-class MeshDecal
-{
+class MeshDecal {
 public:
-	MeshDecal(Vector3 v1,Vector3 v2);
-	~MeshDecal();
+  MeshDecal(Vector3 v1, Vector3 v2);
+  ~MeshDecal();
+
 private:
-	Entity* decal;
-	SceneNode* bNode;
+  Entity *decal;
+  SceneNode *bNode;
 };
 
-class MeshDecalMgr : public Singleton<MeshDecalMgr>, public managerTemplate
-{
+class MeshDecalMgr : public Singleton<MeshDecalMgr>, public managerTemplate {
 public:
-	MeshDecalMgr();
-	~MeshDecalMgr();
-	virtual void init();
-	void addHoleEffect(Vector3 v1,Vector3 v2,String matName);
-	void addHoleEffect(Vector3 v1,Vector3 v2);
-	virtual void upd(const FrameEvent& evt);
-	virtual void cleanup();
+  MeshDecalMgr();
+  ~MeshDecalMgr();
+  virtual void init();
+  void addHoleEffect(Vector3 v1, Vector3 v2, String matName);
+  void addHoleEffect(Vector3 v1, Vector3 v2);
+  virtual void upd(const FrameEvent &evt);
+  virtual void cleanup();
+
 private:
-	vector<MeshDecal*> meshDecals;
+  vector<MeshDecal *> meshDecals;
 };

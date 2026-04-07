@@ -7,24 +7,22 @@
 
 #include "Ogre.h"
 
-namespace Ogre
-{
+namespace Ogre {
 
-class CSMGpuConstants
-{
+class CSMGpuConstants {
 public:
-	CSMGpuConstants(size_t cascadeCount);
-	void updateCascade(const Ogre::Camera &texCam, size_t index);
+  CSMGpuConstants(size_t cascadeCount);
+  void updateCascade(const Ogre::Camera &texCam, size_t index);
 
 private:
-	//Ogre::GpuSharedParametersPtr mParamsScaleBias;
-	//Ogre::GpuSharedParametersPtr mParamsShadowMatrix;
-	GpuProgramParametersSharedPtr mParamsScaleBias;
-	GpuProgramParametersSharedPtr mParamsShadowMatrix;
-	Ogre::Matrix4 mFirstCascadeViewMatrix;
-	Ogre::Real mFirstCascadeCamWidth;
-	Ogre::Real mViewRange;
-		Matrix4 hack;
+  // Ogre::GpuSharedParametersPtr mParamsScaleBias;
+  // Ogre::GpuSharedParametersPtr mParamsShadowMatrix;
+  GpuProgramParametersSharedPtr mParamsScaleBias;
+  GpuProgramParametersSharedPtr mParamsShadowMatrix;
+  Ogre::Matrix4 mFirstCascadeViewMatrix;
+  Ogre::Real mFirstCascadeCamWidth;
+  Ogre::Real mViewRange;
+  Matrix4 hack;
 };
 
 } // namespace Ogre

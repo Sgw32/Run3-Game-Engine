@@ -6,15 +6,15 @@
 #include <Ogre.h>
 #include <OgreNewt.h>
 
-class DefaultAEnt: public Ogre::FrameListener
-{
+class DefaultAEnt : public Ogre::FrameListener {
 public:
-	DefaultAEnt();
-	~DefaultAEnt();
-	void init(Ogre::SceneManager* mSceneMgr,Ogre::Root* mRoot);
-	void unload();
-	virtual bool frameStarted(const Ogre::FrameEvent &evt);
+  DefaultAEnt();
+  ~DefaultAEnt();
+  void init(Ogre::SceneManager *mSceneMgr, Ogre::Root *mRoot);
+  void unload();
+  virtual bool frameStarted(const Ogre::FrameEvent &evt);
+
 private:
-	Ogre::Root* root;
-	Ogre::SceneManager* mSceneMgr;
+  Ogre::Root *root;
+  Ogre::SceneManager *mSceneMgr;
 };

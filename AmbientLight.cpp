@@ -12,54 +12,42 @@ LGPL like the rest of the engine.
 -----------------------------------------------------------------------------
 */
 
-
 #include "AmbientLight.h"
 #include "GeomUtils.h"
 #include "OgreMaterialManager.h"
 
 using namespace Ogre;
 
-AmbientLight::AmbientLight()
-{
-	setRenderQueueGroup(RENDER_QUEUE_2);
+AmbientLight::AmbientLight() {
+  setRenderQueueGroup(RENDER_QUEUE_2);
 
-	mRenderOp.vertexData = new VertexData();
-	mRenderOp.indexData = 0;
+  mRenderOp.vertexData = new VertexData();
+  mRenderOp.indexData = 0;
 
-	GeomUtils::createQuad(mRenderOp.vertexData);
+  GeomUtils::createQuad(mRenderOp.vertexData);
 
-	mRenderOp.operationType = RenderOperation::OT_TRIANGLE_STRIP; 
-	mRenderOp.useIndexes = false; 
+  mRenderOp.operationType = RenderOperation::OT_TRIANGLE_STRIP;
+  mRenderOp.useIndexes = false;
 
-	// Set bounding
-	setBoundingBox(AxisAlignedBox(-10000,-10000,-10000,10000,10000,10000));
-	mRadius = 15000;
+  // Set bounding
+  setBoundingBox(AxisAlignedBox(-10000, -10000, -10000, 10000, 10000, 10000));
+  mRadius = 15000;
 
-	mMatPtr = MaterialManager::getSingleton().getByName("DeferredShading/AmbientLight");
-	assert(mMatPtr.isNull()==false);
-	mMatPtr->load();
+  mMatPtr =
+      MaterialManager::getSingleton().getByName("DeferredShading/AmbientLight");
+  assert(mMatPtr.isNull() == false);
+  mMatPtr->load();
 }
 
-AmbientLight::~AmbientLight()
-{
-	// need to release IndexData and vertexData created for renderable
-	delete mRenderOp.indexData;
-	delete mRenderOp.vertexData;
+AmbientLight::~AmbientLight() {
+  // need to release IndexData and vertexData created for renderable
+  delete mRenderOp.indexData;
+  delete mRenderOp.vertexData;
 }
 
 /** @copydoc MovableObject::getBoundingRadius */
-Real AmbientLight::getBoundingRadius(void) const
-{
-	return mRadius;
-
-}
+Real AmbientLight::getBoundingRadius(void) const { return mRadius; }
 /** @copydoc Renderable::getSquaredViewDepth */
-Real AmbientLight::getSquaredViewDepth(const Camera*) const
-{
-	return 0.0;
-}
+Real AmbientLight::getSquaredViewDepth(const Camera *) const { return 0.0; }
 
-const MaterialPtr& AmbientLight::getMaterial(void) const
-{
-	return mMatPtr;
-}
+const MaterialPtr &AmbientLight::getMaterial(void) const { return mMatPtr; }

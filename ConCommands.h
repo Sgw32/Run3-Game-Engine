@@ -3,7 +3,7 @@
 ///////////////Copyright(c) 2010 Fyodor Zagumennov		   //////////
 /////////////////////////////////////////////////////////////////////
 /*Console commands for Run3 Game Engine
-  2010 (c) Sgw32 Corporation
+  2026 (c) PHOL-LABS Kft
 */
 ///////////////////////////
 #pragma once

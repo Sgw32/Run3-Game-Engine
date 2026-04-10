@@ -2,6 +2,8 @@
 
 This section documents the DotScene XML blocks consumed by `DotSceneLoader.cpp` before `Sequence` processing.
 
+---
+
 ## High-level structure
 
 ```xml
@@ -17,48 +19,38 @@ This section documents the DotScene XML blocks consumed by `DotSceneLoader.cpp` 
 
 `DotSceneLoader::parseDotScene` validates `<scene>`, applies scene-level attributes, then dispatches into specialized `process*` methods (`processNodes`, `processEnvironment`, `processSounds`, etc.).
 
+---
+
 ## Scene-level blocks
 
 | Tag | What it does | Main attributes / children | Minimal XML example |
 |---|---|---|---|
-| `<scene>` | Root DotScene entry. Applies level multipliers and visual toggles before dispatching sub-blocks. | Attrs: `multiplier`, `glass`, `glow`, `tLod`, `mLod`; children: `<integratedSequence>`, `<nodes>`, `<aiNodes>`, `<environment>`, `<sounds>`, `<zone>`, `<light>`, `<camera>` | ```xml
-<scene multiplier="1" glass="false" glow="true">
-  <nodes>...</nodes>
-  <environment>...</environment>
-</scene>
-``` |
-| `<integratedSequence>` | Hands embedded sequence XML to `Sequence::SetSceneSeq`. | Child content: Sequence XML payload | ```xml
-<integratedSequence>
-  <sequence>...</sequence>
-</integratedSequence>
-``` |
-| `<nodes>` | Container for world scene graph nodes. | Children: repeated `<node>` | ```xml
-<nodes>
-  <node name="room_A">...</node>
-</nodes>
-``` |
-| `<aiNodes>` | AI waypoint/group definitions. | Children: repeated `<npcnode>` with transform attrs | ```xml
-<aiNodes>
-  <npcnode name="patrol_01" x="0" y="0" z="0"/>
-</aiNodes>
-``` |
-| `<environment>` | Global rendering/physics/player setup. | Children: `<fog>`, `<skyBox>`, `<newtonWorld>`, `<player>`, `<hud>`, `<water>`, `<skyx>`, `<skyDome>`, `<skyPlane>`, `<clipping>`, `<fade>`, `<colourAmbient>`, `<farClip>` | ```xml
-<environment>
-  <fog mode="exp2" expDensity="0.001"/>
-  <player x="0" y="2" z="0"/>
-</environment>
-``` |
-| `<sounds>` | Audio definitions loaded during map load. | Children: repeated `<sound>`, repeated `<ambient>`, optional `<music>` | ```xml
-<sounds>
-  <sound name="hum.wav" x="0" y="1" z="0" loop="true"/>
-  <music name="chapter1.ogg" loop="true"/>
-</sounds>
-``` |
-| `<zone>` | Registers zone volume and optional embedded entities. | Attrs: `x`,`y`,`z`,`sX`,`sY`,`sZ`; children: repeated `<entity>` | ```xml
-<zone x="0" y="0" z="0" sX="50" sY="20" sZ="50">
-  <entity name="zone_prop" meshFile="crate.mesh"/>
-</zone>
-``` |
+| `<scene>` | Root DotScene entry. Applies level multipliers and visual toggles before dispatching sub-blocks. | Attrs: `multiplier`, `glass`, `glow`, `tLod`, `mLod`; children: `<integratedSequence>`, `<nodes>`, `<aiNodes>`, `<environment>`, `<sounds>`, `<zone>`, `<light>`, `<camera>` | <pre><code>&lt;scene multiplier="1" glass="false" glow="true"&gt;
+  &lt;nodes&gt;...&lt;/nodes&gt;
+  &lt;environment&gt;...&lt;/environment&gt;
+&lt;/scene&gt;</code></pre> |
+| `<integratedSequence>` | Hands embedded sequence XML to `Sequence::SetSceneSeq`. | Child content: Sequence XML payload | <pre><code>&lt;integratedSequence&gt;
+  &lt;sequence&gt;...&lt;/sequence&gt;
+&lt;/integratedSequence&gt;</code></pre> |
+| `<nodes>` | Container for world scene graph nodes. | Children: repeated `<node>` | <pre><code>&lt;nodes&gt;
+  &lt;node name="room_A"&gt;...&lt;/node&gt;
+&lt;/nodes&gt;</code></pre> |
+| `<aiNodes>` | AI waypoint/group definitions. | Children: repeated `<npcnode>` with transform attrs | <pre><code>&lt;aiNodes&gt;
+  &lt;npcnode name="patrol_01" x="0" y="0" z="0"/&gt;
+&lt;/aiNodes&gt;</code></pre> |
+| `<environment>` | Global rendering/physics/player setup. | Children: `<fog>`, `<skyBox>`, `<newtonWorld>`, `<player>`, `<hud>`, `<water>`, `<skyx>`, `<skyDome>`, `<skyPlane>`, `<clipping>`, `<fade>`, `<colourAmbient>`, `<farClip>` | <pre><code>&lt;environment&gt;
+  &lt;fog mode="exp2" expDensity="0.001"/&gt;
+  &lt;player x="0" y="2" z="0"/&gt;
+&lt;/environment&gt;</code></pre> |
+| `<sounds>` | Audio definitions loaded during map load. | Children: repeated `<sound>`, repeated `<ambient>`, optional `<music>` | <pre><code>&lt;sounds&gt;
+  &lt;sound name="hum.wav" x="0" y="1" z="0" loop="true"/&gt;
+  &lt;music name="chapter1.ogg" loop="true"/&gt;
+&lt;/sounds&gt;</code></pre> |
+| `<zone>` | Registers zone volume and optional embedded entities. | Attrs: `x`,`y`,`z`,`sX`,`sY`,`sZ`; children: repeated `<entity>` | <pre><code>&lt;zone x="0" y="0" z="0" sX="50" sY="20" sZ="50"&gt;
+  &lt;entity name="zone_prop" meshFile="crate.mesh"/&gt;
+&lt;/zone&gt;</code></pre> |
+
+---
 
 ## `<node>` content entities
 
@@ -66,96 +58,48 @@ This section documents the DotScene XML blocks consumed by `DotSceneLoader.cpp` 
 
 | Tag | What it does | Main attributes / children | Minimal XML example |
 |---|---|---|---|
-| `<entity>` | Static render entity; supports batching/material overrides and optional collision ignore tuning. | Attrs: `name`, `meshFile`, `materialFile`, `run3batcher`, `castShadows`, `scaleU`, `scaleV`, `scrollU`, `scrollV`, `maxDist`, `noCull` | ```xml
-<entity name="wall_01" meshFile="wall.mesh" run3batcher="true" castShadows="false"/>
-``` |
-| `<phys>` | Dynamic physics entity. | Attrs: `name`, `meshFile`, `mass`, `materialFile`, `castShadows`, `idleanim`, `idle`, `poMd` | ```xml
-<phys name="barrel" meshFile="barrel.mesh" mass="40"/>
-``` |
-| `<blockbox>` | Static collision entity using mesh bounds. | Attrs: `name`, `meshFile`, `maxDist`, `run3batcher` | ```xml
-<blockbox name="collider_A" meshFile="box.mesh"/>
-``` |
-| `<pblock>` | Transparent static blocking volume. | Attrs: `name` | ```xml
-<pblock name="blocker_01"/>
-``` |
-| `<nocollide>` | Registers mesh/object pairs for collision exclusion. | Children include buffers + object refs used by `processNoCollide` | ```xml
-<nocollide object1="door_01" object2="frame_01"/>
-``` |
-| `<light>` | Light with optional attenuation/range/dynamics. | Attrs: `name`, `type`, `visible`, `castShadows`, `power`, `dist`, `shadowdist`; children: `<position>`, `<normal>`, `<colourDiffuse>`, `<colourSpecular>`, `<lightRange>`, `<lightAttenuation>`, `<dynamic>` | ```xml
-<light name="lamp_01" type="point" power="1.2">
-  <colourDiffuse r="1" g="0.9" b="0.8"/>
-  <lightAttenuation range="500" constant="1" linear="0.01" quadratic="0"/>
-</light>
-``` |
-| `<particleSystem>` | Creates Ogre particle system on node. | Attrs: `name`, `file` | ```xml
-<particleSystem name="steam_01" file="Examples/Smoke"/>
-``` |
-| `<fire>` | Creates fire system helper (`pSys` + render distance). | Attrs: `pSys`, `renderDist` | ```xml
-<fire pSys="Examples/Fire" renderDist="3000"/>
-``` |
-| `<ragdoll>` | Spawns ragdoll with model and script definition. | Attrs: `name`, `meshFile`, `scriptFile` | ```xml
-<ragdoll name="corpse_01" meshFile="enemy.mesh" scriptFile="enemy_ragdoll.xml"/>
-``` |
-| `<tree>` | Creates procedural tree from tree definition file. | Attrs: `name`, `treeFile` | ```xml
-<tree name="tree01" treeFile="cadune01.mtd"/>
-``` |
-| `<mirror>` | Adds mirror surface via mirror manager. | Attr: `metalTexture` | ```xml
-<mirror metalTexture="mirror_metal"/>
-``` |
-| `<breakable>` | Physics-enabled breakable object with gib/explosive options. | Attrs: `name`, `meshFile`, `gibMesh`, `gibScale`, `mass`, `static`, `box`, `explosive`, `health`, `strength`, `count` | ```xml
-<breakable name="crate_break" meshFile="crate.mesh" health="30" count="8"/>
-``` |
+| `<entity>` | Static render entity; supports batching/material overrides and optional collision ignore tuning. | Attrs: `name`, `meshFile`, `materialFile`, `run3batcher`, `castShadows`, etc. | <pre><code>&lt;entity name="wall_01" meshFile="wall.mesh" run3batcher="true" castShadows="false"/&gt;</code></pre> |
+| `<phys>` | Dynamic physics entity. | Attrs: `name`, `meshFile`, `mass`, etc. | <pre><code>&lt;phys name="barrel" meshFile="barrel.mesh" mass="40"/&gt;</code></pre> |
+| `<blockbox>` | Static collision entity using mesh bounds. | Attrs: `name`, `meshFile`, etc. | <pre><code>&lt;blockbox name="collider_A" meshFile="box.mesh"/&gt;</code></pre> |
+| `<pblock>` | Transparent static blocking volume. | Attrs: `name` | <pre><code>&lt;pblock name="blocker_01"/&gt;</code></pre> |
+| `<nocollide>` | Registers mesh/object pairs for collision exclusion. | Children include buffers + object refs | <pre><code>&lt;nocollide object1="door_01" object2="frame_01"/&gt;</code></pre> |
+| `<light>` | Light with attenuation/range/dynamics. | Attrs + children nodes | <pre><code>&lt;light name="lamp_01" type="point" power="1.2"&gt;
+  &lt;colourDiffuse r="1" g="0.9" b="0.8"/&gt;
+&lt;/light&gt;</code></pre> |
+| `<particleSystem>` | Creates Ogre particle system. | Attrs: `name`, `file` | <pre><code>&lt;particleSystem name="steam_01" file="Examples/Smoke"/&gt;</code></pre> |
+| `<fire>` | Fire system helper. | Attrs: `pSys`, `renderDist` | <pre><code>&lt;fire pSys="Examples/Fire" renderDist="3000"/&gt;</code></pre> |
+| `<ragdoll>` | Spawns ragdoll. | Attrs: `name`, `meshFile`, `scriptFile` | <pre><code>&lt;ragdoll name="corpse_01" meshFile="enemy.mesh"/&gt;</code></pre> |
+| `<tree>` | Procedural tree. | Attrs: `name`, `treeFile` | <pre><code>&lt;tree name="tree01" treeFile="cadune01.mtd"/&gt;</code></pre> |
+| `<mirror>` | Adds mirror surface. | Attr: `metalTexture` | <pre><code>&lt;mirror metalTexture="mirror_metal"/&gt;</code></pre> |
+| `<breakable>` | Breakable physics object. | Many attrs | <pre><code>&lt;breakable name="crate_break" meshFile="crate.mesh" health="30"/&gt;</code></pre> |
+
+---
 
 ## Environment and audio entries
 
 | Tag | What it does | Main attributes / children | Minimal XML example |
 |---|---|---|---|
-| `<player>` | Sets player spawn/look/freeze/multiplier at map load. | Attrs: `x`,`y`,`z`,`lx`,`ly`,`lz`,`mpr`,`startFreeze` | ```xml
-<player x="0" y="2" z="0" lx="0" ly="2" lz="10" mpr="1"/>
-``` |
-| `<newtonWorld>` | Defines physics world bounds. | Attrs: `x1`,`y1`,`z1`,`x2`,`y2`,`z2` | ```xml
-<newtonWorld x1="-5000" y1="-5000" z1="-5000" x2="5000" y2="5000" z2="5000"/>
-``` |
-| `<fog>` | Configures scene fog. | Attrs: `mode`, `expDensity`, `linearStart`, `linearEnd`; child `<colourDiffuse>` | ```xml
-<fog mode="exp2" expDensity="0.001">
-  <colourDiffuse r="0.3" g="0.35" b="0.4"/>
-</fog>
-``` |
-| `<skyBox>` | Enables skybox rendering. | Attrs: `material`, `distance`, `drawFirst`; child `<rotation>` | ```xml
-<skyBox material="Examples/CloudyNoonSkyBox" distance="5000"/>
-``` |
-| `<skyDome>` | Enables skydome rendering. | Attrs: `material`, `curvature`, `tiling`, `distance`, `drawFirst`; child `<rotation>` | ```xml
-<skyDome material="Examples/CloudySky" curvature="10" tiling="8"/>
-``` |
-| `<skyPlane>` | Enables skyplane rendering. | Attrs: `material`, `planeX`, `planeY`, `planeZ`, `planeD`, `scale`, `bow`, `tiling`, `drawFirst` | ```xml
-<skyPlane material="Examples/SpaceSkyPlane" planeY="-1" planeD="5000"/>
-``` |
-| `<water>` | Creates water manager setup. | Attr: `fileName`; children: `<sunPos>`, `<sunColor>`, `<pos>` | ```xml
-<water fileName="water.cfg">
-  <sunPos x="0" y="1000" z="0"/>
-  <sunColor x="1" y="1" z="0.9"/>
-</water>
-``` |
-| `<hud>` | Shows or hides HUD/crosshair at map start. | Attr: `show` | ```xml
-<hud show="false"/>
-``` |
-| `<fade>` | Configures fade listener and optional startup fade. | Attrs: `material`, `overlay`, `duration`, `speed`, `startFade` | ```xml
-<fade duration="1.5" speed="1" startFade="true"/>
-``` |
-| `<clipping>` | Sets camera near/far clipping distances. | Attrs: `near`, `far` | ```xml
-<clipping near="1" far="20000"/>
-``` |
-| `<sound>` | Positional static sound source. | Attrs: `name`, `x`,`y`,`z`,`loop`,`maxDistance`,`minGain`,`rollOff`,`distance` | ```xml
-<sound name="machinery.wav" x="3" y="2" z="-1" loop="true"/>
-``` |
-| `<ambient>` | Runtime ambient sound registration bound to logical object name. | Attrs: `name`, `objname`, `x`,`y`,`z`,`maxDistance`,`minGain`,`rollOff`,`distance` | ```xml
-<ambient name="wind.wav" objname="wind_zone_1" x="0" y="0" z="0"/>
-``` |
-| `<music>` | Starts background music. | Attrs: `name`, `loop` | ```xml
-<music name="chapter1.ogg" loop="true"/>
-``` |
+| `<player>` | Player spawn config | Position + look | <pre><code>&lt;player x="0" y="2" z="0"/&gt;</code></pre> |
+| `<newtonWorld>` | Physics bounds | Bounds attrs | <pre><code>&lt;newtonWorld x1="-5000" y1="-5000" z1="-5000" x2="5000" y2="5000" z2="5000"/&gt;</code></pre> |
+| `<fog>` | Scene fog | Mode + color | <pre><code>&lt;fog mode="exp2" expDensity="0.001"/&gt;</code></pre> |
+| `<skyBox>` | Skybox | Material + distance | <pre><code>&lt;skyBox material="Examples/CloudyNoonSkyBox"/&gt;</code></pre> |
+| `<skyDome>` | Skydome | Curvature + tiling | <pre><code>&lt;skyDome material="Examples/CloudySky"/&gt;</code></pre> |
+| `<skyPlane>` | Skyplane | Plane params | <pre><code>&lt;skyPlane material="Examples/SpaceSkyPlane"/&gt;</code></pre> |
+| `<water>` | Water system | File + sun | <pre><code>&lt;water fileName="water.cfg"/&gt;</code></pre> |
+| `<hud>` | HUD visibility | `show` | <pre><code>&lt;hud show="false"/&gt;</code></pre> |
+| `<fade>` | Fade config | Duration/speed | <pre><code>&lt;fade duration="1.5" speed="1"/&gt;</code></pre> |
+| `<clipping>` | Camera clipping | near/far | <pre><code>&lt;clipping near="1" far="20000"/&gt;</code></pre> |
+| `<sound>` | Positional sound | Position + loop | <pre><code>&lt;sound name="machinery.wav" x="3" y="2" z="-1"/&gt;</code></pre> |
+| `<ambient>` | Ambient sound | Bound to object | <pre><code>&lt;ambient name="wind.wav" objname="wind_zone_1"/&gt;</code></pre> |
+| `<music>` | Background music | Name + loop | <pre><code>&lt;music name="chapter1.ogg" loop="true"/&gt;</code></pre> |
 
 ---
+
+## Summary
+
+- Avoid triple backticks inside tables
+- Use `<pre><code>` blocks inside table cells
+
 
 # Sequence XML Entities Reference
 

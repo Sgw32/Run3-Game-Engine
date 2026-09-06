@@ -30,6 +30,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "OgreHighLevelGpuProgram.h"
 #include "OgreHighLevelGpuProgramManager.h"
 
+#include <iostream>
+
 using namespace Ogre;
 
 MaterialGenerator::MaterialGenerator()

@@ -36,7 +36,7 @@ namespace CaduneTree {
 
 /// @enum ShapeEnum
 /// Enum used to describe possible tree shapes
-enum ShapeEnum {
+enum ShapeEnum : int {
   CONICAL = 0,         ///< Conical shape
   SPHERICAL,           ///< Spherical shape
   HEMISPHERICAL,       ///< Hemispherical shape

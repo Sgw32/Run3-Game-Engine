@@ -4,7 +4,6 @@
 /////////////////////////////////////////////////////////////////////
 #pragma once
 #include <Ogre.h>
-#include <OgreNewt.h>
 
 class DefaultAEnt : public Ogre::FrameListener {
 public:

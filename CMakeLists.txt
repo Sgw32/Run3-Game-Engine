@@ -13,6 +13,17 @@ option(RUN3_BUILD_TESTS "Build the Run3 test suite" ON)
 option(RUN3_BUILD_TOOLS "Build Run3 developer tools" ON)
 option(RUN3_ENABLE_OPTIONAL_DEVICES
        "Enable optional hardware device backends" OFF)
+option(RUN3_BUILD_LEGACY "Build the controlled legacy compatibility target" ON)
+
+option(RUN3_LEGACY_ENABLE_NEWTON "Enable Newton/OgreNewt compatibility" OFF)
+option(RUN3_LEGACY_ENABLE_OIS "Enable OIS compatibility" OFF)
+option(RUN3_LEGACY_ENABLE_CEGUI "Enable CEGUI compatibility" OFF)
+option(RUN3_LEGACY_ENABLE_HYDRAX "Enable Hydrax compatibility" OFF)
+option(RUN3_LEGACY_ENABLE_SKYX "Enable SkyX compatibility" OFF)
+option(RUN3_LEGACY_ENABLE_LEGACY_AUDIO "Enable Audiere/ALUT compatibility" OFF)
+option(RUN3_LEGACY_ENABLE_DIRECTSHOW "Enable DirectShow compatibility" OFF)
+option(RUN3_LEGACY_ENABLE_SERIAL "Enable legacy serial devices" OFF)
+option(RUN3_LEGACY_ENABLE_NAMED_PIPES "Enable legacy named pipes" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(Run3Warnings)
@@ -50,6 +61,70 @@ target_include_directories(
     INTERFACE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 target_link_libraries(run3_build_info INTERFACE run3::warnings)
 
+if(RUN3_BUILD_LEGACY)
+    include(Run3LegacySources)
+
+    set(_run3_unimplemented_legacy_features
+        RUN3_LEGACY_ENABLE_NEWTON
+        RUN3_LEGACY_ENABLE_OIS
+        RUN3_LEGACY_ENABLE_CEGUI
+        RUN3_LEGACY_ENABLE_HYDRAX
+        RUN3_LEGACY_ENABLE_SKYX
+        RUN3_LEGACY_ENABLE_LEGACY_AUDIO
+        RUN3_LEGACY_ENABLE_DIRECTSHOW
+        RUN3_LEGACY_ENABLE_SERIAL
+        RUN3_LEGACY_ENABLE_NAMED_PIPES)
+    foreach(_feature IN LISTS _run3_unimplemented_legacy_features)
+        if(${_feature})
+            message(FATAL_ERROR
+                    "${_feature}=ON requested, but Step 3 provides only a "
+                    "visible-failure null backend for this subsystem")
+        endif()
+    endforeach()
+
+    add_library(run3_legacy STATIC
+                ${RUN3_LEGACY_REUSABLE_SOURCES}
+                source/legacy/LegacyFeatures.cpp
+                source/legacy/LegacySmoke.cpp)
+    add_library(run3::legacy ALIAS run3_legacy)
+    target_compile_features(run3_legacy PUBLIC cxx_std_17)
+    target_include_directories(
+        run3_legacy
+        PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+    target_compile_definitions(
+        run3_legacy
+        PUBLIC RUN3_LEGACY_ENABLE_NEWTON=0
+               RUN3_LEGACY_ENABLE_OIS=0
+               RUN3_LEGACY_ENABLE_CEGUI=0
+               RUN3_LEGACY_ENABLE_HYDRAX=0
+               RUN3_LEGACY_ENABLE_SKYX=0
+               RUN3_LEGACY_ENABLE_LEGACY_AUDIO=0
+               RUN3_LEGACY_ENABLE_DIRECTSHOW=0
+               RUN3_LEGACY_ENABLE_SERIAL=0
+               RUN3_LEGACY_ENABLE_NAMED_PIPES=0
+        PRIVATE TIXML_USE_STL NOMINMAX)
+    target_link_libraries(run3_legacy PUBLIC OgreMain OgreOverlay)
+
+    # Keep concessions local to untouched legacy translation units. New glue
+    # and all other first-party targets retain the normal warning policy.
+    if(MSVC)
+        target_compile_options(run3_legacy PRIVATE /W3 /permissive
+                               /wd4244 /wd4267 /wd4996)
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+        target_compile_options(
+            run3_legacy
+            PRIVATE -Wall -Wextra -Wpedantic
+                    -Wno-deprecated-declarations
+                    -Wno-sign-compare
+                    -Wno-unused-parameter)
+    endif()
+
+    message(STATUS
+            "Run3 legacy compatibility subset: "
+            "${RUN3_LEGACY_REUSABLE_SOURCE_COUNT}/"
+            "${RUN3_LEGACY_VCPROJ_SOURCE_COUNT} vcproj translation units")
+endif()
+
 add_executable(run3_shell source/shell_main.cpp)
 target_compile_features(run3_shell PRIVATE cxx_std_17)
 target_link_libraries(
@@ -83,6 +158,17 @@ if(RUN3_BUILD_TESTS)
 
     include(Catch)
     catch_discover_tests(run3_build_probe_tests)
+
+    if(RUN3_BUILD_LEGACY)
+        add_executable(run3_legacy_compile_tests
+                       tests/legacy_compile_tests.cpp)
+        target_link_libraries(
+            run3_legacy_compile_tests
+            PRIVATE run3::warnings run3::legacy Catch2::Catch2WithMain)
+        catch_discover_tests(run3_legacy_compile_tests
+                             TEST_PREFIX "run3_legacy."
+                             PROPERTIES LABELS "legacy-compile-smoke")
+    endif()
 
     set(_run3_can_smoke_test FALSE)
     if(WIN32 OR (UNIX AND DEFINED ENV{DISPLAY} AND NOT "$ENV{DISPLAY}" STREQUAL ""))

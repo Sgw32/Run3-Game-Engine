@@ -36,7 +36,7 @@ class Section;
 class Stem;
 
 // Enumeration declarations
-enum ShapeEnum;
+enum ShapeEnum : int;
 
 } // namespace CaduneTree
 

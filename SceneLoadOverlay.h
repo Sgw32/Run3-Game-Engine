@@ -3,31 +3,33 @@
 ///////////////Copyright(c) 2010 Fyodor Zagumennov		   //////////
 /////////////////////////////////////////////////////////////////////
 #pragma once
-#include "OgreConsole.h"
-#include <OIS/OIS.h>
 #include <Ogre.h>
+#include <OgreOverlay.h>
+#include <OgreOverlayContainer.h>
+#include <OgreOverlayManager.h>
 #include <stdlib.h>
 #include <time.h>
+#include <vector>
 
-class SceneLoadOverlay : public Singleton<SceneLoadOverlay> {
+class SceneLoadOverlay : public Ogre::Singleton<SceneLoadOverlay> {
 public:
   SceneLoadOverlay();
   ~SceneLoadOverlay();
-  void init(Root *mRoot);
-  void Add(String overlay);
-  void Show(String overlay);
+  void init(Ogre::Root *mRoot);
+  void Add(Ogre::String overlay);
+  void Show(Ogre::String overlay);
   void Show(int ter);
   void Show();
-  void Hide(String overlay);
+  void Hide(Ogre::String overlay);
   void Hide_all();
   void SetRandom();
 
 private:
-  ConfigFile cf;
+  Ogre::ConfigFile cf;
   int i;
   int random_iter;
-  Overlay *overlay;
-  OverlayContainer *lCont;
-  vector<String> overlays;
-  Root *root;
+  Ogre::Overlay *overlay;
+  Ogre::OverlayContainer *lCont;
+  std::vector<Ogre::String> overlays;
+  Ogre::Root *root;
 };

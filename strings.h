@@ -1,7 +1,7 @@
 #ifndef _STRINGS_H_
 #define _STRINGS_H_
 
-#include "tokenizer.h"
+#include "Tokenizer.h"
 #include <iostream>
 
 void trimLR(std::string &str, std::string characters);

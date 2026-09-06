@@ -23,6 +23,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "GeomUtils.h"
 #include "OgreCamera.h"
 #include "OgreHardwareBufferManager.h"
+#include "OgreRenderQueue.h"
 #include "OgreSceneNode.h"
 
 using namespace Ogre;

@@ -15,6 +15,7 @@ LGPL like the rest of the engine.
 #include "AmbientLight.h"
 #include "GeomUtils.h"
 #include "OgreMaterialManager.h"
+#include "OgreRenderQueue.h"
 
 using namespace Ogre;
 

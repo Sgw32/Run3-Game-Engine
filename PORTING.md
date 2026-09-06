@@ -11,7 +11,7 @@ Progress checklist (mark a step only when its exit criteria pass):
 - [x] 0 — legacy baseline and rights inventory
 - [x] 1 — reproducible CMake skeleton
 - [x] 2 — pinned Ogre renderer shell
-- [ ] 3 — controlled legacy compile target
+- [x] 3 — controlled legacy compile target
 - [ ] 4 — platform/input boundary
 - [ ] 5 — content validation and first rendered map
 - [ ] 6A — Bullet backend tests

@@ -15,6 +15,7 @@ LGPL like the rest of the engine.
 #include "GeomUtils.h"
 
 #include "OgreHardwareBufferManager.h"
+#include "OgreMesh.h"
 #include "OgreMeshManager.h"
 #include "OgreSubMesh.h"
 

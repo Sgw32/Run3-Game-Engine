@@ -9,6 +9,53 @@ Last updated: 2026-09-06
 | 0 — legacy baseline and rights inventory | Resolved | Static inventory is recorded. By owner direction, recordings and detailed licensing work are deferred to the build-prototype stage; only the authorized `media/` tree is in scope. |
 | 1 — reproducible CMake skeleton | Completed | Root CMake/vcpkg build and all four local workflows pass. |
 | 2 — pinned Ogre renderer shell | Completed | Ogre classic 14.5.2 is pinned and the installed assetless shell passes Debug and Release smoke tests on Windows and Linux. |
+| 3 — controlled legacy compile target | Completed | A reviewed 21/119-source compatibility subset compiles and its smoke tests pass on MSVC and GCC; 93 runtime units remain categorized and deferred. |
+
+## 2026-09-06 — Step 3
+
+Completed:
+
+- Added `run3_legacy`, a static compatibility library based on the explicit
+  119-translation-unit inventory from `Run3.vcproj`; no source glob is used.
+- Compiled the maximum reviewed dependency-free/Ogre-only subset reached in
+  this step: 21 project-listed units covering TinyXML/string support,
+  CaduneTree, deferred-render helpers, lens flare, batching/shadows, loading
+  overlay, entity spawning, and the Newton-free base entity.
+- Kept `main.cpp` separate from reusable code. Explicitly excluded three
+  obsolete experimental/console files and one malformed unused TinyXML file;
+  no other runtime source was labelled obsolete.
+- Added nine default-off feature switches and logging/throwing null backends
+  for Newton/OgreNewt, OIS, CEGUI, Hydrax, SkyX, Audiere/ALUT, DirectShow,
+  serial, and named pipes. An unimplemented feature cannot be enabled silently.
+- Linked the compatibility library only with imported `OgreMain` and
+  `OgreOverlay` targets from the pinned manifest. No old binary library or
+  local SDK path is used.
+- Added two Catch2 compile/link smoke cases and documented source accounting in
+  [LEGACY_SOURCE_REVIEW.md](LEGACY_SOURCE_REVIEW.md). Recorded each Ogre API
+  batch in [OGRE_API_LEDGER.md](OGRE_API_LEDGER.md).
+
+Verification:
+
+| Preset | Target build | Focused CTest result |
+|---|---|---|
+| `windows-msvc-x64-debug` | MSVC 19.51 x64 passed | 2/2 passed |
+| `windows-msvc-x64-release` | MSVC 19.51 x64 passed | 2/2 passed |
+| `linux-ninja-debug` | GCC 13.3 x64 passed | 2/2 passed |
+| `linux-ninja-release` | GCC 13.3 x64 passed | 2/2 passed |
+
+Remaining backlog:
+
+- 93 runtime translation units are deferred. Of these, 65 directly name at
+  least one unavailable dependency; overlapping direct-reference counts are
+  Newton/OgreNewt 43, OIS 25, Lua 19, serial 5, SkyX 3, legacy audio 2, named
+  pipes 2, and one each for CEGUI, Hydrax, and DirectShow.
+- The other 28 are primarily blocked by transitive global/header coupling or
+  old Ogre scene-manager/compositor APIs. Raw diagnostic counts are not used
+  because a missing dependency header creates cascading errors.
+- The compiling layer retains 7 known MSVC and 10 GCC warning sites. A
+  tokenizer end-iterator hang discovered by an exploratory test is documented
+  but intentionally not behavior-changed without dedicated coverage.
+- Step 3 is complete. Stop here; Step 4 remains unstarted.
 
 ## 2026-09-06 — Step 2
 
@@ -51,10 +98,11 @@ cleanly. Their logs identify Ogre 14.5.2 and respectively Direct3D11 and
 OpenGL 3+; the Linux WSLg run used Mesa llvmpipe OpenGL 4.5. Installed plugin
 configuration contains no D3D9 or Cg entry.
 
-Scope boundary and next step:
+Historical boundary at Step 2 completion:
 
 - Step 2 is complete. No legacy Run3 engine source was added to the build.
-- Stop here; Step 3 remains unstarted.
+- That pass stopped before Step 3. The controlled compatibility target is now
+  recorded in the completed Step 3 entry above.
 
 ## 2026-09-05 — Step 1
 

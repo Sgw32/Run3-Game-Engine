@@ -149,6 +149,13 @@ The committed presets use these defaults:
 - `RUN3_BUILD_TOOLS=ON` builds `run3_build_probe`.
 - `RUN3_ENABLE_OPTIONAL_DEVICES=OFF` keeps serial and other optional hardware
   backends out of the portable default configuration.
+- `RUN3_BUILD_LEGACY=ON` builds the reviewed Step 3 compatibility subset.
+
+The nine `RUN3_LEGACY_ENABLE_*` switches remain `OFF` in Step 3. Turning one on
+fails configuration until that retired subsystem has a reproducible
+implementation; disabled calls go through a logging, throwing null backend.
+See [LEGACY_SOURCE_REVIEW.md](porting/LEGACY_SOURCE_REVIEW.md) for the exact
+source inventory, exclusions, and focused compile-smoke commands.
 
 Override an option during configuration when required, for example:
 

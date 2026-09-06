@@ -1,4 +1,4 @@
-#include "tokenizer.h"
+#include "Tokenizer.h"
 
 void Tokenizer::setString(std::string str) {
   buffer = str; // initialising buffer

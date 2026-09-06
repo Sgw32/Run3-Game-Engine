@@ -99,7 +99,8 @@ void LensFlare::update() {
   }
 
   Real LightDistance = mLightPosition.distance(mCamera->getDerivedPosition());
-  Vector3 CameraVect = mCamera->getDirection(); // normalized vector (length 1)
+  Vector3 CameraVect =
+      mCamera->getDerivedDirection(); // normalized vector (length 1)
 
   CameraVect = mCamera->getDerivedPosition() + (LightDistance * CameraVect);
 

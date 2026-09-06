@@ -1,19 +1,21 @@
 #include "SceneLoadOverlay.h"
 
-template <> SceneLoadOverlay *Singleton<SceneLoadOverlay>::ms_Singleton = 0;
+template <>
+SceneLoadOverlay *Ogre::Singleton<SceneLoadOverlay>::msSingleton = nullptr;
 
 SceneLoadOverlay::SceneLoadOverlay() {}
 
 SceneLoadOverlay::~SceneLoadOverlay() {}
 
-void SceneLoadOverlay::init(Root *mRoot) {
+void SceneLoadOverlay::init(Ogre::Root *mRoot) {
   srand(time(NULL));
   cf.load("run3/game/loadingscrs/loadingscrs.cfg");
-  ConfigFile::SettingsMultiMap *settings = cf.getSectionIterator().getNext();
-  ConfigFile::SettingsMultiMap::iterator b;
+  Ogre::ConfigFile::SettingsMultiMap *settings =
+      cf.getSectionIterator().getNext();
+  Ogre::ConfigFile::SettingsMultiMap::iterator b;
   settings = cf.getSectionIterator().getNext();
-  String curLab;
-  overlay = OverlayManager::getSingleton().getByName("Run3/TD01");
+  Ogre::String curLab;
+  overlay = Ogre::OverlayManager::getSingleton().getByName("Run3/TD01");
   lCont = overlay->getChild("Run3/TD01Panel");
   for (b = settings->begin(); b != settings->end(); ++b) {
     curLab = b->first;
@@ -22,19 +24,19 @@ void SceneLoadOverlay::init(Root *mRoot) {
   root = mRoot;
 }
 
-void SceneLoadOverlay::Add(String overlay) {
+void SceneLoadOverlay::Add(Ogre::String overlay) {
   //	overlays.push_back(OverlayManager::getSingleton().getByName(overlay));
   overlays.push_back(overlay);
 }
 
-void SceneLoadOverlay::Show(String over) {
-  LogManager::getSingleton().logMessage("11");
+void SceneLoadOverlay::Show(Ogre::String over) {
+  Ogre::LogManager::getSingleton().logMessage("11");
   lCont->setMaterialName(over);
-  LogManager::getSingleton().logMessage("12");
+  Ogre::LogManager::getSingleton().logMessage("12");
   overlay->show();
-  LogManager::getSingleton().logMessage("13");
+  Ogre::LogManager::getSingleton().logMessage("13");
   root->renderOneFrame();
-  LogManager::getSingleton().logMessage("14");
+  Ogre::LogManager::getSingleton().logMessage("14");
 }
 
 void SceneLoadOverlay::Show() {
@@ -48,7 +50,7 @@ void SceneLoadOverlay::Show(int iter) {
   root->renderOneFrame();
 }
 
-void SceneLoadOverlay::Hide(String over) { overlay->hide(); }
+void SceneLoadOverlay::Hide(Ogre::String over) { overlay->hide(); }
 
 void SceneLoadOverlay::Hide_all() { overlay->hide(); }
 

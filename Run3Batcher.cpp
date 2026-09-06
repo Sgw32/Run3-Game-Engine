@@ -1,6 +1,6 @@
 #include "Run3Batcher.h"
 
-template <> Run3Batcher *Singleton<Run3Batcher>::ms_Singleton = 0;
+template <> Run3Batcher *Singleton<Run3Batcher>::msSingleton = nullptr;
 
 Run3Batcher::Run3Batcher() { empty = true; }
 

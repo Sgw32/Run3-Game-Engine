@@ -3,19 +3,19 @@
 ///////////////Copyright(c) 2010 Fyodor Zagumennov		   //////////
 /////////////////////////////////////////////////////////////////////
 #pragma once
-#include "OgreConsole.h"
-#include <OIS/OIS.h>
 #include <Ogre.h>
+#include <vector>
 
-class EventEntC : public Singleton<EventEntC> {
+class EventEntC : public Ogre::Singleton<EventEntC> {
 public:
   EventEntC();
   ~EventEntC();
-  void init(SceneManager *scene);
-  void ent(String name, String file, String event, Vector3 pos);
+  void init(Ogre::SceneManager *scene);
+  void ent(Ogre::String name, Ogre::String file, Ogre::String event,
+           Ogre::Vector3 pos);
   void cleanup();
 
 private:
-  vector<String> entc_name;
-  SceneManager *mSceneMgr;
+  std::vector<Ogre::String> entc_name;
+  Ogre::SceneManager *mSceneMgr;
 };

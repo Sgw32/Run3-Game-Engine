@@ -1,3 +1,19 @@
 /Games
 /OgreSDK
 /Run3Dep
+
+# Root CMake and vcpkg outputs.
+/build/
+/out/
+/vcpkg_installed/
+/CMakeCache.txt
+/CMakeFiles/
+/CTestTestfile.cmake
+/Testing/
+/cmake_install.cmake
+
+# Per-developer CMake overrides must remain local.
+/CMakeUserPresets.json
+
+# Local VM captures and full inventory exports can be large or sensitive.
+/docs/porting/evidence-local/

@@ -8,9 +8,9 @@ This document is deliberately organized into small, independently verifiable job
 
 Progress checklist (mark a step only when its exit criteria pass):
 
-- [ ] 0 — legacy baseline and rights inventory
-- [ ] 1 — reproducible CMake skeleton
-- [ ] 2 — pinned Ogre renderer shell
+- [x] 0 — legacy baseline and rights inventory
+- [x] 1 — reproducible CMake skeleton
+- [x] 2 — pinned Ogre renderer shell
 - [ ] 3 — controlled legacy compile target
 - [ ] 4 — platform/input boundary
 - [ ] 5 — content validation and first rendered map

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "run3-engine",
+  "version-string": "0.1.0",
+  "description": "Pinned dependencies for the Run3 modernization build",
+  "license": "MIT",
+  "builtin-baseline": "04a9d8e5212d01ee1dd9478eadd9caade4f8b0d4",
+  "dependencies": [
+    "catch2",
+    {
+      "name": "ogre",
+      "default-features": false,
+      "features": [
+        "overlay",
+        "zip"
+      ]
+    }
+  ],
+  "overrides": [
+    {
+      "name": "ogre",
+      "version": "14.5.2"
+    }
+  ]
+}

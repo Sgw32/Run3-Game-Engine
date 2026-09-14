@@ -1,7 +1,8 @@
-# Building the Run3 renderer shell
+# Building Run3
 
 The root build compiles the Step 1 probe, the controlled legacy compatibility
-library, `run3_shell`, and the Step 5 `run3_asset_check`. The shell uses `Run3App` and an
+library, `run3_shell`, the Step 5 `run3_asset_check`, and the Step 6A
+`run3_physics` Bullet/null backend. The shell uses `Run3App` and an
 application-owned loop; it does not inspect local `OgreSDK/` or `Run3Dep/`
 directories. Ogre classic 14.5.2 and its official conversion tools are restored solely from the pinned vcpkg
 manifest; see
@@ -56,7 +57,7 @@ Replace `debug` with `release` for the Release build.
 To compile selected targets after configuration:
 
 ```powershell
-cmake --build --preset windows-msvc-x64-debug --target run3_shell run3_asset_check run3_legacy run3_runtime_tests
+cmake --build --preset windows-msvc-x64-debug --target run3_shell run3_asset_check run3_legacy run3_runtime_tests run3_physics_tests
 ```
 
 The build-tree executables are placed in
@@ -116,7 +117,7 @@ Replace `debug` with `release` for the Release build.
 To compile selected targets after configuration:
 
 ```bash
-cmake --build --preset linux-ninja-debug --target run3_shell run3_asset_check run3_legacy run3_runtime_tests
+cmake --build --preset linux-ninja-debug --target run3_shell run3_asset_check run3_legacy run3_runtime_tests run3_physics_tests
 ```
 
 The build-tree executables are placed in `build/linux-ninja-debug/` (or the
@@ -190,6 +191,9 @@ The committed presets use these defaults:
   implementations. On Windows, `ON` compiles the Win32 implementations; on
   other platforms it remains a no-op backend.
 - `RUN3_BUILD_LEGACY=ON` builds the reviewed Step 3 compatibility subset.
+- `RUN3_ENABLE_SANITIZERS=OFF` can be enabled with GCC or Clang to instrument
+  first-party physics code and its tests with AddressSanitizer and
+  UndefinedBehaviorSanitizer. Standard presets deliberately remain unchanged.
 
 The non-device `RUN3_LEGACY_ENABLE_*` switches remain `OFF`. Turning one on
 fails configuration until that retired subsystem has a reproducible
@@ -207,3 +211,29 @@ cmake --preset linux-ninja-debug -DRUN3_BUILD_TOOLS=OFF
 Build trees and manifest-installed packages are placed below `build/` and are
 ignored by Git. Put personal preset overrides in `CMakeUserPresets.json`, which
 is also ignored.
+
+## Physics-only verification
+
+The normal cross-platform physics tests are part of every workflow. To rebuild
+and run only them:
+
+```text
+cmake --build --preset <preset> --target run3_physics_tests
+ctest --preset <preset> -R "^run3_physics\." --output-on-failure
+```
+
+On GCC/Clang, configure an isolated sanitizer tree without changing a committed
+preset:
+
+```bash
+cmake --preset linux-ninja-debug -B build/linux-ninja-sanitizers \
+  -DRUN3_ENABLE_SANITIZERS=ON -DRUN3_BUILD_LEGACY=OFF \
+  -DRUN3_BUILD_TOOLS=OFF
+cmake --build build/linux-ninja-sanitizers --target run3_physics_tests
+ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1 \
+  ctest --test-dir build/linux-ninja-sanitizers \
+  -R "^run3_physics\." --output-on-failure
+```
+
+See [PHYSICS_BEHAVIOR.md](porting/PHYSICS_BEHAVIOR.md) for the unit contract,
+legacy operation inventory, and Step 6B/6C migration boundary.

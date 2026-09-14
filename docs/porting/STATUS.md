@@ -12,6 +12,59 @@ Last updated: 2026-09-14
 | 3 — controlled legacy compile target | Completed | A reviewed 21/119-source compatibility subset compiled and its smoke tests passed on MSVC and GCC; Step 4 extends it. |
 | 4 — platform paths, loop, configuration, and input | Completed | `Run3App` owns the explicit loop; platform-neutral paths/input/clock plus migrated UI/device compatibility batches pass on Windows and Linux. |
 | 5 — content manifest, validation, and render fixture | Completed | The read-only validator and deterministic conversion boundary pass their fixtures on D3D11/GL3+; the untouched full content backlog is categorized below. |
+| 6A — Bullet physics backend and tests | Completed | Pinned Bullet 3.25#3 and null backends pass the same unit/fixture contract on MSVC and GCC; gameplay/map migration remains in 6B/6C. |
+
+## 2026-09-14 — Step 6A
+
+Completed:
+
+- Inventoried the direct OgreNewt/Newton surface from the reviewed vcproj
+  runtime, orphan implementation evidence, shared headers, and AIR3. The
+  operation-by-operation classification and migration decisions are in
+  [PHYSICS_BEHAVIOR.md](PHYSICS_BEHAVIOR.md). No Player, map, entity, NPC,
+  weapon, AIR3, joint, or ragdoll call site was migrated.
+- Added exact Bullet 3.25 port revision 3 to the existing pinned vcpkg
+  baseline. `run3_physics` links only the imported `BulletDynamics`,
+  `BulletCollision`, and `LinearMath` targets. Newton/OgreNewt remains disabled
+  and no old SDK/library path was added.
+- Added a backend-neutral C++17 API containing `PhysicsWorld`, move-only
+  `BodyHandle`/`Constraint`, box/capsule/indexed-mesh `Shape`, transforms,
+  raycasts, copied contact events, typed metadata, and collision groups/masks.
+  Its public headers contain neither Bullet nor Ogre types.
+- Centralized the production scale at exactly 0.01 metre/game unit. Alternate
+  scales are constructible only through the separate physics testing header.
+- Implemented a Bullet backend with an application-owned fixed 60 Hz
+  accumulator, bounded catch-up/drop reporting, previous/current transforms,
+  deterministic interpolation, nearest-first filtered raycasts, automatic and
+  explicit sleep/wake, enable/disable, forces/impulses, RAII cleanup, and
+  begin/persist/end contact events copied to a post-step queue.
+- Implemented a null backend with the same handle/lifetime and fixed-step API.
+  It retains state safely while intentionally producing no simulation,
+  raycasts, or contacts.
+- Added 13 Catch2 mapping/behavior tests plus a repository boundary test. They
+  cover unit conversion, 30/60/144 Hz step equivalence, bounded catch-up,
+  gravity, falling/resting, box/capsule/mesh creation, ray order/filtering,
+  trigger contacts, force/impulse behavior, sleeping, enable/disable, handle
+  and dependent-constraint lifetime, transform interpolation, and null mode.
+
+Verification:
+
+| Configuration | Toolchain | Result |
+|---|---|---|
+| `windows-msvc-x64-debug` | MSVC 19.51 x64 | Configure/build passed; 32/32 CTests passed |
+| `windows-msvc-x64-release` | MSVC 19.51 x64 | Configure/build passed; 32/32 CTests passed |
+| `linux-ninja-debug` | GCC 13.3 x64 under WSL | Configure/build passed; 32/32 CTests passed |
+| `linux-ninja-release` | GCC 13.3 x64 under WSL | Configure/build passed; 32/32 CTests passed |
+| `linux-ninja-sanitizers` | GCC 13.3 ASan + UBSan, leak detection | Physics target built; 14/14 focused CTests passed |
+
+The fixed-step tests produce exactly 60 simulation steps for one second fed at
+30, 60, or 144 render Hz. A four-step catch-up limit reports and drops excess
+whole steps while preserving the fractional accumulator. The header-isolation
+test confirms Bullet includes occur only in the private backend translation
+unit.
+
+Step 6A is complete. Stop here; Step 6B Player/static-map migration is
+unstarted.
 
 ## 2026-09-14 — Step 5
 
@@ -88,7 +141,8 @@ The WSL verification used a fresh pinned checkout in `/tmp` and non-root
 temporary `zip`/`unzip` package extraction because this image has no installed
 zip tools and interactive sudo is unavailable.
 
-Step 5 is complete. Stop here; Step 6A physics design is unstarted.
+Historical boundary: Step 5 stopped before physics work. Step 6A is now
+completed and recorded above.
 
 ## 2026-09-07 — Step 4
 

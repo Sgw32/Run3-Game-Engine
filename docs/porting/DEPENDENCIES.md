@@ -69,11 +69,26 @@ The pre-existing runtime log additionally exposes the old Ogre build root
 absolute path with its source location; modern build files must not reproduce
 any of them.
 
-## Modern manifest dependency
+## Modern manifest dependencies
 
-Step 1 currently has one direct vcpkg dependency: Catch2 3.16.0, selected by
-the pinned baseline `04a9d8e5212d01ee1dd9478eadd9caade4f8b0d4`. It is used
-only by the isolated build-probe test.
+The committed manifest uses vcpkg baseline
+`04a9d8e5212d01ee1dd9478eadd9caade4f8b0d4`. Its direct dependencies are:
+
+| Dependency | Pinned/resolved version | Use |
+|---|---|---|
+| Bullet (`bullet3`) | 3.25 port revision 3 | Private implementation of `run3::physics`; imported targets `BulletDynamics`, `BulletCollision`, and `LinearMath`; Zlib license |
+| Ogre classic | 14.5.2 | Renderer shell, asset parsing, and conversion tools |
+| Lua | 5.4.8 | Syntax-only content validation |
+| TinyXML2 | 11.0.0 | Content/fixture XML validation |
+| nlohmann-json | 3.12.0 port revision 2 | Machine-readable asset report |
+| Catch2 | 3.16.0 | Unit and integration tests |
+
+Bullet and Ogre are exact manifest overrides. `run3::physics` exposes no
+Bullet header or type; a CTest repository scan enforces that Bullet includes
+remain confined to `source/physics/BulletPhysicsBackend.cpp`. The legacy
+`newton.lib` and `OgreNewt_Main.lib` inputs remain disabled and are not searched
+or staged. See [PHYSICS_BEHAVIOR.md](PHYSICS_BEHAVIOR.md) for the operation
+inventory and removal plan.
 
 ## Update template
 

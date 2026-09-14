@@ -14,7 +14,7 @@ Progress checklist (mark a step only when its exit criteria pass):
 - [x] 3 — controlled legacy compile target
 - [x] 4 — platform/input boundary
 - [x] 5 — content validation and first rendered map
-- [ ] 6A — Bullet backend tests
+- [x] 6A — Bullet backend tests
 - [ ] 6B — static world and player
 - [ ] 6C — remaining physics and AIR3
 - [ ] 7 — unified audio
@@ -306,6 +306,9 @@ Exit criteria:
 - All conversions are reproducible and originals remain untouched.
 
 ### Step 6A — Design and test the Bullet physics backend
+
+Status: **Completed 2026-09-14.** See
+`docs/porting/PHYSICS_BEHAVIOR.md` and `docs/porting/STATUS.md`.
 
 Run3 content appears to use centimeters (`Player` is roughly 20 x 100 x 20 and worlds span thousands of units). Use an explicit boundary of **100 game units = 1 meter** unless baseline measurements disprove it. Ogre/gameplay stays in game units; Bullet stays in meters. Never scatter `0.01` conversions through gameplay.
 

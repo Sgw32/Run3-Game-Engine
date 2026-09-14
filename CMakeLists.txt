@@ -16,6 +16,9 @@ option(RUN3_BUILD_TOOLS "Build Run3 developer tools" ON)
 option(RUN3_ENABLE_OPTIONAL_DEVICES
        "Enable optional hardware device backends" OFF)
 option(RUN3_BUILD_LEGACY "Build the controlled legacy compatibility target" ON)
+option(RUN3_ENABLE_SANITIZERS
+       "Enable AddressSanitizer and UndefinedBehaviorSanitizer where supported"
+       OFF)
 
 option(RUN3_LEGACY_ENABLE_NEWTON "Enable Newton/OgreNewt compatibility" OFF)
 option(RUN3_LEGACY_ENABLE_OIS "Enable OIS compatibility" OFF)
@@ -34,6 +37,7 @@ run3_create_warning_targets()
 find_package(
     OGRE 14.5.2 EXACT CONFIG REQUIRED
     COMPONENTS Bites Overlay RTShaderSystem)
+find_package(Bullet 3.25 EXACT CONFIG REQUIRED)
 find_package(Lua 5.4 EXACT REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(tinyxml2 CONFIG REQUIRED)
@@ -77,6 +81,35 @@ target_compile_features(run3_core PUBLIC cxx_std_17)
 target_include_directories(
     run3_core PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 target_link_libraries(run3_core PRIVATE run3::warnings)
+
+add_library(run3_sanitizers INTERFACE)
+add_library(run3::sanitizers ALIAS run3_sanitizers)
+if(RUN3_ENABLE_SANITIZERS)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+        target_compile_options(
+            run3_sanitizers INTERFACE -fsanitize=address,undefined
+                                      -fno-omit-frame-pointer)
+        target_link_options(run3_sanitizers INTERFACE
+                            -fsanitize=address,undefined)
+    else()
+        message(WARNING
+                "RUN3_ENABLE_SANITIZERS is unavailable for this compiler; "
+                "no sanitizer flags were added")
+    endif()
+endif()
+
+add_library(run3_physics STATIC
+            source/physics/Physics.cpp
+            source/physics/NullPhysicsBackend.cpp
+            source/physics/BulletPhysicsBackend.cpp)
+add_library(run3::physics ALIAS run3_physics)
+target_compile_features(run3_physics PUBLIC cxx_std_17)
+target_include_directories(
+    run3_physics PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(
+    run3_physics
+    PRIVATE run3::warnings run3::sanitizers BulletDynamics BulletCollision
+            LinearMath)
 
 add_library(run3_asset_validation STATIC
             source/content/AssetValidation.cpp
@@ -252,6 +285,24 @@ if(RUN3_BUILD_TESTS)
                          TEST_PREFIX "run3_assets."
                          PROPERTIES LABELS "assets")
 
+    add_executable(run3_physics_tests tests/physics_mapping_tests.cpp)
+    target_compile_features(run3_physics_tests PRIVATE cxx_std_17)
+    target_link_libraries(
+        run3_physics_tests
+        PRIVATE run3::warnings run3::sanitizers run3::physics
+                Catch2::Catch2WithMain)
+    catch_discover_tests(run3_physics_tests
+                         TEST_PREFIX "run3_physics."
+                         PROPERTIES LABELS "physics")
+    add_test(
+        NAME run3_physics.backend-header-isolation
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DRUN3_SOURCE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckPhysicsBoundary.cmake")
+    set_tests_properties(run3_physics.backend-header-isolation
+                         PROPERTIES LABELS "physics")
+
     add_executable(run3_converter_stub tests/converter_stub.cpp)
     target_compile_features(run3_converter_stub PRIVATE cxx_std_17)
     target_link_libraries(run3_converter_stub PRIVATE run3::warnings)
@@ -411,4 +462,6 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/content/manifests/"
 message(STATUS "Run3 build tests: ${RUN3_BUILD_TESTS}")
 message(STATUS "Run3 developer tools: ${RUN3_BUILD_TOOLS}")
 message(STATUS "Run3 optional devices: ${RUN3_ENABLE_OPTIONAL_DEVICES}")
+message(STATUS "Run3 sanitizers: ${RUN3_ENABLE_SANITIZERS}")
 message(STATUS "Run3 Ogre: ${OGRE_VERSION} (${OGRE_DIR})")
+message(STATUS "Run3 Bullet: ${BULLET_VERSION_STRING} (${BULLET_ROOT_DIR})")

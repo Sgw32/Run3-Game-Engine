@@ -6,6 +6,7 @@
   "license": "MIT",
   "builtin-baseline": "04a9d8e5212d01ee1dd9478eadd9caade4f8b0d4",
   "dependencies": [
+    "bullet3",
     "catch2",
     "lua",
     "nlohmann-json",
@@ -21,6 +22,11 @@
     "tinyxml2"
   ],
   "overrides": [
+    {
+      "name": "bullet3",
+      "version": "3.25",
+      "port-version": 3
+    },
     {
       "name": "lua",
       "version": "5.4.8"

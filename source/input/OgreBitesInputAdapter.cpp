@@ -8,6 +8,7 @@ namespace {
 constexpr int sdlScancodeMask = 1 << 30;
 constexpr int sdlCapsLock = sdlScancodeMask | 57;
 constexpr int sdlPrintScreen = sdlScancodeMask | 70;
+constexpr int sdlF1 = sdlScancodeMask | 58;
 constexpr int sdlLeftControl = sdlScancodeMask | 224;
 constexpr int sdlRightControl = sdlScancodeMask | 228;
 constexpr int sdlRightShift = sdlScancodeMask | 229;
@@ -56,6 +57,18 @@ Key translateOgreBitesKey(OgreBites::Keycode key) noexcept {
   case sdlRightControl: return Key::RightControl;
   case sdlCapsLock: return Key::CapsLock;
   case sdlPrintScreen: return Key::PrintScreen;
+  case sdlF1 + 0: return Key::F1;
+  case sdlF1 + 1: return Key::F2;
+  case sdlF1 + 2: return Key::F3;
+  case sdlF1 + 3: return Key::F4;
+  case sdlF1 + 4: return Key::F5;
+  case sdlF1 + 5: return Key::F6;
+  case sdlF1 + 6: return Key::F7;
+  case sdlF1 + 7: return Key::F8;
+  case sdlF1 + 8: return Key::F9;
+  case sdlF1 + 9: return Key::F10;
+  case sdlF1 + 10: return Key::F11;
+  case sdlF1 + 11: return Key::F12;
   case OgreBites::SDLK_KP_PLUS: return Key::Add;
   case OgreBites::SDLK_KP_MINUS: return Key::Subtract;
   case OgreBites::SDLK_KP_MULTIPLY: return Key::Multiply;

@@ -34,7 +34,10 @@ fs::path cliPath(const std::string &value, const fs::path &executableDir) {
       message +
       "\nUsage: run3_shell [--renderer d3d11|gl3plus] [--frames N]"
       " [--user-dir PATH] [--content-root PATH] [--validate-content]"
-      " [--manifest PATH] [--report PATH]");
+      " [--manifest PATH] [--report PATH]"
+      " [--map tlwcao|tlwhome02] [--map-quality low|medium|high]"
+      " [--resource-profile FILE] [--noclip] [--physics-debug]"
+      " [--render-hz 30|60|144]");
 }
 
 } // namespace
@@ -127,6 +130,10 @@ CommandLine parseCommandLine(const std::vector<std::string> &arguments,
       result.validateContent = true;
       continue;
     }
+    if (argument == "--noclip" || argument == "--physics-debug") {
+      result.values[argument.substr(2)] = "true";
+      continue;
+    }
     if (index + 1 >= arguments.size()) {
       argumentError("Missing value for " + argument);
     }
@@ -143,6 +150,14 @@ CommandLine parseCommandLine(const std::vector<std::string> &arguments,
       result.values["manifest"] = cliPath(value, executableDir).string();
     } else if (argument == "--report") {
       result.values["report"] = cliPath(value, executableDir).string();
+    } else if (argument == "--map") {
+      result.values["map"] = value;
+    } else if (argument == "--map-quality") {
+      result.values["map-quality"] = value;
+    } else if (argument == "--resource-profile") {
+      result.values["resource-profile"] = value;
+    } else if (argument == "--render-hz") {
+      result.values["render-hz"] = value;
     } else {
       argumentError("Unknown argument: " + argument);
     }

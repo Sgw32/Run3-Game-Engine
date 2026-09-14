@@ -3,6 +3,9 @@
 #include <run3/core/Log.hpp>
 #include <run3/content/AssetValidation.hpp>
 #include <run3/content/OgreAssetValidation.hpp>
+#include <run3/gameplay/PlayerController.hpp>
+#include <run3/gameplay/StaticMap.hpp>
+#include <run3/physics/Physics.hpp>
 
 #include <OgreCamera.h>
 #include <OgreColourValue.h>
@@ -29,6 +32,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string_view>
+#include <cmath>
 #include <utility>
 
 namespace run3 {
@@ -70,6 +74,34 @@ fs::path configuredPath(fs::path path, const fs::path &executableDir) {
   return fs::absolute(path).lexically_normal();
 }
 
+bool configuredBool(const Configuration &configuration, std::string_view key,
+                    bool fallback = false) {
+  const std::string value = lower(configuration.valueOr(key, fallback ? "true" : "false"));
+  if (value == "true" || value == "1" || value == "yes" || value == "on") {
+    return true;
+  }
+  if (value == "false" || value == "0" || value == "no" || value == "off") {
+    return false;
+  }
+  throw std::runtime_error("Configuration value for '" + std::string(key) +
+                           "' is not a boolean: " + value);
+}
+
+double configuredDouble(const Configuration &configuration,
+                        std::string_view key, double fallback = 0.0) {
+  const auto value = configuration.find(key);
+  if (!value) {
+    return fallback;
+  }
+  std::size_t consumed{};
+  const double result = std::stod(*value, &consumed);
+  if (consumed != value->size() || !std::isfinite(result) || result < 0.0) {
+    throw std::runtime_error("Configuration value for '" + std::string(key) +
+                             "' is invalid: " + *value);
+  }
+  return result;
+}
+
 } // namespace
 
 Run3AppOptions loadRun3AppOptions(int argc, char **argv,
@@ -87,8 +119,9 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
   const CommandLine commandLine = parseCommandLine(arguments, executableDir);
   if (commandLine.help) {
     printRun3AppUsage();
-    return Run3AppOptions{AppPaths::resolve(executable), {}, 0, false, false,
-                          {}, {}, {}};
+    Run3AppOptions helpOptions;
+    helpOptions.paths = AppPaths::resolve(executable);
+    return helpOptions;
   }
 
   const bool validateContent =
@@ -143,12 +176,23 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
   if (reportPath.empty()) {
     reportPath = paths.logDir() / "asset-report.json";
   }
-  return Run3AppOptions{
-      std::move(paths), configuration.valueOr("renderer", defaultRenderer),
-      frames, contentRoot.has_value(), validateContent,
-      configuredPath(std::move(manifestPath), executableDir),
-      configuredPath(std::move(reportPath), executableDir),
-      installedShare / "validation-fixture" / "step5.scene"};
+  Run3AppOptions options;
+  options.paths = std::move(paths);
+  options.renderer = configuration.valueOr("renderer", defaultRenderer);
+  options.frameLimit = frames;
+  options.explicitContentRoot = contentRoot.has_value();
+  options.validateContent = validateContent;
+  options.manifestPath = configuredPath(std::move(manifestPath), executableDir);
+  options.reportPath = configuredPath(std::move(reportPath), executableDir);
+  options.renderFixture = installedShare / "validation-fixture" / "step5.scene";
+  options.mapName = configuration.valueOr("map", "");
+  options.mapQuality = configuration.valueOr("map-quality", "low");
+  options.resourceProfile =
+      configuration.valueOr("resource-profile", "resources_low_low.cfg");
+  options.renderHz = configuredDouble(configuration, "render-hz");
+  options.startNoclip = configuredBool(configuration, "noclip");
+  options.physicsDebug = configuredBool(configuration, "physics-debug");
+  return options;
 }
 
 void printRun3AppUsage() {
@@ -156,6 +200,9 @@ void printRun3AppUsage() {
       << "Usage: run3_shell [--renderer d3d11|gl3plus] [--frames N]"
          " [--user-dir PATH] [--content-root PATH]\n"
       << "       [--validate-content] [--manifest PATH] [--report PATH]\n"
+      << "       [--map tlwcao|tlwhome02] [--map-quality low|medium|high]\n"
+      << "       [--resource-profile FILE] [--noclip] [--physics-debug]\n"
+      << "       [--render-hz 30|60|144]\n"
       << "Precedence: command line > user config > content defaults.\n"
       << "Relative paths are resolved from the executable directory.\n";
 }
@@ -163,7 +210,7 @@ void printRun3AppUsage() {
 Run3App::Run3App(Run3AppOptions options)
     : OgreBites::ApplicationContext("Run3 renderer shell"),
       options_(std::move(options)), inputAdapter_(input_),
-      clock_(ClockMode::Variable) {}
+      clock_(ClockMode::Fixed) {}
 
 int Run3App::run() {
   options_.paths.createWritableDirectories();
@@ -180,7 +227,49 @@ int Run3App::run() {
       if (quitRequested_) {
         break;
       }
-      const ClockFrame frame = clock_.tick();
+      const ClockFrame frame = options_.renderHz > 0.0
+                                   ? clock_.advance(EngineClock::Duration{
+                                         1.0 / options_.renderHz})
+                                   : clock_.tick();
+      if (player_) {
+        gameplay::PlayerCommand command;
+        const InputState &state = input_.state();
+        command.forward = (state.keyDown(Key::W) || state.keyDown(Key::Up) ? 1.0 : 0.0) -
+                          (state.keyDown(Key::S) || state.keyDown(Key::Down) ? 1.0 : 0.0);
+        command.strafe = (state.keyDown(Key::D) || state.keyDown(Key::Right) ? 1.0 : 0.0) -
+                         (state.keyDown(Key::A) || state.keyDown(Key::Left) ? 1.0 : 0.0);
+        command.run = state.keyDown(Key::LeftShift) || state.keyDown(Key::RightShift);
+        command.jump = state.keyDown(Key::Space);
+        command.crouch = state.keyDown(Key::LeftControl) || state.keyDown(Key::RightControl);
+        if (player_->state().noclip) {
+          command.vertical = (state.keyDown(Key::Space) ? 1.0 : 0.0) -
+                             (command.crouch ? 1.0 : 0.0);
+          command.jump = false;
+          command.crouch = false;
+        }
+        bool onLadder = false;
+        if (staticMap_) {
+          for (const auto &volume : staticMap_->ladderVolumes()) {
+            onLadder = onLadder || volume.contains(player_->state().position);
+          }
+        }
+        player_->setOnLadder(onLadder);
+        player_->setCommand(command);
+        player_->setYawRadians(yawRadians_);
+        for (std::size_t step = 0; step < frame.simulationSteps; ++step) {
+          static_cast<void>(player_->simulateFixedStep());
+          ++simulatedSteps_;
+        }
+        const physics::Vec3 eye = player_->eyePosition();
+        cameraNode_->setPosition(static_cast<Ogre::Real>(eye.x),
+                                 static_cast<Ogre::Real>(eye.y),
+                                 static_cast<Ogre::Real>(eye.z));
+        cameraNode_->setOrientation(
+            Ogre::Quaternion(Ogre::Radian(static_cast<Ogre::Real>(yawRadians_)),
+                             Ogre::Vector3::UNIT_Y) *
+            Ogre::Quaternion(Ogre::Radian(static_cast<Ogre::Real>(pitchRadians_)),
+                             Ogre::Vector3::UNIT_X));
+      }
       if (cubeNode_ != nullptr) {
         cubeNode_->yaw(Ogre::Degree(
             30.0F * static_cast<float>(frame.elapsed.count())));
@@ -195,9 +284,23 @@ int Run3App::run() {
       }
     }
   } catch (...) {
+    player_.reset();
+    staticMap_.reset();
+    physicsWorld_.reset();
     closeApp();
     throw;
   }
+  if (player_) {
+    const gameplay::PlayerState finalState = player_->state();
+    Ogre::LogManager::getSingleton().logMessage(
+        "Step 6B final player: steps=" + std::to_string(simulatedSteps_) +
+        " position=" + std::to_string(finalState.position.x) + "," +
+        std::to_string(finalState.position.y) + "," +
+        std::to_string(finalState.position.z));
+  }
+  player_.reset();
+  staticMap_.reset();
+  physicsWorld_.reset();
   closeApp();
   return validationFailed_ ? 2 : 0;
 }
@@ -289,21 +392,40 @@ void Run3App::setup() {
   lightNode->setDirection(Ogre::Vector3(-1.0F, -1.0F, -1.0F).normalisedCopy(),
                           Ogre::Node::TS_WORLD);
   lightNode->attachObject(light);
-  Ogre::Entity *cube =
-      sceneManager_->createEntity("Run3ShellCube", Ogre::SceneManager::PT_CUBE);
-  cubeNode_ = sceneManager_->getRootSceneNode()->createChildSceneNode();
-  cubeNode_->attachObject(cube);
+  if (options_.mapName.empty()) {
+    Ogre::Entity *cube =
+        sceneManager_->createEntity("Run3ShellCube", Ogre::SceneManager::PT_CUBE);
+    cubeNode_ = sceneManager_->getRootSceneNode()->createChildSceneNode();
+    cubeNode_->attachObject(cube);
+  }
 
   camera_ = sceneManager_->createCamera("Run3ShellCamera");
   camera_->setNearClipDistance(5.0F);
-  Ogre::SceneNode *cameraNode =
-      sceneManager_->getRootSceneNode()->createChildSceneNode();
-  cameraNode->setPosition(0.0F, 75.0F, 300.0F);
-  cameraNode->lookAt(Ogre::Vector3::ZERO, Ogre::Node::TS_WORLD);
-  cameraNode->attachObject(camera_);
+  cameraNode_ = sceneManager_->getRootSceneNode()->createChildSceneNode();
+  cameraNode_->setPosition(0.0F, 75.0F, 300.0F);
+  cameraNode_->lookAt(Ogre::Vector3::ZERO, Ogre::Node::TS_WORLD);
+  cameraNode_->attachObject(camera_);
   Ogre::Viewport *viewport = getRenderWindow()->addViewport(camera_);
   viewport->setBackgroundColour(Ogre::ColourValue(0.04F, 0.06F, 0.1F));
   updateAspectRatio();
+
+  if (!options_.mapName.empty()) {
+    physicsWorld_ = std::make_unique<physics::PhysicsWorld>(
+        physics::createBulletPhysicsWorld());
+    staticMap_ = std::make_unique<gameplay::StaticMap>(*sceneManager_,
+                                                       *physicsWorld_);
+    const gameplay::StaticMapStats mapStats = staticMap_->load(
+        {options_.paths.contentRoot(), options_.mapName, options_.mapQuality,
+         options_.resourceProfile});
+    static_cast<void>(mapStats);
+    player_ = std::make_unique<gameplay::PlayerController>(*physicsWorld_);
+    player_->spawn(staticMap_->spawnPosition());
+    player_->setNoclip(options_.startNoclip);
+    physicsDebug_ = options_.physicsDebug;
+    staticMap_->setDebugDraw(physicsDebug_);
+    camera_->setNearClipDistance(5.0F);
+    camera_->setFarClipDistance(100000.0F);
+  }
 
   Ogre::LogManager::getSingleton().logMessage(
       "Run3 shell pinned Ogre version: " + std::string(ogreVersion));
@@ -364,6 +486,34 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
     if (event.type == InputEventType::Quit ||
         (event.type == InputEventType::KeyPressed && event.key == Key::Escape)) {
       requestQuit();
+    } else if (player_ && event.type == InputEventType::MouseMoved) {
+      constexpr double sensitivity = 0.0025;
+      yawRadians_ -= static_cast<double>(event.deltaX) * sensitivity;
+      pitchRadians_ = std::clamp(
+          pitchRadians_ - static_cast<double>(event.deltaY) * sensitivity,
+          -1.553343034, 1.553343034);
+    } else if (player_ && event.type == InputEventType::KeyPressed &&
+               !event.repeated && event.key == Key::N) {
+      player_->toggleNoclip();
+      Ogre::LogManager::getSingleton().logMessage(
+          std::string("Player noclip: ") +
+          (player_->state().noclip ? "enabled" : "disabled"));
+    } else if (staticMap_ && event.type == InputEventType::KeyPressed &&
+               !event.repeated && event.key == Key::F3) {
+      physicsDebug_ = !physicsDebug_;
+      staticMap_->setDebugDraw(physicsDebug_);
+    } else if (player_ && event.type == InputEventType::KeyPressed &&
+               !event.repeated && event.key == Key::E) {
+      const auto hit = player_->useRaycast(pitchRadians_);
+      Ogre::LogManager::getSingleton().logMessage(
+          hit ? "Use ray hit body " + std::to_string(hit->body)
+              : "Use ray missed");
+    } else if (player_ && event.type == InputEventType::MousePressed &&
+               event.mouseButton == MouseButton::Left) {
+      const auto hit = player_->weaponRaycast(pitchRadians_);
+      Ogre::LogManager::getSingleton().logMessage(
+          hit ? "Weapon ray hit body " + std::to_string(hit->body)
+              : "Weapon ray missed");
     }
   }
 }

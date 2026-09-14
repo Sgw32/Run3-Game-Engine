@@ -12,7 +12,71 @@ Last updated: 2026-09-14
 | 3 — controlled legacy compile target | Completed | A reviewed 21/119-source compatibility subset compiled and its smoke tests passed on MSVC and GCC; Step 4 extends it. |
 | 4 — platform paths, loop, configuration, and input | Completed | `Run3App` owns the explicit loop; platform-neutral paths/input/clock plus migrated UI/device compatibility batches pass on Windows and Linux. |
 | 5 — content manifest, validation, and render fixture | Completed | The read-only validator and deterministic conversion boundary pass their fixtures on D3D11/GL3+; the untouched full content backlog is categorized below. |
-| 6A — Bullet physics backend and tests | Completed | Pinned Bullet 3.25#3 and null backends pass the same unit/fixture contract on MSVC and GCC; gameplay/map migration remains in 6B/6C. |
+| 6A — Bullet physics backend and tests | Completed | Pinned Bullet 3.25#3 and null backends pass the same unit/fixture contract on MSVC and GCC. |
+| 6B — static world and player | Completed | The Run3-owned capsule player and static mesh map path run `tlwcao` and `tlwhome02`; deterministic fixtures and real-map 30/60/144 schedules pass. |
+
+## 2026-09-14 — Step 6B
+
+Completed:
+
+- Added `run3_gameplay` with a Run3-owned, rotation-locked Bullet capsule
+  controller. Its public API contains no OgreNewt, Newton, Bullet, or Ogre
+  type. It covers gravity/floor probes, walk/run, edge-triggered jump, duck
+  with ceiling rejection, low-step traversal, teleport, explicit parent/train
+  displacement, ladder motion, noclip, and filtered use/weapon raycasts.
+- Added a tolerant, read-only loader for the structural subset of the legacy
+  scene format. It accepts `tlwhome02`/`tlwhome2` and `tlwcao`, reads each
+  quality directory's `scene.cfg`, applies scene/node multipliers, derived
+  transforms and nonuniform scale, preserves source triangle winding, reverses
+  winding for mirrored transforms, and owns one RAII static mesh body per
+  colliding section. `<entity>` and `<phys>` collide, `<nocollide>` remains
+  visual-only, and invisible blocking boxes collide. Dynamic/breakable scene
+  behavior remains Step 6C.
+- Added F3 collision-section bounds, N runtime noclip toggle, `--noclip` at
+  startup, `--physics-debug`, `--map`, `--map-quality`,
+  `--resource-profile`, and deterministic `--render-hz` options. The app logs
+  map counts, fixed-step count, and final player position on bounded runs.
+- Added eight focused Catch2 behavior cases plus a public-header boundary
+  check. The fixture covers indexed triangle floors, standing/falling,
+  walk/run/jump/duck, blocked unduck, stairs, ladder, parent motion, teleport,
+  noclip, interaction rays, replay repeatability, and 30/60/144 render
+  schedules driving the same 60 Hz simulation. `EngineClock` now treats only
+  picosecond-scale rounding at a fixed-step boundary as that boundary.
+- Loaded the untouched local maps without copying or converting assets.
+  `tlwcao` produced 368 visual / 166 collision sections and 199,959 triangles;
+  `tlwhome02` produced 990 / 407 and 225,359 triangles. No section was skipped.
+  At 30, 60, and 144 render Hz, each one-second run made exactly 60 physics
+  steps and each map ended at an identical transform across all three runs.
+
+Verification:
+
+| Configuration | Toolchain | Result |
+|---|---|---|
+| `windows-msvc-x64-debug` | MSVC 19.51 x64 | Build passed; 41/41 CTests passed; D3D11 real-map schedules passed |
+| `windows-msvc-x64-release` | MSVC 19.51 x64 | Build passed; 41/41 CTests passed |
+| `linux-ninja-debug` | GCC 13.3 x64 under WSL | Build passed; 41/41 CTests passed, including GL3+ smoke |
+| `linux-ninja-release` | GCC 13.3 x64 under WSL | Build passed; 41/41 CTests passed, including GL3+ smoke |
+
+The installed Windows Debug shell was also launched with `--map tlwcao
+--noclip --frames 1 --render-hz 60`; D3D11 loaded the map, ran one fixed step,
+reported the expected unchanged noclip spawn, and shut down cleanly.
+
+Known Step 6B boundaries:
+
+- Maps deliberately use Ogre's RTSS-capable white fallback material. Original
+  fixed-function materials fail under D3D11/GL3+ and remain the recorded Step
+  5/Step 9 visual-portability backlog. Geometry and collision are complete;
+  this milestone does not claim material parity.
+- The parent/train and ladder controller contracts are fixture-tested, but
+  moving train bodies, scripted ladder triggers, breakables, doors, weapons,
+  and use actions are not instantiated from maps until Step 6C/Step 8.
+- `tlwhome02` currently loads as one full scene. Spatial streaming/batching is
+  an optimization after correctness; `tlwcao` is the recommended quicker
+  first-person evaluation map.
+
+Exact launch and controls are in [RUNNING.md](../RUNNING.md), and design/tuning
+details are in [PLAYER_PHYSICS.md](PLAYER_PHYSICS.md). Step 6B is complete;
+stop before Step 6C.
 
 ## 2026-09-14 — Step 6A
 
@@ -63,8 +127,8 @@ whole steps while preserving the fractional accumulator. The header-isolation
 test confirms Bullet includes occur only in the private backend translation
 unit.
 
-Step 6A is complete. Stop here; Step 6B Player/static-map migration is
-unstarted.
+Historical note: Step 6A stopped before Player/static-map migration. Step 6B
+is now completed in the entry above.
 
 ## 2026-09-14 — Step 5
 

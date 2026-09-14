@@ -57,6 +57,7 @@ TEST_CASE("OgreBites key and mouse values translate at the platform edge") {
   CHECK(run3::translateOgreBitesKey(OgreBites::SDLK_ESCAPE) ==
         run3::Key::Escape);
   CHECK(run3::translateOgreBitesKey(OgreBites::SDLK_UP) == run3::Key::Up);
+  CHECK(run3::translateOgreBitesKey((1 << 30) | 60) == run3::Key::F3);
   CHECK(run3::translateOgreBitesKey(-12345) == run3::Key::Unknown);
   CHECK(run3::translateOgreBitesMouseButton(OgreBites::BUTTON_LEFT) ==
         run3::MouseButton::Left);

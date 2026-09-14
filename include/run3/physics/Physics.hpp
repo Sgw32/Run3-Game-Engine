@@ -130,6 +130,8 @@ struct BodyDesc {
   double massKg{};
   Transform transform;
   Vec3 linearVelocity;
+  Vec3 angularFactor{1.0, 1.0, 1.0};
+  double friction{0.5};
   CollisionGroup group{CollisionGroup::Dynamic};
   CollisionMask mask{collisionMask(CollisionGroup::All)};
   bool trigger{};
@@ -170,6 +172,7 @@ struct RaycastQuery {
   CollisionGroup group{CollisionGroup::Default};
   CollisionMask mask{collisionMask(CollisionGroup::All)};
   bool includeTriggers{true};
+  BodyId ignoreBody{};
 };
 
 struct RaycastHit {

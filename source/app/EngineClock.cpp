@@ -23,9 +23,18 @@ ClockFrame EngineClock::advance(Duration elapsed) {
   }
 
   accumulator_ += elapsed;
-  const auto available = static_cast<std::size_t>(accumulator_ / fixedStep_);
+  // Render schedules such as 1/144 s accumulate a few ulps below an exact
+  // 1/60 boundary. Treat only a picosecond-scale remainder as the boundary so
+  // render rate cannot lose a simulation step over an otherwise exact span.
+  const Duration boundaryEpsilon{1e-12};
+  const auto available = static_cast<std::size_t>(
+      (accumulator_ + boundaryEpsilon) / fixedStep_);
   const std::size_t steps = std::min(available, maxCatchUpSteps_);
   accumulator_ -= fixedStep_ * static_cast<double>(steps);
+  if (accumulator_ < Duration::zero() &&
+      accumulator_ > -boundaryEpsilon) {
+    accumulator_ = Duration::zero();
+  }
   if (available > maxCatchUpSteps_) {
     accumulator_ = Duration::zero();
   }

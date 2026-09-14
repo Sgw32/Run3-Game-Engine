@@ -1,8 +1,9 @@
 # Building Run3
 
 The root build compiles the Step 1 probe, the controlled legacy compatibility
-library, `run3_shell`, the Step 5 `run3_asset_check`, and the Step 6A
-`run3_physics` Bullet/null backend. The shell uses `Run3App` and an
+library, `run3_shell`, the Step 5 `run3_asset_check`, the Step 6A
+`run3_physics` Bullet/null backend, and the Step 6B `run3_gameplay` static-map
+and player layer. The shell uses `Run3App` and an
 application-owned loop; it does not inspect local `OgreSDK/` or `Run3Dep/`
 directories. Ogre classic 14.5.2 and its official conversion tools are restored solely from the pinned vcpkg
 manifest; see
@@ -57,7 +58,7 @@ Replace `debug` with `release` for the Release build.
 To compile selected targets after configuration:
 
 ```powershell
-cmake --build --preset windows-msvc-x64-debug --target run3_shell run3_asset_check run3_legacy run3_runtime_tests run3_physics_tests
+cmake --build --preset windows-msvc-x64-debug --target run3_shell run3_asset_check run3_legacy run3_runtime_tests run3_physics_tests run3_player_tests
 ```
 
 The build-tree executables are placed in
@@ -117,7 +118,7 @@ Replace `debug` with `release` for the Release build.
 To compile selected targets after configuration:
 
 ```bash
-cmake --build --preset linux-ninja-debug --target run3_shell run3_asset_check run3_legacy run3_runtime_tests run3_physics_tests
+cmake --build --preset linux-ninja-debug --target run3_shell run3_asset_check run3_legacy run3_runtime_tests run3_physics_tests run3_player_tests
 ```
 
 The build-tree executables are placed in `build/linux-ninja-debug/` (or the
@@ -151,28 +152,44 @@ available.
 - `--validate-content` to run the versioned content checks from `run3_shell`
 - `--manifest PATH` to select a versioned validation manifest
 - `--report PATH` to select the machine-readable JSON report
+- `--map tlwcao|tlwhome02` to enter one of the Step 6B maps
+- `--map-quality low|medium|high` (default `low`)
+- `--resource-profile FILE` (default `resources_low_low.cfg`)
+- `--noclip` to start with collision and gravity disabled
+- `--physics-debug` to show collision-section bounds at startup
+- `--render-hz 30|60|144` for deterministic bounded validation runs
 
 Relative `--user-dir` and `--content-root` values resolve from the executable's
 directory, never from the process working directory. Read-only content is kept
 under `content-root`; the user root has separate `config/`, `saves/`, `logs/`,
 and `cache/` directories. In particular, Ogre writes `config/ogre.cfg` and
-`logs/ogre.log`, never into installed or game content. With no explicit content
-root, the shell uses only installed Ogre framework media and its built-in cube;
-this is the normal smoke-test mode.
+`logs/ogre.log`, never into installed or game content. With no map, the shell
+uses only installed Ogre framework media and its built-in cube; this is the
+normal smoke-test mode. A map run requires `--content-root` to name the
+`TheLongWay` directory above `media/`, so the loader can read both map XML and
+its resource configuration.
 
 Optional configuration files use `key=value` lines. Content defaults are read
 from `<content-root>/config/run3.cfg`, then user settings from
 `<user-root>/config/run3.cfg`; command-line values win over both. Supported
-Step 4 keys are `renderer`, `frames`, `content-root`, and `user-root`. Relative
-configured roots and CLI paths are anchored at the executable directory.
+Step 6B keys are `renderer`, `frames`, `content-root`, `user-root`, `map`,
+`map-quality`, `resource-profile`, `render-hz`, `noclip`, and `physics-debug`.
+Relative configured roots and CLI paths are anchored at the executable
+directory.
 
-The authorized local The Long Way media can be supplied explicitly for later
-evaluation without copying it into an installation:
+The authorized local The Long Way content can be supplied explicitly without
+copying it into an installation. This opens the smaller map in noclip mode:
 
 ```powershell
 & (Join-Path $installRoot 'bin\run3_shell.exe') `
-  --content-root 'C:\Run3-Game-Engine\Games\The Long Way\TheLongWay\media'
+  --renderer d3d11 `
+  --content-root 'C:\Run3-Game-Engine\Games\The Long Way\TheLongWay' `
+  --map tlwcao --noclip --user-dir $userRoot
 ```
+
+Use `--map tlwhome02` for the much larger map. Complete Windows/Linux install,
+launch, controls, noclip, and current visual limitations are in
+[RUNNING.md](RUNNING.md).
 
 For Step 5 validation and the guarded Ogre conversion commands, see
 [CONTENT_VALIDATION.md](porting/CONTENT_VALIDATION.md).
@@ -237,3 +254,18 @@ ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1 \
 
 See [PHYSICS_BEHAVIOR.md](porting/PHYSICS_BEHAVIOR.md) for the unit contract,
 legacy operation inventory, and Step 6B/6C migration boundary.
+
+## Step 6B player verification
+
+The player/static-map tests use miniature deterministic geometry and do not
+require The Long Way content:
+
+```text
+cmake --build --preset <preset> --target run3_player_tests
+ctest --preset <preset> -R "^run3_player\." --output-on-failure
+```
+
+The normal preset workflows also run the public-header boundary check that
+prevents OgreNewt, Newton, Bullet, or Ogre types from entering the migrated
+gameplay headers. Real-map evaluation remains an explicit manual command so
+the build never depends on untracked game content; see [RUNNING.md](RUNNING.md).

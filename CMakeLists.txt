@@ -111,6 +111,16 @@ target_link_libraries(
     PRIVATE run3::warnings run3::sanitizers BulletDynamics BulletCollision
             LinearMath)
 
+add_library(run3_gameplay STATIC
+            source/gameplay/PlayerController.cpp
+            source/gameplay/StaticMap.cpp)
+add_library(run3::gameplay ALIAS run3_gameplay)
+target_compile_features(run3_gameplay PUBLIC cxx_std_17)
+target_include_directories(
+    run3_gameplay PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(run3_gameplay PUBLIC run3::physics
+                      PRIVATE run3::warnings OgreMain)
+
 add_library(run3_asset_validation STATIC
             source/content/AssetValidation.cpp
             source/content/Sha256.cpp)
@@ -154,7 +164,7 @@ target_include_directories(
 target_link_libraries(
     run3_ogre_app
     PUBLIC run3::core run3::asset_validation OgreMain OgreBites OgreOverlay
-           OgreRTShaderSystem
+           OgreRTShaderSystem run3::gameplay
     PRIVATE run3::warnings)
 
 if(RUN3_BUILD_LEGACY)
@@ -294,6 +304,16 @@ if(RUN3_BUILD_TESTS)
     catch_discover_tests(run3_physics_tests
                          TEST_PREFIX "run3_physics."
                          PROPERTIES LABELS "physics")
+
+    add_executable(run3_player_tests tests/player_controller_tests.cpp)
+    target_compile_features(run3_player_tests PRIVATE cxx_std_17)
+    target_link_libraries(
+        run3_player_tests
+        PRIVATE run3::warnings run3::sanitizers run3::core run3::gameplay
+                Catch2::Catch2WithMain)
+    catch_discover_tests(run3_player_tests
+                         TEST_PREFIX "run3_player."
+                         PROPERTIES LABELS "physics;step6b")
     add_test(
         NAME run3_physics.backend-header-isolation
         COMMAND
@@ -302,6 +322,14 @@ if(RUN3_BUILD_TESTS)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckPhysicsBoundary.cmake")
     set_tests_properties(run3_physics.backend-header-isolation
                          PROPERTIES LABELS "physics")
+    add_test(
+        NAME run3_player.public-header-boundary
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DRUN3_SOURCE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckStep6BBoundary.cmake")
+    set_tests_properties(run3_player.public-header-boundary
+                         PROPERTIES LABELS "physics;step6b")
 
     add_executable(run3_converter_stub tests/converter_stub.cpp)
     target_compile_features(run3_converter_stub PRIVATE cxx_std_17)

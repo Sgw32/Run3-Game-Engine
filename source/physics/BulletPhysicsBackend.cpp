@@ -196,6 +196,11 @@ public:
     record->body->setInterpolationWorldTransform(
         record->body->getWorldTransform());
     record->body->setLinearVelocity(toBullet(description.linearVelocity, units_));
+    record->body->setAngularFactor(
+        {static_cast<btScalar>(description.angularFactor.x),
+         static_cast<btScalar>(description.angularFactor.y),
+         static_cast<btScalar>(description.angularFactor.z)});
+    record->body->setFriction(static_cast<btScalar>(description.friction));
     record->body->setUserPointer(record.get());
 
     int flags = record->body->getCollisionFlags();
@@ -391,6 +396,7 @@ public:
       const auto *record = static_cast<const BodyRecord *>(
           callback.m_collisionObjects[index]->getUserPointer());
       if (record == nullptr || !record->enabled ||
+          record->id == query.ignoreBody ||
           (!query.includeTriggers && record->trigger)) {
         continue;
       }

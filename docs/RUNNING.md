@@ -1,20 +1,21 @@
-# Running the Step 5 renderer shell and content validator
+# Running the Step 6B first-person shell
 
-The current runnable programs are `run3_shell` and `run3_asset_check`. The shell is an Ogre 14.5.2
-with the Run3 application, path, clock, configuration, and input boundaries.
-It displays a lit rotating cube. Step 5 additionally loads a tiny render-only
-fixture and validates external content; this is not yet the legacy Run3
-executable or a playable The Long Way build.
+`run3_shell` can now load the static geometry and collision for The Long Way's
+`tlwcao` and `tlwhome02` maps and place the new capsule player at the map spawn.
+Use `tlwcao` for the quickest check; `tlwhome02` (also accepted as
+`tlwhome2`) is substantially larger. This is a first-person map viewer and
+physics prototype, not yet the complete game: gameplay scripts, doors, trains,
+NPCs, weapons, audio, and final materials are later porting steps.
 
-Build and test first by following [BUILDING.md](BUILDING.md). Run the installed
-binary, not a copied build-tree executable: `cmake --install` stages the exact
-plugins, shared libraries, `plugins.cfg`, and Ogre framework media needed by
-the shell.
+Build and test first with [BUILDING.md](BUILDING.md). Run the installed binary,
+because `cmake --install` stages the Ogre plugins, runtime libraries,
+`plugins.cfg`, and framework media required by the shell. The external game
+content remains read-only and is not copied into the installation.
 
-## Windows Debug
+## Windows: build, install, and enter a map
 
-Open an x64 **Developer PowerShell for Visual Studio**, change to the
-repository root, and run:
+Open an x64 **Developer PowerShell for Visual Studio**, change to the repository
+root, and run:
 
 ```powershell
 $env:VCPKG_ROOT = 'C:\dev\vcpkg'
@@ -24,18 +25,29 @@ ctest --preset windows-msvc-x64-debug
 
 $installRoot = Join-Path $PWD 'build\install\windows-debug'
 $userRoot = Join-Path $PWD 'build\user\windows-debug'
+$contentRoot = Join-Path $PWD 'Games\The Long Way\TheLongWay'
 cmake --install build/windows-msvc-x64-debug --prefix $installRoot --config Debug
+
+# Smaller map, recommended first:
 & (Join-Path $installRoot 'bin\run3_shell.exe') `
-  --renderer d3d11 --user-dir $userRoot
+  --renderer d3d11 --content-root $contentRoot --map tlwcao `
+  --user-dir $userRoot
 ```
 
-Press Escape or close the window to quit. Add `--frames 120` for an automatic
-limited run. Use `--renderer gl3plus` to test the staged Windows GL3+ renderer.
+To load the large map, change only the final map argument:
 
-For Release, substitute `windows-msvc-x64-release`, use install/user directory
-names ending in `windows-release`, and pass `--config Release`.
+```powershell
+& (Join-Path $installRoot 'bin\run3_shell.exe') `
+  --renderer d3d11 --content-root $contentRoot --map tlwhome02 `
+  --user-dir $userRoot
+```
 
-## Linux Debug
+For Release, use preset `windows-msvc-x64-release`, install from
+`build/windows-msvc-x64-release` with `--config Release`, and choose distinct
+install/user directories. `--renderer gl3plus` exercises the staged Windows
+GL3+ renderer.
+
+## Linux: build, install, and enter a map
 
 In a graphical X11 or Wayland session, change to the repository root and run:
 
@@ -47,122 +59,100 @@ ctest --preset linux-ninja-debug
 
 install_root="$PWD/build/install/linux-debug"
 user_root="$PWD/build/user/linux-debug"
+content_root="$PWD/Games/The Long Way/TheLongWay"
 cmake --install build/linux-ninja-debug --prefix "$install_root" --config Debug
+
+# Smaller map, recommended first:
 "$install_root/bin/run3_shell" \
-  --renderer gl3plus --user-dir "$user_root"
+  --renderer gl3plus --content-root "$content_root" --map tlwcao \
+  --user-dir "$user_root"
 ```
 
-Press Escape or close the window to quit. Add `--frames 120` for an automatic
-limited run. For Release, substitute `linux-ninja-release`, use directory names
-ending in `linux-release`, and pass `--config Release`.
+Use `--map tlwhome02` for the large map. For Release, substitute
+`linux-ninja-release`, use distinct Release install/user directories, and pass
+`--config Release`.
 
-## Running independently of the working directory
+## First-person controls
 
-All relative application paths are anchored at the executable, not the shell's
-current directory. For example, this Windows command deliberately launches
-from another directory:
+- Mouse: look
+- `W`/`S` or Up/Down: forward/backward
+- `A`/`D` or Left/Right: strafe
+- Left Shift: run
+- Space: jump
+- Left or Right Ctrl: duck
+- `E`: cast the use ray (the hit is logged)
+- Left mouse button: cast the weapon ray (the hit is logged)
+- `N`: toggle noclip
+- `F3`: toggle collision-section bounds
+- Escape or window close: quit cleanly
 
-```powershell
-Push-Location $env:TEMP
-& (Join-Path $installRoot 'bin\run3_shell.exe') `
-  --renderer d3d11 --frames 120 --user-dir $userRoot
-Pop-Location
-```
+Noclip can be enabled before the map opens by adding `--noclip` to either map
+command. In noclip, `W/A/S/D` move horizontally, Space moves up, and Ctrl moves
+down. Press `N` to return to collision/gravity at the current location. Add
+`--physics-debug` to show collision bounds immediately instead of toggling them
+with `F3`.
 
-The Linux equivalent is:
-
-```bash
-cd /tmp
-"$install_root/bin/run3_shell" \
-  --renderer gl3plus --frames 120 --user-dir "$user_root"
-```
-
-The user root is writable and receives:
-
-- `config/ogre.cfg` and optional `config/run3.cfg`
-- `logs/ogre.log`
-- `saves/`
-- `cache/`
-
-The content root is treated as read-only and never receives configuration,
-logs, or saves.
+The map currently uses a white RTSS-compatible fallback material. This avoids
+known D3D11/GL3+ failures in the legacy fixed-function materials and lets the
+geometry and physics be evaluated without changing source assets. Texture and
+shader parity is intentionally deferred to Step 9.
 
 ## Arguments and configuration
 
 ```text
 run3_shell [--renderer d3d11|gl3plus] [--frames N]
            [--user-dir PATH] [--content-root PATH]
+           [--map tlwcao|tlwhome02] [--map-quality low|medium|high]
+           [--resource-profile FILE] [--noclip] [--physics-debug]
+           [--render-hz 30|60|144]
            [--validate-content] [--manifest PATH] [--report PATH]
 ```
 
-- `--renderer`: D3D11 by default on Windows and GL3+ on Linux.
-- `--frames`: render exactly this many frames and exit; `0` runs interactively.
-- `--user-dir`: writable configuration, save, log, and cache root.
-- `--content-root`: optional read-only game content root.
-- `--validate-content`: validate content and load the installed render fixture.
-- `--manifest`: versioned manifest used by validation.
-- `--report`: destination for the machine-readable JSON report.
-- `--help`: print usage without opening a window.
+`--frames N` exits after exactly N rendered frames. `--render-hz` supplies a
+deterministic render schedule for bounded regression runs; omit it for normal
+interactive play. Map quality defaults to `low`, paired with
+`resources_low_low.cfg`. When selecting another quality, explicitly select the
+matching resource profile present in the game root.
 
-Configuration uses `key=value` lines. Values are merged in this order:
+Configuration uses `key=value` lines and this precedence:
 
-1. `<content-root>/config/run3.cfg` (lowest priority)
+1. `<content-root>/config/run3.cfg` (lowest)
 2. `<user-root>/config/run3.cfg`
-3. command-line arguments (highest priority)
+3. command-line arguments (highest)
 
-The recognized keys are `renderer`, `frames`, `content-root`, and `user-root`.
-For example:
+The recognized Step 6B keys are `renderer`, `frames`, `content-root`,
+`user-root`, `map`, `map-quality`, `resource-profile`, `render-hz`, `noclip`,
+and `physics-debug`. Relative paths resolve from the executable directory, not
+the process working directory.
 
-```ini
-# <user-root>/config/run3.cfg
-renderer=gl3plus
-frames=600
-```
-
-Supplying `--renderer d3d11 --frames 120` overrides those two values. Relative
-configured paths and command-line paths resolve from the executable directory.
-
-The authorized The Long Way media may be named as an explicit read-only root:
+The user root is writable and receives `config/`, `logs/`, `saves/`, and
+`cache/`. The content root stays read-only. Running from a different working
+directory is therefore supported, for example:
 
 ```powershell
+Push-Location $env:TEMP
 & (Join-Path $installRoot 'bin\run3_shell.exe') `
-  --content-root 'C:\Run3-Game-Engine\Games\The Long Way\TheLongWay\media'
+  --renderer d3d11 --content-root $contentRoot --map tlwcao `
+  --user-dir $userRoot --noclip
+Pop-Location
 ```
 
-Use `run3_asset_check` for validation-only workflows; it enables
-`--validate-content` automatically and defaults to one frame. Exact Windows and
-Linux commands, report semantics, and safe conversion instructions are in
+## Content validation and other programs
+
+`run3_asset_check` remains the validation-only entry point. It enables
+`--validate-content` and defaults to one frame. Exact report and safe
+conversion instructions are in
 [CONTENT_VALIDATION.md](porting/CONTENT_VALIDATION.md). Neither executable
 modifies the content root.
 
-## Other compiled programs
+The Step 1 probe can be launched directly from its build directory:
 
-The build probe can be launched directly from its build directory:
-
-```powershell
-build\windows-msvc-x64-debug\run3_build_probe.exe
-```
-
-```bash
+```text
+build/windows-msvc-x64-debug/run3_build_probe.exe
 build/linux-ninja-debug/run3_build_probe
 ```
 
-Run the complete registered test suite with `ctest --preset <preset>`. To run
-only the platform/runtime tests or the legacy compile-smoke tests:
-
-```text
-ctest --preset <preset> -R ^run3_runtime\.
-ctest --preset <preset> -R ^run3_legacy\.
-```
-
-## Manual checks and troubleshooting
-
-For an interactive check, confirm that the cube rotates, resizing preserves
-its aspect ratio, focus can be lost and regained without stuck input, and
-Escape/window close exits cleanly. Then inspect `<user-root>/logs/ogre.log`.
-
-If `plugins.cfg` is missing, or Ogre cannot load a renderer/plugin, reinstall
-the shell rather than copying individual DLL or shared-library files. On Linux,
-window creation requires a working `DISPLAY`/Wayland graphical session and
-OpenGL driver. Use the five-frame CTest smoke test for the same staged launch
-used by automated verification.
+Use `ctest --preset <preset> -R "^run3_player\." --output-on-failure` for the
+focused player tests. If an Ogre plugin cannot be loaded, reinstall the shell
+instead of copying individual DLL/shared-library files. On Linux, interactive
+rendering requires a working display and OpenGL driver.

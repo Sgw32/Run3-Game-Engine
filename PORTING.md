@@ -15,7 +15,7 @@ Progress checklist (mark a step only when its exit criteria pass):
 - [x] 4 — platform/input boundary
 - [x] 5 — content validation and first rendered map
 - [x] 6A — Bullet backend tests
-- [ ] 6B — static world and player
+- [x] 6B — static world and player
 - [ ] 6C — remaining physics and AIR3
 - [ ] 7 — unified audio
 - [ ] 8 — XML and Lua
@@ -324,6 +324,9 @@ Exit criteria:
 - Rendering FPS cannot change the number of 60 Hz simulation steps except through the bounded accumulator policy.
 
 ### Step 6B — Static world, player controller, interactions, and raycasts
+
+Status: **Completed 2026-09-14.** See
+`docs/porting/PLAYER_PHYSICS.md` and `docs/porting/STATUS.md`.
 
 Paste into Codex:
 

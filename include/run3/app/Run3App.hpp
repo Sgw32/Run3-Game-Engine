@@ -5,11 +5,14 @@
 #include <run3/app/EngineClock.hpp>
 #include <run3/input/Input.hpp>
 #include <run3/input/OgreBitesInputAdapter.hpp>
+#include <run3/gameplay/PlayerController.hpp>
+#include <run3/gameplay/StaticMap.hpp>
 
 #include <OgreApplicationContext.h>
 
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <string>
 
 namespace Ogre {
@@ -30,6 +33,12 @@ struct Run3AppOptions {
   std::filesystem::path manifestPath;
   std::filesystem::path reportPath;
   std::filesystem::path renderFixture;
+  std::string mapName;
+  std::string mapQuality{"low"};
+  std::string resourceProfile{"resources_low_low.cfg"};
+  double renderHz{};
+  bool startNoclip{};
+  bool physicsDebug{};
 };
 
 Run3AppOptions loadRun3AppOptions(int argc, char **argv,
@@ -62,8 +71,16 @@ private:
   EngineClock clock_;
   Ogre::SceneManager *sceneManager_{};
   Ogre::SceneNode *cubeNode_{};
+  Ogre::SceneNode *cameraNode_{};
   Ogre::Camera *camera_{};
+  std::unique_ptr<physics::PhysicsWorld> physicsWorld_;
+  std::unique_ptr<gameplay::StaticMap> staticMap_;
+  std::unique_ptr<gameplay::PlayerController> player_;
+  double yawRadians_{};
+  double pitchRadians_{};
+  bool physicsDebug_{};
   std::uint64_t renderedFrames_{};
+  std::uint64_t simulatedSteps_{};
   bool quitRequested_{};
   bool validationFailed_{};
 };

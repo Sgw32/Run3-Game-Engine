@@ -14,7 +14,6 @@
 #include "SuperFX.h"
 #include "Timeshift.h"
 #include "ogreconsole.h"
-#include <OIS/OIS.h>
 #include <Ogre.h>
 #include <OgreFrameListener.h>
 #include <vector>

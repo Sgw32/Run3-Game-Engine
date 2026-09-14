@@ -1,9 +1,10 @@
 # Building the Run3 renderer shell
 
-The root build compiles the isolated Step 1 probe and the assetless Step 2
-`run3_shell`. It deliberately does not compile legacy engine sources or inspect
-the untracked `OgreSDK/` and `Run3Dep/` directories. Ogre classic 14.5.2 is
-restored solely from the pinned vcpkg manifest; see
+The root build compiles the Step 1 probe, the controlled legacy compatibility
+library, `run3_shell`, and the Step 5 `run3_asset_check`. The shell uses `Run3App` and an
+application-owned loop; it does not inspect local `OgreSDK/` or `Run3Dep/`
+directories. Ogre classic 14.5.2 and its official conversion tools are restored solely from the pinned vcpkg
+manifest; see
 [OGRE_VERSION.md](porting/OGRE_VERSION.md).
 
 ## Common prerequisites
@@ -17,6 +18,10 @@ restored solely from the pinned vcpkg manifest; see
 The repository pins vcpkg commit
 `04a9d8e5212d01ee1dd9478eadd9caade4f8b0d4`. Dependency downloads and builds
 are performed by vcpkg manifest mode; do not install Catch2 or Ogre globally.
+The commands below must be run from the repository root. See
+[RUNNING.md](RUNNING.md) after compiling; `run3_shell` should be launched from
+an installed tree because installation stages its Ogre plugins, runtime
+libraries, configuration, and framework media.
 
 ## Windows MSVC x64
 
@@ -38,7 +43,7 @@ cmake --workflow --preset windows-msvc-x64-debug
 cmake --workflow --preset windows-msvc-x64-release
 ```
 
-The equivalent individual commands for Debug are:
+To configure, compile, and test Debug manually instead of using the workflow:
 
 ```powershell
 cmake --preset windows-msvc-x64-debug
@@ -47,6 +52,17 @@ ctest --preset windows-msvc-x64-debug
 ```
 
 Replace `debug` with `release` for the Release build.
+
+To compile selected targets after configuration:
+
+```powershell
+cmake --build --preset windows-msvc-x64-debug --target run3_shell run3_asset_check run3_legacy run3_runtime_tests
+```
+
+The build-tree executables are placed in
+`build\windows-msvc-x64-debug\` (or the corresponding Release directory).
+`run3_build_probe.exe` and the Catch2 test executables may be run there, but
+install `run3_shell.exe` before launching it normally.
 
 Install and launch Debug from a directory outside the source and build trees:
 
@@ -87,7 +103,7 @@ cmake --workflow --preset linux-ninja-debug
 cmake --workflow --preset linux-ninja-release
 ```
 
-The equivalent individual commands for Debug are:
+To configure, compile, and test Debug manually instead of using the workflow:
 
 ```bash
 cmake --preset linux-ninja-debug
@@ -96,6 +112,17 @@ ctest --preset linux-ninja-debug
 ```
 
 Replace `debug` with `release` for the Release build.
+
+To compile selected targets after configuration:
+
+```bash
+cmake --build --preset linux-ninja-debug --target run3_shell run3_asset_check run3_legacy run3_runtime_tests
+```
+
+The build-tree executables are placed in `build/linux-ninja-debug/` (or the
+corresponding Release directory). `run3_build_probe` and the Catch2 test
+executables may be run there, but install `run3_shell` before launching it
+normally.
 
 Install and launch Debug from a directory outside the source and build trees:
 
@@ -114,17 +141,29 @@ available.
 
 ## Shell arguments and installed layout
 
-`run3_shell` accepts:
+`run3_shell` and `run3_asset_check` accept:
 
 - `--renderer d3d11|gl3plus` (D3D11 defaults on Windows; GL3+ on Linux)
 - `--frames N` (`0`, the default, runs until Escape or window close)
-- `--user-dir PATH` for writable `ogre.cfg`, `ogre.log`, and caches
+- `--user-dir PATH` for the writable user root
 - `--content-root PATH` to register an optional read-only content directory
+- `--validate-content` to run the versioned content checks from `run3_shell`
+- `--manifest PATH` to select a versioned validation manifest
+- `--report PATH` to select the machine-readable JSON report
 
 Relative `--user-dir` and `--content-root` values resolve from the executable's
-directory, never from the process working directory. With no `--content-root`,
-the shell uses only installed Ogre framework media and its built-in cube; this
-is the normal smoke-test mode.
+directory, never from the process working directory. Read-only content is kept
+under `content-root`; the user root has separate `config/`, `saves/`, `logs/`,
+and `cache/` directories. In particular, Ogre writes `config/ogre.cfg` and
+`logs/ogre.log`, never into installed or game content. With no explicit content
+root, the shell uses only installed Ogre framework media and its built-in cube;
+this is the normal smoke-test mode.
+
+Optional configuration files use `key=value` lines. Content defaults are read
+from `<content-root>/config/run3.cfg`, then user settings from
+`<user-root>/config/run3.cfg`; command-line values win over both. Supported
+Step 4 keys are `renderer`, `frames`, `content-root`, and `user-root`. Relative
+configured roots and CLI paths are anchored at the executable directory.
 
 The authorized local The Long Way media can be supplied explicitly for later
 evaluation without copying it into an installation:
@@ -134,8 +173,8 @@ evaluation without copying it into an installation:
   --content-root 'C:\Run3-Game-Engine\Games\The Long Way\TheLongWay\media'
 ```
 
-Step 2 does not load an asset from that directory. Detailed content work begins
-in a later porting step.
+For Step 5 validation and the guarded Ogre conversion commands, see
+[CONTENT_VALIDATION.md](porting/CONTENT_VALIDATION.md).
 
 `cmake --install` stages the executable, dependent runtime libraries, Ogre
 framework media, and `plugins.cfg`. Windows installs D3D11 and GL3+ plugins;
@@ -147,13 +186,15 @@ The committed presets use these defaults:
 
 - `RUN3_BUILD_TESTS=ON` builds and registers the Catch2 test.
 - `RUN3_BUILD_TOOLS=ON` builds `run3_build_probe`.
-- `RUN3_ENABLE_OPTIONAL_DEVICES=OFF` keeps serial and other optional hardware
-  backends out of the portable default configuration.
+- `RUN3_ENABLE_OPTIONAL_DEVICES=OFF` selects logging no-op serial and named-pipe
+  implementations. On Windows, `ON` compiles the Win32 implementations; on
+  other platforms it remains a no-op backend.
 - `RUN3_BUILD_LEGACY=ON` builds the reviewed Step 3 compatibility subset.
 
-The nine `RUN3_LEGACY_ENABLE_*` switches remain `OFF` in Step 3. Turning one on
+The non-device `RUN3_LEGACY_ENABLE_*` switches remain `OFF`. Turning one on
 fails configuration until that retired subsystem has a reproducible
-implementation; disabled calls go through a logging, throwing null backend.
+implementation. The old serial/named-pipe switches are rejected in favor of
+the single `RUN3_ENABLE_OPTIONAL_DEVICES` gate.
 See [LEGACY_SOURCE_REVIEW.md](porting/LEGACY_SOURCE_REVIEW.md) for the exact
 source inventory, exclusions, and focused compile-smoke commands.
 

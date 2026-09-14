@@ -9,6 +9,8 @@ project(
     DESCRIPTION "Run3 game engine modernization"
     LANGUAGES CXX)
 
+include(GNUInstallDirs)
+
 option(RUN3_BUILD_TESTS "Build the Run3 test suite" ON)
 option(RUN3_BUILD_TOOLS "Build Run3 developer tools" ON)
 option(RUN3_ENABLE_OPTIONAL_DEVICES
@@ -32,6 +34,9 @@ run3_create_warning_targets()
 find_package(
     OGRE 14.5.2 EXACT CONFIG REQUIRED
     COMPONENTS Bites Overlay RTShaderSystem)
+find_package(Lua 5.4 EXACT REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
+find_package(tinyxml2 CONFIG REQUIRED)
 
 set(_run3_required_ogre_targets
     OgreMain
@@ -61,8 +66,72 @@ target_include_directories(
     INTERFACE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 target_link_libraries(run3_build_info INTERFACE run3::warnings)
 
+add_library(run3_core STATIC
+            source/app/AppPaths.cpp
+            source/app/Configuration.cpp
+            source/app/EngineClock.cpp
+            source/core/Log.cpp
+            source/input/Input.cpp)
+add_library(run3::core ALIAS run3_core)
+target_compile_features(run3_core PUBLIC cxx_std_17)
+target_include_directories(
+    run3_core PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(run3_core PRIVATE run3::warnings)
+
+add_library(run3_asset_validation STATIC
+            source/content/AssetValidation.cpp
+            source/content/Sha256.cpp)
+add_library(run3::asset_validation ALIAS run3_asset_validation)
+target_compile_features(run3_asset_validation PUBLIC cxx_std_17)
+target_include_directories(
+    run3_asset_validation
+    PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(
+    run3_asset_validation
+    PUBLIC ${LUA_LIBRARIES} nlohmann_json::nlohmann_json tinyxml2::tinyxml2
+    PRIVATE run3::warnings)
+target_include_directories(run3_asset_validation PRIVATE ${LUA_INCLUDE_DIR})
+
+if(WIN32 AND RUN3_ENABLE_OPTIONAL_DEVICES)
+    set(_run3_optional_device_source source/platform/OptionalDevicesWin32.cpp)
+else()
+    set(_run3_optional_device_source source/platform/OptionalDevicesNull.cpp)
+endif()
+add_library(run3_optional_devices STATIC ${_run3_optional_device_source})
+add_library(run3::optional_devices ALIAS run3_optional_devices)
+target_compile_features(run3_optional_devices PUBLIC cxx_std_17)
+target_include_directories(
+    run3_optional_devices
+    PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_compile_definitions(
+    run3_optional_devices
+    PUBLIC RUN3_ENABLE_OPTIONAL_DEVICES=$<BOOL:${RUN3_ENABLE_OPTIONAL_DEVICES}>)
+target_link_libraries(run3_optional_devices PUBLIC run3::core
+                     PRIVATE run3::warnings)
+
+add_library(run3_ogre_app STATIC
+            source/app/Run3App.cpp
+            source/content/OgreAssetValidation.cpp
+            source/input/OgreBitesInputAdapter.cpp)
+add_library(run3::ogre_app ALIAS run3_ogre_app)
+target_compile_features(run3_ogre_app PUBLIC cxx_std_17)
+target_include_directories(
+    run3_ogre_app
+    PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(
+    run3_ogre_app
+    PUBLIC run3::core run3::asset_validation OgreMain OgreBites OgreOverlay
+           OgreRTShaderSystem
+    PRIVATE run3::warnings)
+
 if(RUN3_BUILD_LEGACY)
     include(Run3LegacySources)
+
+    if(RUN3_LEGACY_ENABLE_SERIAL OR RUN3_LEGACY_ENABLE_NAMED_PIPES)
+        message(FATAL_ERROR
+                "Legacy device switches are retired; use the single "
+                "RUN3_ENABLE_OPTIONAL_DEVICES gate")
+    endif()
 
     set(_run3_unimplemented_legacy_features
         RUN3_LEGACY_ENABLE_NEWTON
@@ -71,9 +140,7 @@ if(RUN3_BUILD_LEGACY)
         RUN3_LEGACY_ENABLE_HYDRAX
         RUN3_LEGACY_ENABLE_SKYX
         RUN3_LEGACY_ENABLE_LEGACY_AUDIO
-        RUN3_LEGACY_ENABLE_DIRECTSHOW
-        RUN3_LEGACY_ENABLE_SERIAL
-        RUN3_LEGACY_ENABLE_NAMED_PIPES)
+        RUN3_LEGACY_ENABLE_DIRECTSHOW)
     foreach(_feature IN LISTS _run3_unimplemented_legacy_features)
         if(${_feature})
             message(FATAL_ERROR
@@ -103,7 +170,8 @@ if(RUN3_BUILD_LEGACY)
                RUN3_LEGACY_ENABLE_SERIAL=0
                RUN3_LEGACY_ENABLE_NAMED_PIPES=0
         PRIVATE TIXML_USE_STL NOMINMAX)
-    target_link_libraries(run3_legacy PUBLIC OgreMain OgreOverlay)
+    target_link_libraries(run3_legacy PUBLIC run3::core run3::optional_devices
+                                             OgreMain OgreOverlay)
 
     # Keep concessions local to untouched legacy translation units. New glue
     # and all other first-party targets retain the normal warning policy.
@@ -127,15 +195,16 @@ endif()
 
 add_executable(run3_shell source/shell_main.cpp)
 target_compile_features(run3_shell PRIVATE cxx_std_17)
-target_link_libraries(
-    run3_shell
-    PRIVATE run3::warnings
-            OgreMain
-            OgreBites
-            OgreOverlay
-            OgreRTShaderSystem)
+target_link_libraries(run3_shell PRIVATE run3::warnings run3::ogre_app)
 if(UNIX AND NOT APPLE)
     set_property(TARGET run3_shell PROPERTY INSTALL_RPATH "$ORIGIN/../lib")
+endif()
+
+add_executable(run3_asset_check source/asset_check_main.cpp)
+target_compile_features(run3_asset_check PRIVATE cxx_std_17)
+target_link_libraries(run3_asset_check PRIVATE run3::warnings run3::ogre_app)
+if(UNIX AND NOT APPLE)
+    set_property(TARGET run3_asset_check PROPERTY INSTALL_RPATH "$ORIGIN/../lib")
 endif()
 
 if(RUN3_BUILD_TOOLS)
@@ -158,6 +227,45 @@ if(RUN3_BUILD_TESTS)
 
     include(Catch)
     catch_discover_tests(run3_build_probe_tests)
+
+    add_executable(run3_runtime_tests tests/runtime_tests.cpp)
+    target_link_libraries(
+        run3_runtime_tests
+        PRIVATE run3::warnings run3::core run3::ogre_app
+                run3::optional_devices
+                Catch2::Catch2WithMain)
+    catch_discover_tests(run3_runtime_tests
+                         TEST_PREFIX "run3_runtime."
+                         PROPERTIES LABELS "runtime")
+
+    add_executable(run3_asset_validation_tests
+                   tests/asset_validation_tests.cpp)
+    target_compile_definitions(
+        run3_asset_validation_tests
+        PRIVATE
+            "RUN3_ASSET_FIXTURE_ROOT=\"${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/content\"")
+    target_link_libraries(
+        run3_asset_validation_tests
+        PRIVATE run3::warnings run3::asset_validation
+                Catch2::Catch2WithMain)
+    catch_discover_tests(run3_asset_validation_tests
+                         TEST_PREFIX "run3_assets."
+                         PROPERTIES LABELS "assets")
+
+    add_executable(run3_converter_stub tests/converter_stub.cpp)
+    target_compile_features(run3_converter_stub PRIVATE cxx_std_17)
+    target_link_libraries(run3_converter_stub PRIVATE run3::warnings)
+    add_test(
+        NAME run3_assets.conversion-wrapper
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DRUN3_CMAKE=${CMAKE_COMMAND}"
+            "-DRUN3_WRAPPER=${CMAKE_CURRENT_SOURCE_DIR}/cmake/ConvertOgreAsset.cmake"
+            "-DRUN3_CONVERTER=$<TARGET_FILE:run3_converter_stub>"
+            "-DRUN3_TEST_ROOT=${CMAKE_BINARY_DIR}/conversion-wrapper-test/$<CONFIG>"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/TestOgreConversionWrapper.cmake")
+    set_tests_properties(run3_assets.conversion-wrapper
+                         PROPERTIES LABELS "assets")
 
     if(RUN3_BUILD_LEGACY)
         add_executable(run3_legacy_compile_tests
@@ -202,14 +310,30 @@ if(RUN3_BUILD_TESTS)
             run3_shell.smoke
             PROPERTIES FIXTURES_REQUIRED run3_shell_installed
                        TIMEOUT 60)
+
+        add_test(
+            NAME run3_asset_check.fixture
+            COMMAND
+                "${CMAKE_COMMAND}"
+                "-DRUN3_PROGRAM=${_run3_test_install}/bin/run3_asset_check${CMAKE_EXECUTABLE_SUFFIX}"
+                "-DRUN3_RENDERER=${_run3_smoke_renderer}"
+                "-DRUN3_WORKING_DIR=${CMAKE_BINARY_DIR}/asset-test-run-cwd"
+                "-DRUN3_USER_DIR=${CMAKE_BINARY_DIR}/asset-test-user"
+                "-DRUN3_CONTENT_ROOT=${_run3_test_install}/${CMAKE_INSTALL_DATADIR}/run3/validation-fixture"
+                "-DRUN3_MANIFEST=${_run3_test_install}/${CMAKE_INSTALL_DATADIR}/run3/validation-fixture/manifest.json"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunAssetCheckSmoke.cmake")
+        set_tests_properties(
+            run3_asset_check.fixture
+            PROPERTIES FIXTURES_REQUIRED run3_shell_installed
+                       TIMEOUT 90
+                       LABELS "assets")
     else()
         message(STATUS
                 "run3_shell smoke test disabled: this host has no graphical display")
     endif()
 endif()
 
-include(GNUInstallDirs)
-install(TARGETS run3_shell
+install(TARGETS run3_shell run3_asset_check
         RUNTIME_DEPENDENCY_SET run3_runtime_dependencies
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
@@ -279,6 +403,10 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/$<CONFIG>/plugins.cfg"
 install(DIRECTORY "${OGRE_MEDIA_DIR}/Main"
                   "${OGRE_MEDIA_DIR}/RTShaderLib"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/Media")
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/content/"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/validation-fixture")
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/content/manifests/"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/manifests")
 
 message(STATUS "Run3 build tests: ${RUN3_BUILD_TESTS}")
 message(STATUS "Run3 developer tools: ${RUN3_BUILD_TOOLS}")

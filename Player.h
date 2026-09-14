@@ -15,14 +15,14 @@
 #include "PlayerProps.h"
 #include "SoundManager.h"
 #include "ogreconsole.h"
-#include <OIS/OIS.h>
+#include <run3/input/Input.hpp>
 #include <Ogre.h>
 #include <OgreNewt.h>
 #include <stdlib.h>
 #include <time.h>
 
 #define NEWTBODYTYPE_PLAYER 1
-#define KEY_DOWNR(x) global::getSingleton().getOISKeyboard()->isKeyDown(x)
+#define KEY_DOWNR(x) global::getSingleton().getInputState()->keyDown(x)
 // #define NEWTBODYTYPE_PLAYER 1
 
 class Player {
@@ -32,11 +32,11 @@ public:
   void init(SceneManager *SceneMgr, OgreNewt::World *mWorld,
             Ogre::Camera *Camera, SoundManager *soundMgr, Ogre::Root *_root);
   void camera_force_callback(OgreNewt::Body *body);
-  void MouseMove(const OIS::MouseEvent &arg, Ogre::Real time);
-  void MousePress(const OIS::MouseEvent &arg, OIS::MouseButtonID id);
-  void MouseRelease(const OIS::MouseEvent &arg, OIS::MouseButtonID id);
-  void FCPress(const OIS::KeyEvent &arg);
-  void FCRelease(const OIS::KeyEvent &arg);
+  void MouseMove(const run3::InputEvent &arg, Ogre::Real time);
+  void MousePress(const run3::InputEvent &arg, run3::MouseButton id);
+  void MouseRelease(const run3::InputEvent &arg, run3::MouseButton id);
+  void FCPress(const run3::InputEvent &arg);
+  void FCRelease(const run3::InputEvent &arg);
   void FCUpdate(const FrameEvent &evt);
   void Duck();
   void multiply(Real multyplier);

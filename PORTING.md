@@ -12,8 +12,8 @@ Progress checklist (mark a step only when its exit criteria pass):
 - [x] 1 — reproducible CMake skeleton
 - [x] 2 — pinned Ogre renderer shell
 - [x] 3 — controlled legacy compile target
-- [ ] 4 — platform/input boundary
-- [ ] 5 — content validation and first rendered map
+- [x] 4 — platform/input boundary
+- [x] 5 — content validation and first rendered map
 - [ ] 6A — Bullet backend tests
 - [ ] 6B — static world and player
 - [ ] 6C — remaining physics and AIR3
@@ -271,6 +271,9 @@ Exit criteria:
 
 ### Step 4 — Platform paths, loop, configuration, and input boundary
 
+Status: **Completed 2026-09-07.** See
+`docs/porting/PLATFORM_BOUNDARY.md` and `docs/porting/STATUS.md`.
+
 Paste into Codex:
 
 ```text
@@ -284,6 +287,9 @@ Exit criteria:
 - Saves/logs never write into installed content.
 
 ### Step 5 — Content manifest, case correctness, meshes, and a simple map
+
+Status: **Completed 2026-09-14.** See
+`docs/porting/CONTENT_VALIDATION.md` and `docs/porting/STATUS.md`.
 
 Do not convert original assets in place.
 

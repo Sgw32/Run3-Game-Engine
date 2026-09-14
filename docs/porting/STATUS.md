@@ -1,6 +1,6 @@
 # Run3 porting status
 
-Last updated: 2026-09-06
+Last updated: 2026-09-14
 
 ## Milestones
 
@@ -9,7 +9,141 @@ Last updated: 2026-09-06
 | 0 — legacy baseline and rights inventory | Resolved | Static inventory is recorded. By owner direction, recordings and detailed licensing work are deferred to the build-prototype stage; only the authorized `media/` tree is in scope. |
 | 1 — reproducible CMake skeleton | Completed | Root CMake/vcpkg build and all four local workflows pass. |
 | 2 — pinned Ogre renderer shell | Completed | Ogre classic 14.5.2 is pinned and the installed assetless shell passes Debug and Release smoke tests on Windows and Linux. |
-| 3 — controlled legacy compile target | Completed | A reviewed 21/119-source compatibility subset compiles and its smoke tests pass on MSVC and GCC; 93 runtime units remain categorized and deferred. |
+| 3 — controlled legacy compile target | Completed | A reviewed 21/119-source compatibility subset compiled and its smoke tests passed on MSVC and GCC; Step 4 extends it. |
+| 4 — platform paths, loop, configuration, and input | Completed | `Run3App` owns the explicit loop; platform-neutral paths/input/clock plus migrated UI/device compatibility batches pass on Windows and Linux. |
+| 5 — content manifest, validation, and render fixture | Completed | The read-only validator and deterministic conversion boundary pass their fixtures on D3D11/GL3+; the untouched full content backlog is categorized below. |
+
+## 2026-09-14 — Step 5
+
+Completed:
+
+- Added `run3_asset_check` and `run3_shell --validate-content`. Both resolve
+  content, manifest, report, and user paths independently of the working
+  directory and keep reports/logs outside read-only content.
+- Added version 1 of the The Long Way manifest. It records exact Lua 5.4.8 and
+  Ogre 14.5.2 compatibility runtimes, scans untracked `run3/` plus `media/`,
+  validates all ten legacy resource configurations, and selects
+  `resources_high_high.cfg` for active Ogre parsing.
+- Added deterministic file size/SHA-256 inventory, exact-case path walking,
+  physical case-collision checks, resource-location and ZIP inventory,
+  duplicate logical-name checks, reference resolution, TinyXML2 parsing, and
+  syntax-only Lua parsing. Lua chunks are never executed.
+- Added Ogre-side active-profile program/material/compositor parsing and direct
+  serializer imports for every mesh/skeleton. Fixed validation-layer bugs found
+  during the full pass: duplicate root registration, writable registration of
+  read-only archives, repeated quality-profile reference resolution, duplicate
+  logical script parsing, and bulk Ogre diagnostic echo.
+- Added and installed a purpose-built `step5.scene`. Its tiny loader uses the
+  standard Ogre scene manager to create only ambient light, a point light, and
+  an assetless cube; there is no physics or gameplay path.
+- Enabled the official `tools` feature on the already pinned Ogre 14.5.2 vcpkg
+  dependency. Added `cmake/ConvertOgreAsset.cmake`, which always supplies a
+  separate destination, keys output by input/tool/invocation hashes, checks the
+  source hash afterward, writes a deterministic receipt, reuses only verified
+  output, and refuses overwrites. `converted-content/` is Git-ignored.
+- Added miniature valid/invalid content fixtures and tests for SHA-256,
+  structural categories, exact Lua/XML parsing, deterministic conversion reuse,
+  installed JSON reporting, Ogre parsing, D3D11/GL3+ fixture rendering, and
+  clean bounded exit. No real game asset was converted, copied, or edited.
+- Documented exact validation and per-file conversion commands in
+  [CONTENT_VALIDATION.md](CONTENT_VALIDATION.md), with updated build/run guides.
+
+Full local The Long Way Release baseline (Windows D3D11, untouched content):
+
+| Remaining category | Count |
+|---|---:|
+| `duplicate-logical-resource` | 11,540 |
+| `ogre-script-parse` | 229 |
+| `referenced-file-missing` | 451 |
+| `resource-path-missing` | 90 |
+| `xml-not-well-formed` | 53 |
+| `case-mismatch` | 10 |
+| `lua-parse` | 4 |
+| **Total errors** | **12,377** |
+
+The machine report is local at
+`build/step5-reports/the-long-way-windows-release.json` (5,027,088 bytes). It
+records 8,344 files; 955 Lua and 193 XML parses; 735 structurally inventoried
+Ogre script files; 549 active-profile Ogre script attempts, of which 439
+produced no logged parser error; 5,472 resolved references; and successful
+header plus Ogre serializer reads for all 670 meshes and 63 skeletons. There
+are no `mesh-readability`, `skeleton-readability`, `case-collision`, or
+render-fixture failures. The report intentionally fails until later scoped
+content/renderer work resolves the categories above; no bulk asset edits were
+made to hide them.
+
+Verification:
+
+| Preset | Toolchain/renderer | Result |
+|---|---|---|
+| `windows-msvc-x64-debug` | MSVC 19.51 x64 / D3D11 | Configure/build passed; 18/18 CTests passed |
+| `windows-msvc-x64-release` | MSVC 19.51 x64 / D3D11 | Configure/build passed; 18/18 CTests passed; full-content report completed in about 4 minutes |
+| `linux-ninja-debug` | GCC 13.3 x64 / GL3+ under WSLg | Configure/build passed; 18/18 CTests passed |
+| `linux-ninja-release` | GCC 13.3 x64 / GL3+ under WSLg | Configure/build passed; 18/18 CTests passed |
+
+Both packaged `OgreMeshUpgrader` and `OgreXMLConverter` identify themselves as
+Ogre 14.5.2 on Windows and Linux. The conversion-wrapper regression used only
+a generated stub fixture below `build/`; no The Long Way conversion was run.
+The WSL verification used a fresh pinned checkout in `/tmp` and non-root
+temporary `zip`/`unzip` package extraction because this image has no installed
+zip tools and interactive sudo is unavailable.
+
+Step 5 is complete. Stop here; Step 6A physics design is unstarted.
+
+## 2026-09-07 — Step 4
+
+Completed:
+
+- Replaced the Step 2 `startRendering` shell loop with `run3::Run3App`, which
+  explicitly polls OgreBites events, advances `EngineClock`, dispatches input,
+  renders one frame, handles resize/focus/quit, and closes Ogre cleanly.
+- Added `AppPaths` and layered configuration. Relative paths are anchored at
+  the executable, precedence is CLI over user config over content defaults,
+  and read-only content is separated from writable `config/`, `saves/`,
+  `logs/`, and `cache/` directories.
+- Added backend-neutral `Key`, `MouseButton`, `InputEvent`, `InputState`, and
+  `IInput` APIs with live queue, null, and deterministic replay inputs. OgreBites
+  and SDL-compatible values are translated only in `OgreBitesInputAdapter`.
+- Removed OIS declarations from root-project public headers and migrated the
+  requested `Run3Input`, `Player`, console, HUD, and `buttonGUI` interfaces,
+  plus their Display/MagicManager/weapon input chain. `InputManager2` is now a
+  backend-neutral transitional dispatcher.
+- Added Run3-owned optional-device interfaces. The default is a logging no-op;
+  `RUN3_ENABLE_OPTIONAL_DEVICES=ON` selects Win32 serial/named-pipe sources only
+  on Windows. The opt-in Win32 library was compile-checked without opening a
+  device. Legacy device classes are portable facades with no Windows types in
+  their headers.
+- Replaced MessageBox and console-colour/cursor APIs with logging. No game or
+  The Long Way asset is required, copied, or modified.
+- Grew `run3_legacy` from 21 to 26 of 119 vcproj sources by compiling
+  `InputManager2`, `buttonGUI`, `ogreconsole`, `Serial`, and
+  `NamedPipeServer`. Eighty-eight runtime units remain deferred behind later
+  subsystem work.
+- Added seven Catch2 runtime tests covering path confinement, configuration
+  precedence, key/button translation, no-op devices, replay/focus/resize
+  behavior, and fixed/variable clock policies. The legacy suite now also tests
+  replay dispatch. See [PLATFORM_BOUNDARY.md](PLATFORM_BOUNDARY.md).
+- Added exact manual configure, compile, test, install, and launch instructions
+  for both supported platforms to [BUILDING.md](../BUILDING.md) and
+  [RUNNING.md](../RUNNING.md), including CLI/config examples, writable output
+  locations, working-directory-independent launches, and troubleshooting.
+
+Verification (repeated 2026-09-09):
+
+| Preset | Toolchain/renderer | Result |
+|---|---|---|
+| `windows-msvc-x64-debug` | MSVC 19.51 x64 / D3D11 | Configure/build passed; 13/13 CTests passed |
+| `windows-msvc-x64-release` | MSVC 19.51 x64 / D3D11 | Configure/build passed; 13/13 CTests passed |
+| `linux-ninja-debug` | GCC 13.3 x64 / GL3+ under WSLg | Configure/build passed; 13/13 CTests passed |
+| `linux-ninja-release` | GCC 13.3 x64 / GL3+ under WSLg | Configure/build passed; 13/13 CTests passed |
+
+The install-and-launch smoke runs use an unrelated working directory and five
+frames. Logs are verified at `<user-root>/logs/ogre.log`. Static repository
+checks find no OIS or Win32 includes in root-project public headers and no
+MessageBox/console-colour API use. The AIR3 submodule was not changed.
+
+Historical boundary: Step 4 stopped before content work. Step 5 is now
+completed and recorded above.
 
 ## 2026-09-06 — Step 3
 

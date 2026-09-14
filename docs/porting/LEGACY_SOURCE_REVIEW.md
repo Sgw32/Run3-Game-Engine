@@ -7,7 +7,7 @@ filesystem glob is used.
 
 ## Compiled reusable subset
 
-`run3_legacy` is a static compatibility library. It currently compiles 21 of
+`run3_legacy` is a static compatibility library. It currently compiles 26 of
 the 119 project-listed translation units:
 
 - Bundled support (6): `tinyxml.cpp`, `tinyxmlerror.cpp`,
@@ -19,11 +19,15 @@ the 119 project-listed translation units:
 - Ogre runtime helpers (6): `LensFlare.cpp`, `DefaultAEnt.cpp`,
   `EventEntC.cpp`, `SceneLoadOverlay.cpp`, `Run3Batcher.cpp`, and
   `PSSMShadowListener.cpp`.
+- Step 4 platform/input compatibility (5): `InputManager2.cpp`,
+  `buttonGUI.cpp`, `ogreconsole.cpp`, `Serial.cpp`, and
+  `NamedPipeServer.cpp`.
 
 The new `source/legacy/LegacyFeatures.cpp` and `LegacySmoke.cpp` files are
 compatibility glue and are deliberately not counted as vcproj sources.
-`run3_legacy` links only the reproducible `OgreMain` and `OgreOverlay` imported
-targets. The old project libraries and local SDK directories are not searched.
+`run3_legacy` links the Run3-owned core/optional-device targets plus the
+reproducible `OgreMain` and `OgreOverlay` imported targets. The old project
+libraries and local SDK directories are not searched.
 
 `main.cpp` is recorded separately as `RUN3_LEGACY_ENTRYPOINT_SOURCE`; it is not
 compiled into the reusable library. A legacy application executable is not
@@ -37,11 +41,13 @@ These project-listed files are intentionally outside the future game runtime:
 | Files | Count | Disposition |
 |---|---:|---|
 | `FuzzyTest.cpp`, `FuzzyTest2.cpp` | 2 | Experimental aerial/fuzzy-control demonstrations; not used by The Long Way runtime. |
-| `graphics.cpp` | 1 | Win32 console-colour helper for the old Eliza utility; its operations are already no-ops. |
+| `graphics.cpp` | 1 | Retired console-colour helper for the old Eliza utility; its portable compatibility functions emit a logging warning. |
 | `tinystr.cpp` | 1 | Malformed, unterminated commented copy of TinyXML's non-STL string implementation. The selected `TIXML_USE_STL` path neither needs nor links it. |
 
-No other translation unit has been labelled an obsolete demo/tool. The
-remaining 93 units are deferred runtime work, not silently discarded files.
+No other translation unit has been labelled an obsolete demo/tool. Of the 93
+project-listed units not compiled by `run3_legacy`, 88 are deferred runtime
+work, one is the separately recorded historical entrypoint, and four are the
+reviewed exclusions above; no file is silently discarded.
 
 ## Feature gates and null backends
 
@@ -56,8 +62,8 @@ All legacy feature switches default to `OFF`:
 | `RUN3_LEGACY_ENABLE_SKYX` | SkyX |
 | `RUN3_LEGACY_ENABLE_LEGACY_AUDIO` | Audiere/ALUT/OpenAL-era runtime |
 | `RUN3_LEGACY_ENABLE_DIRECTSHOW` | DirectShow video path |
-| `RUN3_LEGACY_ENABLE_SERIAL` | Win32 serial devices |
-| `RUN3_LEGACY_ENABLE_NAMED_PIPES` | Win32 named-pipe controller |
+| `RUN3_LEGACY_ENABLE_SERIAL` | Retired switch; use `RUN3_ENABLE_OPTIONAL_DEVICES` |
+| `RUN3_LEGACY_ENABLE_NAMED_PIPES` | Retired switch; use `RUN3_ENABLE_OPTIONAL_DEVICES` |
 
 `run3::legacy::requireFeature` is the temporary null-backend boundary. For a
 disabled feature it writes the subsystem name to standard error and throws
@@ -68,35 +74,32 @@ sources, and validation before removing that gate.
 
 ## Deferred backlog counts
 
-Of the 93 deferred runtime translation units, 65 directly name at least one
-retired or not-yet-reproduced subsystem in the translation unit or its matching
-header. The following lexical counts overlap because the monolithic files often
+After the Step 4 batches, 88 runtime translation units remain deferred. The
+following current lexical counts overlap because the monolithic files often
 mix several subsystems:
 
 | Direct blocker | Deferred translation units |
 |---|---:|
 | Newton/OgreNewt | 43 |
-| OIS | 25 |
-| Lua | 19 |
-| Serial | 5 |
+| OIS | 0 |
+| Lua | 22 |
+| Serial | 2 |
 | SkyX | 3 |
 | Audiere/ALUT/OpenAL | 2 |
-| Named pipes | 2 |
+| Named pipes | 1 |
 | CEGUI | 1 |
 | Hydrax | 1 |
 | DirectShow | 1 |
 
-The other 28 do not directly name those packages but remain coupled through
-shared headers/global state, old compositor/scene-manager APIs, or deferred
-owners. This group includes `CustomSceneManager.cpp`, `DeferredShading.cpp`,
-`Run3Shadowing.cpp`, `StereoManager.cpp`, callbacks/managers that include
-`global.h`, and several Lua/audio wrappers whose retired dependency is
-transitive. Counts are translation-unit counts rather than raw compiler-error
-counts: one missing header otherwise produces hundreds of cascading errors.
+Counts are translation-unit counts rather than raw compiler-error counts: one
+missing dependency otherwise produces hundreds of cascading errors. OIS is
+now absent from root-project public headers and from the requested migrated
+translation units; the AIR3 submodule remains outside this Step 4 edit boundary.
 
-The compiled subset has zero errors on MSVC and GCC. Known warning debt is 7
-MSVC sites and 10 GCC sites, primarily old numeric conversions, TinyXML switch
-fallthrough, unused CaduneTree locals, and unsafe iterator/arithmetic patterns.
+The compiled subset has zero errors on MSVC and GCC. Known warning debt remains
+in untouched legacy code, primarily initializer-order and numeric-conversion
+diagnostics, TinyXML switch fallthrough, unused locals, a non-virtual UI
+destructor, and unsafe iterator/arithmetic patterns.
 One behavioral probe of `Tokenizer::getTokenNumber` hung under MSVC because
 `firstToken` dereferences an end iterator. The compile smoke deliberately does
 not fix or exercise that gameplay-era behavior; it is recorded for a later
@@ -111,6 +114,7 @@ cmake --build --preset <preset> --target run3_legacy_compile_tests
 ctest --preset <preset> -R ^run3_legacy\.
 ```
 
-The two tests link representative project-listed sources and verify that every
-disabled null backend fails visibly. Debug and Release passed on both MSVC x64
-and GCC x64 during Step 3.
+The three tests link representative project-listed sources, exercise replay
+input through the transitional dispatcher, and verify that every disabled
+legacy null backend fails visibly. Debug and Release passed on both MSVC x64
+and GCC x64 during Step 4.

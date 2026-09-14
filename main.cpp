@@ -980,9 +980,8 @@ soundMgr->playAudio( audioId3, true );*/
   try {
     app.go();
   } catch (Ogre::Exception &e) {
-    MessageBoxA(NULL, e.getFullDescription().c_str(),
-                "An exception has occurred!",
-                MB_OK | MB_ICONERROR | MB_TASKMODAL);
+    Ogre::LogManager::getSingleton().logMessage(
+        "Run3 startup failed: " + e.getFullDescription(), Ogre::LML_CRITICAL);
     fprintf(stderr, "An exception has occurred: %s\n",
   }
   lua_close(pL);
@@ -1033,16 +1032,11 @@ int main(int argc, char **argv)
     try {
         app.go();
     } catch(Ogre::Exception& e) {
-#if OGRE_PLATFORM == OGRE_PLATFORM_WIN32
-        MessageBoxA(NULL, e.getFullDescription().c_str(), "An exception has occurred!",
-            MB_OK | MB_ICONERROR | MB_TASKMODAL);
-#else
-        fprintf(stderr, "An exception has occurred: %s\n",
-            e.getFullDescription().c_str());
-#endif
+        Ogre::LogManager::getSingleton().logMessage(
+            "Run3 startup failed: " + e.getFullDescription(),
+            Ogre::LML_CRITICAL);
     }
 	lua_close(pL);
 
     return 0;
 }
-

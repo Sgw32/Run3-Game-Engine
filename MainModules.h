@@ -56,7 +56,6 @@
 #include <CEGUI/CEGUISchemeManager.h>
 #include <CEGUI/CEGUIWindow.h>
 #include <CEGUI/CEGUIWindowManager.h>
-#include <OIS/OIS.h>
 #include <OgreCEGUIRenderer.h>
 #include <OgreNewt.h>
 // #include "ZonePortalManager.h"

@@ -9,7 +9,7 @@
 #include "HUD.h"
 #include "POs.h"
 #include "SoundManager.h"
-#include <OIS/OIS.h>
+#include <run3/input/Input.hpp>
 #include <Ogre.h>
 #include <OgreFrameListener.h>
 #include <OgreNewt.h>
@@ -34,12 +34,12 @@ public:
   void luaFuncInit();
   virtual bool frameStarted(const Ogre::FrameEvent &evt);
   virtual bool frameEnded(const Ogre::FrameEvent &evt);
-  void Move(const OIS::MouseEvent &arg, Ogre::Real time);
+  void Move(const run3::InputEvent &arg, Ogre::Real time);
   void In();
-  void MousePress(const OIS::MouseEvent &arg, OIS::MouseButtonID id);
-  void MouseRelease(const OIS::MouseEvent &arg, OIS::MouseButtonID id);
-  void Press(const OIS::KeyEvent &arg);
-  void Release(const OIS::KeyEvent &arg);
+  void MousePress(const run3::InputEvent &arg, run3::MouseButton id);
+  void MouseRelease(const run3::InputEvent &arg, run3::MouseButton id);
+  void Press(const run3::InputEvent &arg);
+  void Release(const run3::InputEvent &arg);
   OgreNewt::Body *get_ray_shoot();
   String get_name(void) { return weapon->getName(); }
   Ogre::Vector3 get_direction();

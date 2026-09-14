@@ -1,0 +1,4 @@
+vertex_program Run3/Step5FixtureVP glsl
+{
+    source step5.vert
+}

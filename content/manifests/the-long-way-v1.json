@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "manifest_version": 1,
+  "content_id": "the-long-way",
+  "content_version": "author-reference-copy-2026-09",
+  "description": "Validation policy for the original The Long Way content tree; assets remain external to Git.",
+  "compatibility_runtime": {
+    "lua": "5.4.8",
+    "ogre": "14.5.2",
+    "resource_profile": "resources_high_high.cfg"
+  },
+  "scan_roots": [
+    "run3",
+    "media"
+  ],
+  "resource_configs": [
+    "resources_high_high.cfg",
+    "resources_high_med.cfg",
+    "resources_high_low.cfg",
+    "resources_med_high.cfg",
+    "resources_med_med.cfg",
+    "resources_med_low.cfg",
+    "resources_low_high.cfg",
+    "resources_low_med.cfg",
+    "resources_low_low.cfg",
+    "run3/core/resources.cfg"
+  ],
+  "xml_extensions": [
+    ".scene",
+    ".xml",
+    ".layout",
+    ".imageset",
+    ".scheme"
+  ],
+  "lua_extensions": [
+    ".lua"
+  ],
+  "ogre_script_extensions": [
+    ".material",
+    ".program",
+    ".compositor",
+    ".particle",
+    ".overlay",
+    ".fontdef"
+  ]
+}

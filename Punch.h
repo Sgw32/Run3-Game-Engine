@@ -6,7 +6,7 @@
 #include "HUD.h"
 #include "POs.h"
 #include "SoundManager.h"
-#include <OIS/OIS.h>
+#include <run3/input/Input.hpp>
 #include <Ogre.h>
 #include <OgreFrameListener.h>
 #include <OgreNewt.h>
@@ -16,8 +16,7 @@
 using namespace Ogre;
 using namespace std;
 
-class Punch : public FrameListener //, public OIS::MouseListener, public
-                                   //OIS::KeyListener   //, Singleton<Punch>
+class Punch : public FrameListener
 {
 public:
   Punch();
@@ -26,11 +25,11 @@ public:
             Entity *ent, SoundManager *sound, OgreNewt::World *world);
   virtual bool frameStarted(const Ogre::FrameEvent &evt);
   virtual bool frameEnded(const Ogre::FrameEvent &evt);
-  void Move(const OIS::MouseEvent &arg, Ogre::Real time);
-  void MousePress(const OIS::MouseEvent &arg, OIS::MouseButtonID id);
-  void MouseRelease(const OIS::MouseEvent &arg, OIS::MouseButtonID id);
-  void Press(const OIS::KeyEvent &arg);
-  void Release(const OIS::KeyEvent &arg);
+  void Move(const run3::InputEvent &arg, Ogre::Real time);
+  void MousePress(const run3::InputEvent &arg, run3::MouseButton id);
+  void MouseRelease(const run3::InputEvent &arg, run3::MouseButton id);
+  void Press(const run3::InputEvent &arg);
+  void Release(const run3::InputEvent &arg);
   String get_name(void) { return weapon->getName(); }
   void changeHUD() { HUD::getSingleton().ChangeHUDOverlay(myHUD, false); }
   OgreNewt::Body *get_ray_shoot();

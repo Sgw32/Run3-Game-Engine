@@ -22,7 +22,6 @@ it. Coded by Sgw32 2009(c)
 #include "Sequence.h"
 #include "SoundManager.h"
 #include "global.h"
-#include <OIS/OIS.h>
 #include <Ogre.h>
 
 class LoadMap : public Singleton<LoadMap> {

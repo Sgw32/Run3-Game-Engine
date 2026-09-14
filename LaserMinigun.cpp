@@ -181,15 +181,15 @@ void LaserMinigun::init(Ogre::Root *_root, SceneManager *sceneMgr,
       StringConverter::toString(mWeaponNode->getPosition()));
 }
 
-void LaserMinigun::Move(const OIS::MouseEvent &arg, Ogre::Real time) {
+void LaserMinigun::Move(const run3::InputEvent &arg, Ogre::Real time) {
 
   CrosshairOperator::getSingleton().getCrosshairShift(
       global::getSingleton().getPlayer()->camera_rotation_x,
       global::getSingleton().getPlayer()->camera_rotation_y);
   global::getSingleton().getPlayer()->camera_rotation_y = 0;
 }
-void LaserMinigun::Press(const OIS::KeyEvent &arg) {
-  if (arg.key == OIS::KC_R && secondSlot_allow) {
+void LaserMinigun::Press(const run3::InputEvent &arg) {
+  if (arg.key == run3::Key::R && secondSlot_allow) {
     if ((ammo + primaryAmmo) >= second_Slot) {
       ammo = ammo - second_Slot + primaryAmmo;
       primaryAmmo = second_Slot;
@@ -203,9 +203,9 @@ void LaserMinigun::Press(const OIS::KeyEvent &arg) {
                                 StringConverter::toString(ammo));
   }
 }
-void LaserMinigun::Release(const OIS::KeyEvent &arg) {}
-void LaserMinigun::MousePress(const OIS::MouseEvent &arg,
-                              OIS::MouseButtonID id) {
+void LaserMinigun::Release(const run3::InputEvent &arg) {}
+void LaserMinigun::MousePress(const run3::InputEvent &arg,
+                              run3::MouseButton id) {
   /*if ((ammo+primaryAmmo)>0)
   {*/
   /*if (ammo>0)
@@ -213,7 +213,7 @@ void LaserMinigun::MousePress(const OIS::MouseEvent &arg,
 
   if ((ammo > 0 && !secondSlot_allow) ||
       (primaryAmmo > 0 && secondSlot_allow)) {
-    if (id == OIS::MB_Left) {
+    if (id == run3::MouseButton::Left) {
       if (TIME_SHIFT == 0.0f)
         return;
       if (!soundLoaded) {
@@ -296,12 +296,12 @@ void LaserMinigun::MousePress(const OIS::MouseEvent &arg,
         mLightenNode->setVisible(true);
     }
   }
-  if (id == OIS::MB_Middle) {
+  if (id == run3::MouseButton::Middle) {
     energyid++;
     if (energyid == 4)
       energyid = 1;
   }
-  if (id == OIS::MB_Right) {
+  if (id == run3::MouseButton::Right) {
     // mWeaponNode->setPosition(mWeaponNode->getPosition()+ironSight);
     LogManager::getSingleton().logMessage(
         StringConverter::toString(mWeaponNode->getPosition()) + "AA!");
@@ -391,9 +391,9 @@ Ogre::Vector3 LaserMinigun::get_direction() {
   return myOrient2 * Vector3::NEGATIVE_UNIT_Z;
 }
 
-void LaserMinigun::MouseRelease(const OIS::MouseEvent &arg,
-                                OIS::MouseButtonID id) {
-  if (id == OIS::MB_Left) {
+void LaserMinigun::MouseRelease(const run3::InputEvent &arg,
+                                run3::MouseButton id) {
+  if (id == run3::MouseButton::Left) {
     allowShoot = true;
     shooting = false;
     if ((flashLight) && (mSceneMgr->hasLight("flashLighter2"))) {
@@ -431,7 +431,7 @@ void LaserMinigun::MouseRelease(const OIS::MouseEvent &arg,
     mLightenNode->setVisible(false);
   ////lShock_t->setVisible(false);
 
-  if (id == OIS::MB_Right) {
+  if (id == run3::MouseButton::Right) {
     // mWeaponNode->setPosition(mWeaponNode->getPosition()-ironSight);
     LogManager::getSingleton().logMessage(
         StringConverter::toString(mWeaponNode->getPosition()) + "AAA!");

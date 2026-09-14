@@ -7,7 +7,6 @@
 ///////////////////////////
 #pragma once
 #include "fader.h"
-#include <OIS/OIS.h>
 #include <Ogre.h>
 #include <OgreFrameListener.h>
 #include <list>

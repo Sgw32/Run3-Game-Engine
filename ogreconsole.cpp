@@ -2,10 +2,10 @@
 ///////////////Original file by:Fyodor Zagumennov aka Sgw32//////////
 ///////////////Copyright(c) 2010 Fyodor Zagumennov		   //////////
 /////////////////////////////////////////////////////////////////////
-#include "OgreConsole.h"
-#include "Display.h"
+#include "ogreconsole.h"
+#include <OgreMaterialManager.h>
 
-template <> OgreConsole *Singleton<OgreConsole>::ms_Singleton = 0;
+template <> OgreConsole *Singleton<OgreConsole>::msSingleton = nullptr;
 
 #define CONSOLE_LINE_LENGTH 85
 #define CONSOLE_LINE_COUNT 15
@@ -23,19 +23,20 @@ void OgreConsole::init(Ogre::Root *root) {
   //    "init" );
 
   this->root = root;
-  scene = root->getSceneManagerIterator().getNext();
+  const Ogre::SceneManagerInstanceMap &sceneManagers = root->getSceneManagers();
+  if (sceneManagers.empty()) {
+    OGRE_EXCEPT(Exception::ERR_INTERNAL_ERROR, "No scene manager exists",
+                "OgreConsole::init");
+  }
+  scene = sceneManagers.begin()->second;
   root->addFrameListener(this);
 
   height = 1;
-  ConfigFile cf;
-  cf.load("run3/game/console/console.cfg");
-  String font = cf.getSetting("FontName");
-  String cheight = cf.getSetting("CharHeight");
-  String mname = cf.getSetting("MaterialName");
   // Create background rectangle covering the whole screen
   rect = new Rectangle2D(true);
   rect->setCorners(-1, 1, 1, 1 - height);
-  rect->setMaterial("console/background");
+  rect->setMaterial(MaterialManager::getSingleton().getByName(
+      "console/background"));
   rect->setRenderQueueGroup(RENDER_QUEUE_OVERLAY);
   rect->setBoundingBox(AxisAlignedBox(-100000.0 * Vector3::UNIT_SCALE,
                                       100000.0 * Vector3::UNIT_SCALE));
@@ -66,10 +67,10 @@ void OgreConsole::shutdown() {
   overlay->hide();
   overlay->clear();
 }
-void OgreConsole::onKeyPressed(const OIS::KeyEvent &arg) {
+void OgreConsole::onKeyPressed(const run3::InputEvent &arg) {
   if (!visible)
     return;
-  if (arg.key == OIS::KC_RETURN) {
+  if (arg.key == run3::Key::Return) {
     bprompt = prompt;
     // split the parameter list
     Ogre::StringUtil::trim(prompt); // A useful addition
@@ -91,7 +92,13 @@ void OgreConsole::onKeyPressed(const OIS::KeyEvent &arg) {
       if (!params.empty()) {
         // params.push_back(String(""));
         // try to execute the command
-        Display::getSingleton().processLuaFunction(params);
+        if (luaCommandHandler) {
+          luaCommandHandler(params);
+        } else {
+          LogManager::getSingleton().logMessage(
+              "Console Lua command ignored: no script handler is installed",
+              LML_WARNING);
+        }
       }
     }
     // try to execute the command
@@ -108,32 +115,35 @@ void OgreConsole::onKeyPressed(const OIS::KeyEvent &arg) {
     print(prompt);
     prompt = "";
   }
-  if (arg.key == OIS::KC_BACK)
-    prompt = prompt.substr(0, prompt.length() - 1);
-  if (arg.key == OIS::KC_PGUP) {
+  if (arg.key == run3::Key::Backspace && !prompt.empty())
+    prompt.pop_back();
+  if (arg.key == run3::Key::PageUp) {
     if (start_line > 0)
       start_line--;
   }
-  if (arg.key == OIS::KC_PGDOWN) {
+  if (arg.key == run3::Key::PageDown) {
     if (start_line < lines.size())
       start_line++;
   }
-  if (arg.key == OIS::KC_UP) {
+  if (arg.key == run3::Key::Up) {
     prompt = bprompt;
-  } else {
-    char legalchars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz12"
-                        "34567890+!\"#%&/()=?[]\\*-_.:,; ";
-    for (int c = 0; c < sizeof(legalchars); c++) {
-      if (legalchars[c] == arg.text) {
-        if (arg.text != 0) {
-          prompt += arg.text;
-
-          break;
-        }
-      }
-    }
   }
   update_overlay = true;
+}
+
+bool OgreConsole::onInputEvent(const run3::InputEvent &event) {
+  if (!visible)
+    return false;
+  if (event.type == run3::InputEventType::KeyPressed) {
+    onKeyPressed(event);
+    return true;
+  }
+  if (event.type == run3::InputEventType::TextEntered) {
+    prompt += event.text;
+    update_overlay = true;
+    return true;
+  }
+  return false;
 }
 bool OgreConsole::frameStarted(const Ogre::FrameEvent &evt) {
   if (visible && height < 1) {

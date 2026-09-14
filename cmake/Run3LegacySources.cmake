@@ -145,7 +145,12 @@ set(RUN3_LEGACY_REUSABLE_SOURCES
     EventEntC.cpp
     SceneLoadOverlay.cpp
     Run3Batcher.cpp
-    PSSMShadowListener.cpp)
+    PSSMShadowListener.cpp
+    InputManager2.cpp
+    buttonGUI.cpp
+    ogreconsole.cpp
+    Serial.cpp
+    NamedPipeServer.cpp)
 
 # The application entrypoint is deliberately not part of the reusable library.
 set(RUN3_LEGACY_ENTRYPOINT_SOURCE main.cpp)

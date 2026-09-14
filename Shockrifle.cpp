@@ -130,12 +130,12 @@ void Shockrifle::init(Ogre::Root *_root, SceneManager *sceneMgr,
   mTreeNode->setVisible(false);
 }
 
-void Shockrifle::Move(const OIS::MouseEvent &arg, Ogre::Real time) {}
-void Shockrifle::Press(const OIS::KeyEvent &arg) {}
-void Shockrifle::Release(const OIS::KeyEvent &arg) {}
-void Shockrifle::MousePress(const OIS::MouseEvent &arg, OIS::MouseButtonID id) {
+void Shockrifle::Move(const run3::InputEvent &arg, Ogre::Real time) {}
+void Shockrifle::Press(const run3::InputEvent &arg) {}
+void Shockrifle::Release(const run3::InputEvent &arg) {}
+void Shockrifle::MousePress(const run3::InputEvent &arg, run3::MouseButton id) {
 
-  if (id == OIS::MB_Left) {
+  if (id == run3::MouseButton::Left) {
     shooting = true;
     mWeaponState->setEnabled(false);
     mWeaponState->setLength(0.5f);
@@ -178,12 +178,12 @@ void Shockrifle::MousePress(const OIS::MouseEvent &arg, OIS::MouseButtonID id) {
     }
     // OgreNewt::World* wrld =  global::getSingleton().getWorld;
   }
-  if (id == OIS::MB_Middle) {
+  if (id == run3::MouseButton::Middle) {
     energyid++;
     if (energyid == 4)
       energyid = 1;
   }
-  if (id == OIS::MB_Right) {
+  if (id == run3::MouseButton::Right) {
 
     shooting = true;
     mWeaponState->setEnabled(false);
@@ -234,14 +234,14 @@ Ogre::Vector3 Shockrifle::get_direction() {
   return direction;
 }
 
-void Shockrifle::MouseRelease(const OIS::MouseEvent &arg,
-                              OIS::MouseButtonID id) {
-  if (id == OIS::MB_Left) {
+void Shockrifle::MouseRelease(const run3::InputEvent &arg,
+                              run3::MouseButton id) {
+  if (id == run3::MouseButton::Left) {
     shooting = false;
     bod = 0;
     soundmgr->releaseAudio(shoots);
   }
-  if (id == OIS::MB_Right) {
+  if (id == run3::MouseButton::Right) {
     shooting = false;
     if (right)
       iright2 = true;

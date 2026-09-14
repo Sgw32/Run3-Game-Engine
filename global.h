@@ -11,6 +11,7 @@
 #include "Player.h"
 #include "Serial.h"
 #include "SoundManager.h"
+#include <run3/input/Input.hpp>
 // LUA//
 #include "LuaHelperFunctions.h"
 #include <lauxlib.h>
@@ -85,8 +86,10 @@ public:
   void setWindow(RenderWindow *win) { mWindow = win; }
   RenderWindow *getWindow(void) { return mWindow; }
 
-  void setOISKeyboard(OIS::Keyboard *keyboard) { mKeyboard = keyboard; }
-  OIS::Keyboard *getOISKeyboard(void) { return mKeyboard; }
+  void setInputState(const run3::InputState *inputState) {
+    mInputState = inputState;
+  }
+  const run3::InputState *getInputState(void) { return mInputState; }
 
   lua_State *getLuaState(void) { return mLua; }
   // void set_GUIorGame(bool set);
@@ -157,5 +160,5 @@ private:
   //	LoadMap* mLoad;
   Player *player;
   Root *root;
-  OIS::Keyboard *mKeyboard;
+  const run3::InputState *mInputState{};
 };

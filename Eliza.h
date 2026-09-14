@@ -5,7 +5,6 @@
 
 // #include "recorder.h"
 #include "strings.h"
-// #include <windows.h>
 #include <fstream>
 #include <sstream>
 #include <stack>

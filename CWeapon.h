@@ -11,7 +11,7 @@ By Fyodor Zagumennov aka Sgw32 Copyright(c) 2010
 #include "Shockrifle.h"
 #include "SoundManager.h"
 #include "generic_lua_weapon.h"
-#include <OIS/OIS.h>
+#include <run3/input/Input.hpp>
 #include <Ogre.h>
 #include <OgreNewt.h>
 #include <vector>
@@ -45,11 +45,11 @@ public:
 
     return false;
   }
-  void Move(const OIS::MouseEvent &arg, Ogre::Real time);
-  void MousePress(const OIS::MouseEvent &arg, OIS::MouseButtonID id);
-  void MouseRelease(const OIS::MouseEvent &arg, OIS::MouseButtonID id);
-  void Press(const OIS::KeyEvent &arg);
-  void Release(const OIS::KeyEvent &arg);
+  void Move(const run3::InputEvent &arg, Ogre::Real time);
+  void MousePress(const run3::InputEvent &arg, run3::MouseButton id);
+  void MouseRelease(const run3::InputEvent &arg, run3::MouseButton id);
+  void Press(const run3::InputEvent &arg);
+  void Release(const run3::InputEvent &arg);
   bool select(String name);
   void hide_all();
   void strip(String name);

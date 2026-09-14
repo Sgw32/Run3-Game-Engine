@@ -17,14 +17,14 @@ void Run3Input::init(Ogre::Overlay *menuOverlay, CEGUI::Window *shit) {
   mMenuOverlay = menuOverlay;
   sheet = shit;
 }
-void Run3Input::processPress(const OIS::KeyEvent &arg, bool &GUIorGame,
+void Run3Input::processPress(const run3::InputEvent &arg, bool &GUIorGame,
                              bool ingame) {
   if (global::getSingleton().GUIorGame) {
     CEGUI::System *sys = CEGUI::System::getSingletonPtr();
     sys->injectKeyDown(arg.key);
     sys->injectChar(arg.text);
     CEGUI::System::getSingleton().injectKeyUp(arg.key);
-    if (arg.key == OIS::KC_ESCAPE && ingame) {
+    if (arg.key == run3::Key::Escape && ingame) {
       mMenuOverlay->hide();
       sheet->hide();
       OgreConsole::getSingleton().print("unpaused..");
@@ -37,7 +37,7 @@ void Run3Input::processPress(const OIS::KeyEvent &arg, bool &GUIorGame,
 
   if (!global::getSingleton().GUIorGame) {
     if (!OgreConsole::getSingleton().isVisible()) {
-      if (arg.key == OIS::KC_ESCAPE) {
+      if (arg.key == run3::Key::Escape) {
         global::getSingleton().GUIorGame = true;
         mMenuOverlay->show();
         sheet->show();
@@ -46,28 +46,28 @@ void Run3Input::processPress(const OIS::KeyEvent &arg, bool &GUIorGame,
         HUD::getSingleton().Hide();
         return;
       }
-      if (arg.key == OIS::KC_SLASH) {
+      if (arg.key == run3::Key::Slash) {
         player->cnoclip();
       }
       bool dispVisible = Display::getSingleton().isVisible();
       if (!dispVisible) {
-        if (arg.key == OIS::KC_P) {
+        if (arg.key == run3::Key::P) {
           player->debug++;
         }
-        if (arg.key == OIS::KC_E) {
+        if (arg.key == run3::Key::E) {
           player->processUse();
         }
-        if (arg.key == OIS::KC_B) {
+        if (arg.key == run3::Key::B) {
           SuperFX::getSingleton().toggleBloom();
         }
 
-        if (arg.key == OIS::KC_F) {
+        if (arg.key == run3::Key::F) {
           player->toggleFlashLight();
         }
-        if (arg.key == OIS::KC_I) {
+        if (arg.key == run3::Key::I) {
           Inventory::getSingleton().display();
         }
-        if (arg.key == OIS::KC_M) {
+        if (arg.key == run3::Key::M) {
           if (global::getSingleton().deferred) {
             DeferredShadingSystem *iSystem = global::getSingleton().iSystem;
 
@@ -78,7 +78,7 @@ void Run3Input::processPress(const OIS::KeyEvent &arg, bool &GUIorGame,
         }
         player->FCPress(arg);
       }
-      /*if (arg.key==OIS::KC_Q)
+      /*if (arg.key==run3::Key::Q)
       {
               if (Display::getSingleton().isVisible)
               {
@@ -87,12 +87,12 @@ void Run3Input::processPress(const OIS::KeyEvent &arg, bool &GUIorGame,
               }
 
       }*/
-      /*if (arg.key==OIS::KC_O)
+      /*if (arg.key==run3::Key::O)
       {
               //SuperFX::getSingleton().init();
               SuperFX::getSingleton().toggleOldTV();
       }
-      if (arg.key==OIS::KC_N)
+      if (arg.key==run3::Key::N)
       {
               SuperFX::getSingleton().toggleNightvision();
       }*/
@@ -101,7 +101,7 @@ void Run3Input::processPress(const OIS::KeyEvent &arg, bool &GUIorGame,
   // Only ingame with noclip:
   if (!global::getSingleton().GUIorGame && player->noclip) {
     switch (arg.key) {
-    case OIS::KC_ESCAPE:
+    case run3::Key::Escape:
       global::getSingleton().GUIorGame = true;
       mMenuOverlay->show();
       sheet->show();
@@ -117,13 +117,13 @@ void Run3Input::processPress(const OIS::KeyEvent &arg, bool &GUIorGame,
   if (!global::getSingleton().GUIorGame && !player->noclip) {
   }
 }
-void Run3Input::processRelease(const OIS::KeyEvent &arg, bool GUIorGame,
+void Run3Input::processRelease(const run3::InputEvent &arg, bool GUIorGame,
                                bool ingame) {
   if (!global::getSingleton().GUIorGame) {
     if (!OgreConsole::getSingleton().isVisible()) {
       bool dispVisible = Display::getSingleton().isVisible();
       if (!dispVisible) {
-        if (arg.key == OIS::KC_I) {
+        if (arg.key == run3::Key::I) {
           Inventory::getSingleton().destroy();
         }
       }

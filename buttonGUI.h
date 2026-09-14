@@ -36,13 +36,14 @@
 #ifndef LFA_BUTTONGUI_H
 #define LFA_BUTTONGUI_H
 
-#include "OIS/OIS.h"
+#include <run3/input/Input.hpp>
 #include "Ogre.h"
 #include "OgreFontManager.h"
+#include "OgreOverlay.h"
+#include "OgreOverlayManager.h"
 #include "OgrePanelOverlayElement.h"
 #include "OgreTextAreaOverlayElement.h"
 
-using namespace OIS;
 using namespace Ogre;
 
 namespace buttonGUI {
@@ -123,17 +124,19 @@ enum buttonAction {
 };
 
 class button;
+class buttonManager;
+class buttonMesh;
 class buttonEvent {
 public:
-  buttonEvent(buttonAction a, OIS::MouseButtonID id, button *mainButton,
-              button *dragDroppedButton = NULL, Ogre::UTFString data = "")
+  buttonEvent(buttonAction a, run3::MouseButton id, button *mainButton,
+              button *dragDroppedButton = NULL, Ogre::String data = "")
       : action(a), mouseButton(id), actionButton(mainButton),
         droppedButton(dragDroppedButton), additionalData(data) {}
   buttonAction action;
-  OIS::MouseButtonID mouseButton;
+  run3::MouseButton mouseButton;
   button *actionButton;
   button *droppedButton;
-  Ogre::UTFString additionalData;
+  Ogre::String additionalData;
 };
 
 class buttonTextColor {
@@ -170,8 +173,8 @@ class button {
   friend class buttonMesh;
 
 public:
-  button(std::string &buttonName, std::string &material,
-         buttonPosition &position, short width, short height,
+  button(std::string buttonName, std::string material,
+         buttonPosition position, short width, short height,
          buttonManager *mgr, Ogre::Overlay *o, button *parentButton,
          textScheme &style, bool isActiveButton);
   ~button();
@@ -245,7 +248,7 @@ public:
    *to self.
    */
   button *addTextArea(
-      std::string name, Ogre::UTFString value, short posX, short posY,
+      std::string name, Ogre::String value, short posX, short posY,
       TextAreaOverlayElement::Alignment a = TextAreaOverlayElement::Center);
 
   /**
@@ -258,7 +261,7 @@ public:
    *
    * returns a pointer to self.
    */
-  button *editTextArea(std::string name, Ogre::UTFString &value);
+  button *editTextArea(std::string name, Ogre::String &value);
 
   /**
    *  Hide or show a particular child textArea of this button.
@@ -400,6 +403,7 @@ public:
   * returns a pointer to self.
   */
   button *setPosition(buttonPosition &position);
+  button *setPosition(buttonPosition &&position) { return setPosition(position); }
 
   /**
    * this will offset a button from its current position, without disturbing its
@@ -665,7 +669,7 @@ public:
 
   bool input(std::string s);
   bool insertBackspace(void);
-  Ogre::UTFString *getValue(void);
+  Ogre::String *getValue(void);
   /**
    * textInput areas can have a separate material for when they are  the active
    * textInputArea,  you can set it with this function. NOTE: .onClick
@@ -767,7 +771,7 @@ protected:
   bool defocusOnSubmit;
   bool isPasswordField;
   Ogre::TextAreaOverlayElement *dynamicTextElement;
-  Ogre::UTFString textValue;
+  Ogre::String textValue;
   short unsigned int maxCharacterLimit;
   bool isTextInputArea(void) { return true; }
   void updateText(void);
@@ -981,13 +985,13 @@ public:
    * Inject the absolute position of the mouse here along with its pressed
    * button. NOTE:  only the topmost button will be affected
    */
-  bool injectMouseDown(OIS::MouseButtonID &id);
+  bool injectMouseDown(run3::MouseButton &id);
 
   /**
    * Inject the absolute position of the mouse here along with its raised
    * button.
    */
-  bool injectMouseUp(OIS::MouseButtonID &id);
+  bool injectMouseUp(run3::MouseButton &id);
 
   /**
    * Inject rotative clicks of the mousewheel as a relative int.   Ex.   1 = one
@@ -1000,12 +1004,12 @@ public:
    * If anybody is knowledgable about unicode i could use help here. (i tried,
    * but couldn't get it to work without bugs.)
    */
-  bool injectKeyPressed(const OIS::KeyEvent &arg);
+  bool injectKeyPressed(const run3::InputEvent &arg);
 
   /**
    *  let buttonGUI know when a key has been released .
    */
-  bool injectKeyReleased(const OIS::KeyEvent &arg);
+  bool injectKeyReleased(const run3::InputEvent &arg);
 
   /**
    * Creates a button.
@@ -1100,7 +1104,7 @@ public:
    *  @param		mouseButton	The mouse button you want to force a
    * click with.
    */
-  void forceClick(OIS::MouseButtonID mouseButton = MB_Left);
+  void forceClick(run3::MouseButton mouseButton = run3::MouseButton::Left);
 
   /**
    * Moves cursor to a button,  then forces a click and release.
@@ -1110,9 +1114,9 @@ public:
    *  @param		b the button you want to force click.
    * NOTE: button must be active for it to work
    */
-  void forceClickButton(button *b, OIS::MouseButtonID mouseButton = MB_Left);
+  void forceClickButton(button *b, run3::MouseButton mouseButton = run3::MouseButton::Left);
   void forceClickButton(std::string buttonName,
-                        OIS::MouseButtonID mouseButton = MB_Left);
+                        run3::MouseButton mouseButton = run3::MouseButton::Left);
 
   /**
    * Returns the last event that occurred since the last time this was called.
@@ -1216,8 +1220,8 @@ private:
   unsigned int screenResY;
 
   unsigned short zOrderCounter;
-  MouseButtonID grabbingMouseButton;
-  MouseButtonID turningMouseButton; // this is the mouse button that can rotate
+  run3::MouseButton grabbingMouseButton;
+  run3::MouseButton turningMouseButton; // this is the mouse button that can rotate
                                     // buttonMeshes.
 
   std::string
@@ -1225,10 +1229,10 @@ private:
   buttonEvent eventContainer;
   std::vector<buttonEvent> eventLog;
 
-  // Ogre::UTFString keycodeToUTF32( unsigned int scanCode);  //maybe someone
+  // Text input is supplied as UTF-8 by the platform input adapter.
   // knows enough to implement this one day...  i tried but couldnt get it bug
   // free.
-  std::string keyCodeToString(const OIS::KeyCode &key, bool shift,
+  std::string keyCodeToString(const run3::Key &key, bool shift,
                               bool alphanumericOnly = false);
   bool lshift;
   bool rshift;

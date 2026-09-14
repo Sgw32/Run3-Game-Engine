@@ -4,7 +4,6 @@
 /////////////////////////////////////////////////////////////////////
 #pragma once
 #include "OgreConsole.h"
-#include <OIS/OIS.h>
 #include <Ogre.h>
 
 #define MAX_PANEL_ROLLOUT 500

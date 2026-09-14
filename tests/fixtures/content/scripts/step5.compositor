@@ -1,0 +1,12 @@
+compositor Run3/Step5FixtureCompositor
+{
+    technique
+    {
+        target_output
+        {
+            pass clear
+            {
+            }
+        }
+    }
+}

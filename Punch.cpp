@@ -44,13 +44,13 @@ void Punch::init(Ogre::Root *_root, SceneManager *sceneMgr,
   shootcount = 0.0f;
 }
 
-void Punch::Move(const OIS::MouseEvent &arg, Ogre::Real time) {}
-void Punch::Press(const OIS::KeyEvent &arg) {}
-void Punch::Release(const OIS::KeyEvent &arg) {}
-void Punch::MousePress(const OIS::MouseEvent &arg, OIS::MouseButtonID id) {
+void Punch::Move(const run3::InputEvent &arg, Ogre::Real time) {}
+void Punch::Press(const run3::InputEvent &arg) {}
+void Punch::Release(const run3::InputEvent &arg) {}
+void Punch::MousePress(const run3::InputEvent &arg, run3::MouseButton id) {
   shooting = true;
   shootcount = 0.0f;
-  if (id == OIS::MB_Left) {
+  if (id == run3::MouseButton::Left) {
     mWeaponState->setEnabled(false);
     mWeaponState = weapon->getAnimationState("attack1");
     mWeaponState->setLoop(true);
@@ -64,7 +64,7 @@ void Punch::MousePress(const OIS::MouseEvent &arg, OIS::MouseButtonID id) {
       soundmgr->playAudio(hitw,false);*/
     }
   }
-  if (id == OIS::MB_Right) {
+  if (id == run3::MouseButton::Right) {
     mWeaponState->setEnabled(false);
     mWeaponState = weapon->getAnimationState("attack2");
     mWeaponState->setLoop(true);
@@ -102,7 +102,7 @@ Ogre::Vector3 Punch::get_direction() {
   return direction;
 }
 
-void Punch::MouseRelease(const OIS::MouseEvent &arg, OIS::MouseButtonID id) {
+void Punch::MouseRelease(const run3::InputEvent &arg, run3::MouseButton id) {
   shooting = false;
   mWeaponState->setEnabled(false);
   mWeaponState = weapon->getAnimationState("idle");

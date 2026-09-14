@@ -3,7 +3,6 @@
 #include "OgreMaterialManager.h"
 #include "OgreOverlayManager.h"
 #include "OgreTechnique.h"
-#include "windows.h" // for MessageBox
 
 using namespace Ogre;
 
@@ -27,14 +26,14 @@ Fader::Fader(const char *OverlayName, const char *MaterialName,
     _overlay = Ogre::OverlayManager::getSingleton().getByName(OverlayName);
     _overlay->hide();
 
-  } catch (Ogre::Exception e) {
-    MessageBox(NULL, e.getFullDescription().c_str(), "Fader Exception",
-               MB_OK | MB_ICONERROR | MB_TASKMODAL);
+  } catch (const Ogre::Exception &e) {
+    Ogre::LogManager::getSingleton().logMessage(
+        "Fader initialization failed: " + e.getFullDescription(),
+        Ogre::LML_CRITICAL);
   } catch (...) {
-    MessageBox(NULL,
-               "An unknown exception has occured while setting up the fader.  "
-               "Scene fading will not be supported.",
-               "Fader Exception", MB_OK | MB_ICONERROR | MB_TASKMODAL);
+    Ogre::LogManager::getSingleton().logMessage(
+        "Unknown error while setting up the fader; scene fading is disabled",
+        Ogre::LML_CRITICAL);
   }
 }
 

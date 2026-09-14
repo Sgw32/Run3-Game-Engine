@@ -86,16 +86,16 @@ void generic_lua_weapon::luaFuncInit() {
   }
 }
 
-void generic_lua_weapon::Move(const OIS::MouseEvent &arg, Ogre::Real time) {
+void generic_lua_weapon::Move(const run3::InputEvent &arg, Ogre::Real time) {
   lua_getglobal(pLuaState, mouseMove.c_str());
 
   if (lua_isfunction(pLuaState, -1)) {
-    lua_pushnumber(pLuaState, arg.state.X.rel);
-    lua_pushnumber(pLuaState, arg.state.Y.rel);
+    lua_pushnumber(pLuaState, arg.deltaX);
+    lua_pushnumber(pLuaState, arg.deltaY);
     lua_call(pLuaState, 2, 0);
   }
 }
-void generic_lua_weapon::Press(const OIS::KeyEvent &arg) {
+void generic_lua_weapon::Press(const run3::InputEvent &arg) {
   lua_getglobal(pLuaState, keyPress.c_str());
 
   if (lua_isfunction(pLuaState, -1)) {
@@ -103,7 +103,7 @@ void generic_lua_weapon::Press(const OIS::KeyEvent &arg) {
     lua_call(pLuaState, 1, 0);
   }
 }
-void generic_lua_weapon::Release(const OIS::KeyEvent &arg) {
+void generic_lua_weapon::Release(const run3::InputEvent &arg) {
   lua_getglobal(pLuaState, keyRelease.c_str());
 
   if (lua_isfunction(pLuaState, -1)) {
@@ -111,10 +111,10 @@ void generic_lua_weapon::Release(const OIS::KeyEvent &arg) {
     lua_call(pLuaState, 1, 0);
   }
 }
-void generic_lua_weapon::MousePress(const OIS::MouseEvent &arg,
-                                    OIS::MouseButtonID id) {
+void generic_lua_weapon::MousePress(const run3::InputEvent &arg,
+                                    run3::MouseButton id) {
 
-  if (id == OIS::MB_Left) {
+  if (id == run3::MouseButton::Left) {
     //	shooting=true;
     mWeaponState->setEnabled(false);
     mWeaponState->setLength(0.5f);
@@ -128,28 +128,28 @@ void generic_lua_weapon::MousePress(const OIS::MouseEvent &arg,
     lua_getglobal(pLuaState, mousePressL.c_str());
 
     if (lua_isfunction(pLuaState, -1)) {
-      lua_pushnumber(pLuaState, arg.state.X.rel);
-      lua_pushnumber(pLuaState, arg.state.Y.rel);
+      lua_pushnumber(pLuaState, arg.deltaX);
+      lua_pushnumber(pLuaState, arg.deltaY);
       lua_call(pLuaState, 2, 0);
     }
   }
 
-  if (id == OIS::MB_Right) {
+  if (id == run3::MouseButton::Right) {
     lua_getglobal(pLuaState, mousePressR.c_str());
 
     if (lua_isfunction(pLuaState, -1)) {
-      lua_pushnumber(pLuaState, arg.state.X.rel);
-      lua_pushnumber(pLuaState, arg.state.Y.rel);
+      lua_pushnumber(pLuaState, arg.deltaX);
+      lua_pushnumber(pLuaState, arg.deltaY);
       lua_call(pLuaState, 2, 0);
     }
   }
 
-  if (id == OIS::MB_Middle) {
+  if (id == run3::MouseButton::Middle) {
     lua_getglobal(pLuaState, mousePressM.c_str());
 
     if (lua_isfunction(pLuaState, -1)) {
-      lua_pushnumber(pLuaState, arg.state.X.rel);
-      lua_pushnumber(pLuaState, arg.state.Y.rel);
+      lua_pushnumber(pLuaState, arg.deltaX);
+      lua_pushnumber(pLuaState, arg.deltaY);
       lua_call(pLuaState, 2, 0);
     }
   }
@@ -176,35 +176,35 @@ Ogre::Vector3 generic_lua_weapon::get_direction() {
   return direction;
 }
 
-void generic_lua_weapon::MouseRelease(const OIS::MouseEvent &arg,
-                                      OIS::MouseButtonID id) {
+void generic_lua_weapon::MouseRelease(const run3::InputEvent &arg,
+                                      run3::MouseButton id) {
 
-  if (id == OIS::MB_Right) {
+  if (id == run3::MouseButton::Right) {
     lua_getglobal(pLuaState, mouseReleaseR.c_str());
 
     if (lua_isfunction(pLuaState, -1)) {
-      lua_pushnumber(pLuaState, arg.state.X.rel);
-      lua_pushnumber(pLuaState, arg.state.Y.rel);
+      lua_pushnumber(pLuaState, arg.deltaX);
+      lua_pushnumber(pLuaState, arg.deltaY);
       lua_call(pLuaState, 2, 0);
     }
   }
 
-  if (id == OIS::MB_Middle) {
+  if (id == run3::MouseButton::Middle) {
     lua_getglobal(pLuaState, mouseReleaseM.c_str());
 
     if (lua_isfunction(pLuaState, -1)) {
-      lua_pushnumber(pLuaState, arg.state.X.rel);
-      lua_pushnumber(pLuaState, arg.state.Y.rel);
+      lua_pushnumber(pLuaState, arg.deltaX);
+      lua_pushnumber(pLuaState, arg.deltaY);
       lua_call(pLuaState, 2, 0);
     }
   }
 
-  if (id == OIS::MB_Left) {
+  if (id == run3::MouseButton::Left) {
     lua_getglobal(pLuaState, mouseReleaseL.c_str());
 
     if (lua_isfunction(pLuaState, -1)) {
-      lua_pushnumber(pLuaState, arg.state.X.rel);
-      lua_pushnumber(pLuaState, arg.state.Y.rel);
+      lua_pushnumber(pLuaState, arg.deltaX);
+      lua_pushnumber(pLuaState, arg.deltaY);
       lua_call(pLuaState, 2, 0);
     }
     // shooting=false;

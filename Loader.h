@@ -10,7 +10,6 @@
 #include "StereoManager.h"
 #include "SuperFX.h"
 #include "global.h"
-#include <OIS/OIS.h>
 #include <Ogre.h>
 #include <OgreFrameListener.h>
 #include <list>

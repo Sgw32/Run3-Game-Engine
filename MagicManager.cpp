@@ -185,30 +185,48 @@ void MagicManager::activateMagic(bool act, String lua) {
   }
 }
 
-bool MagicManager::mouseMoved(const OIS::MouseEvent &arg) {
-  if (arg.state.Z.rel != 0)
-    buttonMgr->injectMouseWheel(arg.state.Z.rel);
+bool MagicManager::mouseMoved(const run3::InputEvent &arg) {
+  if (arg.wheelY != 0)
+    buttonMgr->injectMouseWheel(arg.wheelY);
 
-  return buttonMgr->injectMouseMove(arg.state.X.abs, arg.state.Y.abs);
+  return buttonMgr->injectMouseMove(arg.x, arg.y);
 }
 
-bool MagicManager::mousePressed(const OIS::MouseEvent &arg,
-                                OIS::MouseButtonID id) {
+bool MagicManager::mousePressed(const run3::InputEvent &arg,
+                                run3::MouseButton id) {
   return buttonMgr->injectMouseDown(id);
 }
 
-bool MagicManager::mouseReleased(const OIS::MouseEvent &arg,
-                                 OIS::MouseButtonID id) {
+bool MagicManager::mouseReleased(const run3::InputEvent &arg,
+                                 run3::MouseButton id) {
   return buttonMgr->injectMouseUp(id);
 }
 
-bool MagicManager::keyPressed(const OIS::KeyEvent &arg) {
+bool MagicManager::keyPressed(const run3::InputEvent &arg) {
   return buttonMgr->injectKeyPressed(arg);
 }
 
-bool MagicManager::keyReleased(const OIS::KeyEvent &arg) {
+bool MagicManager::keyReleased(const run3::InputEvent &arg) {
 
   return buttonMgr->injectKeyReleased(arg);
+}
+
+bool MagicManager::onInputEvent(const run3::InputEvent &event) {
+  switch (event.type) {
+  case run3::InputEventType::KeyPressed:
+    return keyPressed(event);
+  case run3::InputEventType::KeyReleased:
+    return keyReleased(event);
+  case run3::InputEventType::MouseMoved:
+  case run3::InputEventType::MouseWheel:
+    return mouseMoved(event);
+  case run3::InputEventType::MousePressed:
+    return mousePressed(event, event.mouseButton);
+  case run3::InputEventType::MouseReleased:
+    return mouseReleased(event, event.mouseButton);
+  default:
+    return false;
+  }
 }
 
 void MagicManager::windowMoved(RenderWindow *rw) {}
@@ -241,7 +259,7 @@ void MagicManager::handleButtonEvent(buttonGUI::buttonEvent *e) {
   if (e->actionButton)
     name = *(e->actionButton->getName()); // store the name of the main button.
 
-  if ((e->action == buttonGUI::ONCLICK) && (e->mouseButton == OIS::MB_Left)) {
+  if ((e->action == buttonGUI::ONCLICK) && (e->mouseButton == run3::MouseButton::Left)) {
     if (e->actionButton->mLua != "")
       RunLuaScript(pLua, e->actionButton->mLua.c_str());
     //	CWeapon::getSingleton().addWeapon("vint");

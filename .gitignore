@@ -4,6 +4,7 @@
 
 # Root CMake and vcpkg outputs.
 /build/
+/converted-content/
 /out/
 /vcpkg_installed/
 /CMakeCache.txt

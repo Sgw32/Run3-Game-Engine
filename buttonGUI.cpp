@@ -1,5 +1,7 @@
 #include "buttonGUI.h"
 
+#include <run3/core/Log.hpp>
+
 using namespace buttonGUI;
 using namespace Ogre;
 
@@ -50,8 +52,8 @@ textScheme::~textScheme(void) {}
 ///**  BUTTON  CLASS    **
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-button::button(std::string &buttonName, std::string &material,
-               buttonPosition &position, short width, short height,
+button::button(std::string buttonName, std::string material,
+               buttonPosition position, short width, short height,
                buttonManager *mgr, Ogre::Overlay *o, button *parentButton,
                textScheme &style, bool isActiveButton)
     : name(buttonName), buttonMgr(mgr), overlay(o), parent(parentButton),
@@ -109,7 +111,7 @@ button *button::createChildButton(std::string name, std::string material,
   return b;
 }
 
-button *button::addTextArea(std::string name, Ogre::UTFString value, short posX,
+button *button::addTextArea(std::string name, Ogre::String value, short posX,
                             short posY, TextAreaOverlayElement::Alignment a) {
   TextAreaOverlayElement *textArea = static_cast<TextAreaOverlayElement *>(
       OverlayManager::getSingleton().createOverlayElement("TextArea", name));
@@ -131,7 +133,7 @@ button *button::addTextArea(std::string name, Ogre::UTFString value, short posX,
   return this;
 }
 
-button *button::editTextArea(std::string name, Ogre::UTFString &value) {
+button *button::editTextArea(std::string name, Ogre::String &value) {
   for (textItr = textAreas.begin(); textItr != textAreas.end();
        ++textItr) // iterate through our children textAreas
   {
@@ -1021,7 +1023,7 @@ bool textInputArea::insertBackspace(void) {
   return true;
 }
 
-Ogre::UTFString *textInputArea::getValue(void) { return &textValue; }
+Ogre::String *textInputArea::getValue(void) { return &textValue; }
 
 void textInputArea::submit(void) {
   if (clearTextOnSubmit)
@@ -1301,12 +1303,12 @@ buttonManager::buttonManager(std::string defaultTextFieldM,
     : sceneMgr(mgr), camera(cameraName),
       defaultTextFieldMaterial(defaultTextFieldM),
       defaultTextStyle(defaultTextScheme), grabbedButton(NULL),
-      grabbingMouseButton(MB_Left), // defnes the mouse button that is used to
+      grabbingMouseButton(run3::MouseButton::Left), // defnes the mouse button that is used to
                                     // drag buttons around
       turningMouseButton(
-          MB_Right), // defines the mouse button that can rotate buttonMeshes
+          run3::MouseButton::Right), // defines the mouse button that can rotate buttonMeshes
       zOrderCounter(5), activeTextInputArea(NULL),
-      eventContainer(ONSUBMIT, OIS::MouseButtonID(-1), NULL,
+      eventContainer(ONSUBMIT, run3::MouseButton::None, NULL,
                      NULL), // junk event container just for the initialization
       capslock(false), lshift(false), rshift(false), backSpace(false),
       backSpaceHeld(false), backSpaceHeldTime(0) {
@@ -1375,7 +1377,7 @@ textInputArea *buttonManager::cycleTextInputArea(void) {
 button *buttonManager::setCursor(std::string material, unsigned short width,
                                  unsigned short height, unsigned short hotspotX,
                                  unsigned short hotspotY, bool visibility) {
-  ShowCursor(false); // hide windows cursor
+  run3::logInfo("buttonGUI requested an engine-managed cursor");
   mouseOffsetX = hotspotX;
   mouseOffsetY = hotspotY;
 
@@ -1402,13 +1404,13 @@ button *buttonManager::hideCursor(void) {
   return cursorButton;
 }
 
-bool buttonManager::injectKeyPressed(const OIS::KeyEvent &arg) {
-  if (arg.key == KC_TAB) // cycle through tia's
+bool buttonManager::injectKeyPressed(const run3::InputEvent &arg) {
+  if (arg.key == run3::Key::Tab) // cycle through tia's
   {
     cycleTextInputArea();
   }
 
-  if (arg.key == KC_CAPITAL) // caps lock
+  if (arg.key == run3::Key::CapsLock) // caps lock
   {
     if (capslock)
       capslock = false;
@@ -1417,29 +1419,29 @@ bool buttonManager::injectKeyPressed(const OIS::KeyEvent &arg) {
   }
 
   if (activeTextInputArea) { // inject the key into the active textArea
-    if (arg.key == KC_RETURN) {
+    if (arg.key == run3::Key::Return) {
       if (activeTextInputArea->getTrigger(ONSUBMIT)) {
         eventLog.push_back(buttonEvent(
-            ONSUBMIT, OIS::MouseButtonID(-1), activeTextInputArea, NULL,
+            ONSUBMIT, run3::MouseButton::None, activeTextInputArea, NULL,
             *activeTextInputArea->getValue())); // log the event
         activeTextInputArea->submit();
         if (activeTextInputArea->getDefocusOnSubmit())
           activeTextInputArea = NULL;
       }
-    } else if (arg.key == KC_BACK) {
+    } else if (arg.key == run3::Key::Backspace) {
       if (activeTextInputArea->insertBackspace())
-        eventLog.push_back(buttonEvent(KEYACCEPTED, OIS::MouseButtonID(-1),
+        eventLog.push_back(buttonEvent(KEYACCEPTED, run3::MouseButton::None,
                                        activeTextInputArea, NULL,
                                        "BACKSPACE")); // log the event, accepted
       else
         eventLog.push_back(buttonEvent(
-            KEYREJECTED, OIS::MouseButtonID(-1), activeTextInputArea, NULL,
+            KEYREJECTED, run3::MouseButton::None, activeTextInputArea, NULL,
             "BACKSPACE")); // log the event as rejected
       backSpace = true;
       backSpaceHeldTime = timer.getMilliseconds();
-    } else if (arg.key == KC_LSHIFT)
+    } else if (arg.key == run3::Key::LeftShift)
       lshift = true;
-    else if (arg.key == KC_RSHIFT)
+    else if (arg.key == run3::Key::RightShift)
       rshift = true;
     else {
       bool shift = false;
@@ -1459,11 +1461,11 @@ bool buttonManager::injectKeyPressed(const OIS::KeyEvent &arg) {
         accepted = activeTextInputArea->input(eventStringContainer);
 
       if (accepted)
-        eventLog.push_back(buttonEvent(KEYACCEPTED, OIS::MouseButtonID(-1),
+        eventLog.push_back(buttonEvent(KEYACCEPTED, run3::MouseButton::None,
                                        activeTextInputArea, NULL,
                                        eventStringContainer)); // log the event
       else
-        eventLog.push_back(buttonEvent(KEYREJECTED, OIS::MouseButtonID(-1),
+        eventLog.push_back(buttonEvent(KEYREJECTED, run3::MouseButton::None,
                                        activeTextInputArea, NULL,
                                        eventStringContainer)); // log the event
     }
@@ -1471,15 +1473,15 @@ bool buttonManager::injectKeyPressed(const OIS::KeyEvent &arg) {
   return true;
 }
 
-bool buttonManager::injectKeyReleased(const OIS::KeyEvent &arg) {
+bool buttonManager::injectKeyReleased(const run3::InputEvent &arg) {
   if (activeTextInputArea) { // inject the key into the active textArea
-    if (arg.key == KC_BACK) {
+    if (arg.key == run3::Key::Backspace) {
       backSpace = false;
       backSpaceHeld = false;
       backSpaceHeldTime = 0;
-    } else if (arg.key == KC_LSHIFT)
+    } else if (arg.key == run3::Key::LeftShift)
       lshift = false;
-    else if (arg.key == KC_RSHIFT)
+    else if (arg.key == run3::Key::RightShift)
       rshift = false;
   }
   return true;
@@ -1513,7 +1515,7 @@ button *buttonManager::getTopButton(void) {
   return topButton;
 }
 
-bool buttonManager::injectMouseDown(OIS::MouseButtonID &id) {
+bool buttonManager::injectMouseDown(run3::MouseButton &id) {
   // de-focus the active textInputArea, if any
   if (activeTextInputArea)
     activeTextInputArea->setFocused(false);
@@ -1526,7 +1528,7 @@ bool buttonManager::injectMouseDown(OIS::MouseButtonID &id) {
     if (turningMouseButton == id)
       isRotateMB = true;
 
-    // if (id==OIS::MB_Left)
+    // if (id==run3::MouseButton::Left)
     //{
     if (topButton->onClick(isRotateMB)) // register the event in the button and
                                         // check the returned trigger
@@ -1555,7 +1557,7 @@ bool buttonManager::injectMouseDown(OIS::MouseButtonID &id) {
   return true;
 }
 
-bool buttonManager::injectMouseUp(OIS::MouseButtonID &id) {
+bool buttonManager::injectMouseUp(run3::MouseButton &id) {
   button *topButton = getTopButton();
 
   if (topButton) {
@@ -1628,7 +1630,7 @@ bool buttonManager::injectMouseMove(int xPos, int yPos) {
         if ((*buttonItr)->mouseOver()) // register the event and check the
                                        // returned trigger
           eventLog.push_back(
-              buttonEvent(MOUSEOVER, OIS::MouseButtonID(-1), (*buttonItr)));
+              buttonEvent(MOUSEOVER, run3::MouseButton::None, (*buttonItr)));
       }
     } else {
       if ((*buttonItr)->isMouseOver) // if the mouse was previously over,
@@ -1637,7 +1639,7 @@ bool buttonManager::injectMouseMove(int xPos, int yPos) {
         if ((*buttonItr)->mouseOff()) // register the event and check the
                                       // returned trigger
           eventLog.push_back(
-              buttonEvent(MOUSEOFF, OIS::MouseButtonID(-1), (*buttonItr)));
+              buttonEvent(MOUSEOFF, run3::MouseButton::None, (*buttonItr)));
       }
     }
   }
@@ -1661,19 +1663,19 @@ bool buttonManager::injectMouseWheel(short int z) {
       else
         a = MOUSEWHEELDOWN;
 
-      eventLog.push_back(buttonEvent(a, OIS::MouseButtonID(-1), topButton));
+      eventLog.push_back(buttonEvent(a, run3::MouseButton::None, topButton));
     }
   }
   return true;
 }
 
-void buttonManager::forceClick(OIS::MouseButtonID mouseButton) {
+void buttonManager::forceClick(run3::MouseButton mouseButton) {
   injectMouseDown(mouseButton); // insert a single click
   injectMouseUp(mouseButton);
 }
 
 void buttonGUI::buttonManager::forceClickButton(
-    button *b, OIS::MouseButtonID mouseButton /*= MB_Left*/) {
+    button *b, run3::MouseButton mouseButton /*= run3::MouseButton::Left*/) {
   if (b) {
     short origX = mouseX;
     short origY = mouseY;
@@ -1686,7 +1688,7 @@ void buttonGUI::buttonManager::forceClickButton(
 }
 
 void buttonGUI::buttonManager::forceClickButton(
-    std::string buttonName, OIS::MouseButtonID mouseButton /*= MB_Left*/) {
+    std::string buttonName, run3::MouseButton mouseButton /*= run3::MouseButton::Left*/) {
   forceClickButton(getButton(buttonName), mouseButton);
 }
 
@@ -1914,7 +1916,7 @@ void buttonManager::update(void) {
         unsigned long timePassed = currentTime - backSpaceHeldTime;
         if (timePassed != 0) {
           unsigned int numCharsToDelete =
-              unsigned int(timePassed / backSpaceFlowTime);
+              static_cast<unsigned int>(timePassed / backSpaceFlowTime);
 
           if (numCharsToDelete != 0)
             backSpaceHeldTime = currentTime; // reset the timer
@@ -1922,11 +1924,11 @@ void buttonManager::update(void) {
           for (unsigned short x = 0; x < numCharsToDelete; x++) {
             if (activeTextInputArea->insertBackspace())
               eventLog.push_back(buttonEvent(
-                  KEYACCEPTED, OIS::MouseButtonID(-1), activeTextInputArea,
+                  KEYACCEPTED, run3::MouseButton::None, activeTextInputArea,
                   NULL, "BACKSPACE")); // log the event
             else
               eventLog.push_back(buttonEvent(
-                  KEYREJECTED, OIS::MouseButtonID(-1), activeTextInputArea,
+                  KEYREJECTED, run3::MouseButton::None, activeTextInputArea,
                   NULL, "BACKSPACE")); // log the event
           }
         }
@@ -1950,275 +1952,275 @@ void buttonManager::update(void) {
   }
 }
 
-std::string buttonManager::keyCodeToString(const OIS::KeyCode &key, bool shift,
+std::string buttonManager::keyCodeToString(const run3::Key &key, bool shift,
                                            bool alphanumericOnly) {
   // I apologize for my barbaric keyCode translation algorithm.
   std::string s = "";
 
-  if (key == KC_1)
+  if (key == run3::Key::Num1)
     s = "1";
-  else if (key == KC_2)
+  else if (key == run3::Key::Num2)
     s = "2";
-  else if (key == KC_3)
+  else if (key == run3::Key::Num3)
     s = "3";
-  else if (key == KC_4)
+  else if (key == run3::Key::Num4)
     s = "4";
-  else if (key == KC_5)
+  else if (key == run3::Key::Num5)
     s = "5";
-  else if (key == KC_6)
+  else if (key == run3::Key::Num6)
     s = "6";
-  else if (key == KC_7)
+  else if (key == run3::Key::Num7)
     s = "7";
-  else if (key == KC_8)
+  else if (key == run3::Key::Num8)
     s = "8";
-  else if (key == KC_9)
+  else if (key == run3::Key::Num9)
     s = "9";
-  else if (key == KC_0)
+  else if (key == run3::Key::Num0)
     s = "0";
-  else if (key == KC_MINUS) { // - on main keyboard
+  else if (key == run3::Key::Minus) { // - on main keyboard
     if (shift)
       s = "_";
     else
       s = "-";
-  } else if (key == KC_Q) {
+  } else if (key == run3::Key::Q) {
     if (shift || capslock)
       s = "Q";
     else
       s = "q";
-  } else if (key == KC_W) {
+  } else if (key == run3::Key::W) {
     if (shift || capslock)
       s = "W";
     else
       s = "w";
-  } else if (key == KC_E) {
+  } else if (key == run3::Key::E) {
     if (shift || capslock)
       s = "E";
     else
       s = "e";
-  } else if (key == KC_R) {
+  } else if (key == run3::Key::R) {
     if (shift || capslock)
       s = "R";
     else
       s = "r";
-  } else if (key == KC_T) {
+  } else if (key == run3::Key::T) {
     if (shift || capslock)
       s = "T";
     else
       s = "t";
-  } else if (key == KC_Y) {
+  } else if (key == run3::Key::Y) {
     if (shift || capslock)
       s = "Y";
     else
       s = "y";
-  } else if (key == KC_U) {
+  } else if (key == run3::Key::U) {
     if (shift || capslock)
       s = "U";
     else
       s = "u";
-  } else if (key == KC_I) {
+  } else if (key == run3::Key::I) {
     if (shift || capslock)
       s = "I";
     else
       s = "i";
-  } else if (key == KC_O) {
+  } else if (key == run3::Key::O) {
     if (shift || capslock)
       s = "O";
     else
       s = "o";
-  } else if (key == KC_P) {
+  } else if (key == run3::Key::P) {
     if (shift || capslock)
       s = "P";
     else
       s = "p";
-  } else if (key == KC_A) {
+  } else if (key == run3::Key::A) {
     if (shift || capslock)
       s = "A";
     else
       s = "a";
-  } else if (key == KC_S) {
+  } else if (key == run3::Key::S) {
     if (shift || capslock)
       s = "S";
     else
       s = "s";
-  } else if (key == KC_D) {
+  } else if (key == run3::Key::D) {
     if (shift || capslock)
       s = "D";
     else
       s = "d";
-  } else if (key == KC_F) {
+  } else if (key == run3::Key::F) {
     if (shift || capslock)
       s = "F";
     else
       s = "f";
-  } else if (key == KC_G) {
+  } else if (key == run3::Key::G) {
     if (shift || capslock)
       s = "G";
     else
       s = "g";
-  } else if (key == KC_H) {
+  } else if (key == run3::Key::H) {
     if (shift || capslock)
       s = "H";
     else
       s = "h";
-  } else if (key == KC_J) {
+  } else if (key == run3::Key::J) {
     if (shift || capslock)
       s = "J";
     else
       s = "j";
-  } else if (key == KC_K) {
+  } else if (key == run3::Key::K) {
     if (shift || capslock)
       s = "K";
     else
       s = "k";
-  } else if (key == KC_L) {
+  } else if (key == run3::Key::L) {
     if (shift || capslock)
       s = "L";
     else
       s = "l";
-  } else if (key == KC_Z) {
+  } else if (key == run3::Key::Z) {
     if (shift || capslock)
       s = "Z";
     else
       s = "z";
-  } else if (key == KC_X) {
+  } else if (key == run3::Key::X) {
     if (shift || capslock)
       s = "X";
     else
       s = "x";
-  } else if (key == KC_C) {
+  } else if (key == run3::Key::C) {
     if (shift || capslock)
       s = "C";
     else
       s = "c";
-  } else if (key == KC_V) {
+  } else if (key == run3::Key::V) {
     if (shift || capslock)
       s = "V";
     else
       s = "v";
-  } else if (key == KC_B) {
+  } else if (key == run3::Key::B) {
     if (shift || capslock)
       s = "B";
     else
       s = "b";
-  } else if (key == KC_N) {
+  } else if (key == run3::Key::N) {
     if (shift || capslock)
       s = "N";
     else
       s = "n";
-  } else if (key == KC_M) {
+  } else if (key == run3::Key::M) {
     if (shift || capslock)
       s = "M";
     else
       s = "m";
-  } else if (key == KC_NUMPAD7)
+  } else if (key == run3::Key::Keypad7)
     s = "7";
-  else if (key == KC_NUMPAD8)
+  else if (key == run3::Key::Keypad8)
     s = "8";
-  else if (key == KC_NUMPAD9)
+  else if (key == run3::Key::Keypad9)
     s = "9";
-  else if (key == KC_SUBTRACT) // - on numeric keypad
+  else if (key == run3::Key::Subtract) // - on numeric keypad
     s = "-";
-  else if (key == KC_NUMPAD4)
+  else if (key == run3::Key::Keypad4)
     s = "4";
-  else if (key == KC_NUMPAD5)
+  else if (key == run3::Key::Keypad5)
     s = "5";
-  else if (key == KC_NUMPAD6)
+  else if (key == run3::Key::Keypad6)
     s = "6";
-  else if (key == KC_NUMPAD1)
+  else if (key == run3::Key::Keypad1)
     s = "1";
-  else if (key == KC_NUMPAD2)
+  else if (key == run3::Key::Keypad2)
     s = "2";
-  else if (key == KC_NUMPAD3)
+  else if (key == run3::Key::Keypad3)
     s = "3";
-  else if (key == KC_NUMPAD0)
+  else if (key == run3::Key::Keypad0)
     s = "0";
 
   if (!alphanumericOnly) {
-    if (key == KC_SPACE)
+    if (key == run3::Key::Space)
       s = " ";
-    else if (key == KC_LBRACKET) {
+    else if (key == run3::Key::LeftBracket) {
       if (shift)
         s = "{";
       else
         s = "[";
-    } else if (key == KC_RBRACKET) {
+    } else if (key == run3::Key::RightBracket) {
       if (shift)
         s = "}";
       else
         s = "]";
-    } else if (key == KC_PERIOD) {
+    } else if (key == run3::Key::Period) {
       if (shift)
         s = ">";
       else
         s = ".";
-    } else if (key == KC_COMMA) {
+    } else if (key == run3::Key::Comma) {
       if (shift)
         s = "<";
       else
         s = ",";
-    } else if (key == KC_SEMICOLON) {
+    } else if (key == run3::Key::Semicolon) {
       if (shift)
         s = ":";
       else
         s = ";";
-    } else if (key == KC_SLASH) {
+    } else if (key == run3::Key::Slash) {
       if (shift)
         s = "?";
       else
         s = "/";
-    } else if (key == KC_SLASH) {
+    } else if (key == run3::Key::Slash) {
       if (shift)
         s = "?";
       else
         s = "/";
-    } else if (key == KC_BACKSLASH) {
+    } else if (key == run3::Key::Backslash) {
       if (shift)
         s = "|";
       else
         s = "/";
     } // lets keep it forward slash,  just in case someone can use a backslash
       // to exploit some parsing function.
-    else if (key == KC_APOSTROPHE) {
+    else if (key == run3::Key::Apostrophe) {
       if (shift)
         s = "\"";
       else
         s = "'";
-    } else if (key == KC_EQUALS) {
+    } else if (key == run3::Key::Equals) {
       if (shift)
         s = "+";
       else
         s = "=";
-    } else if (key == KC_ADD) // + on keypad
+    } else if (key == run3::Key::Add) // + on keypad
       s = "+";
-    else if (key == KC_NUMPAD0)
+    else if (key == run3::Key::Keypad0)
       s = "0";
-    else if (key == KC_MULTIPLY) // * on numeric keypad
+    else if (key == run3::Key::Multiply) // * on numeric keypad
       s = "*";
     else if (shift) {
-      if (key == KC_1)
+      if (key == run3::Key::Num1)
         s = "!";
-      else if (key == KC_2)
+      else if (key == run3::Key::Num2)
         s = "@";
-      else if (key == KC_3)
+      else if (key == run3::Key::Num3)
         s = "#";
-      else if (key == KC_4)
+      else if (key == run3::Key::Num4)
         s = "$";
-      else if (key == KC_5)
+      else if (key == run3::Key::Num5)
         s = "%";
-      else if (key == KC_6)
+      else if (key == run3::Key::Num6)
         s = "^";
-      else if (key == KC_7)
+      else if (key == run3::Key::Num7)
         s = "&";
-      else if (key == KC_8)
+      else if (key == run3::Key::Num8)
         s = "*";
-      else if (key == KC_9)
+      else if (key == run3::Key::Num9)
         s = "(";
-      else if (key == KC_0)
+      else if (key == run3::Key::Num0)
         s = ")";
     }
-    // else if (key == KC_RETURN = )   // Enter on main keyboard
-    //	else if (key == KC_GRAVE       = 0x29,    // accent
-    // else if (key == KC_TAB )
+    // else if (key == run3::Key::Return = )   // Enter on main keyboard
+    //	else if (key == run3::Key::Grave       = 0x29,    // accent
+    // else if (key == run3::Key::Tab )
   }
 
   return s;

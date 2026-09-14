@@ -11,6 +11,10 @@ building `run3_legacy`. It is not permission to change gameplay semantics.
 | `OgreSimpleRenderable.h` transitively supplied render-queue IDs | Include `OgreRenderQueue.h` explicitly | `AmbientLight.cpp`, `MLight.cpp` | Deferred-render helper batch compiles in both compilers and configurations. |
 | `Ogre.h`/old GUI headers exposed Overlay classes and `OverlayManager` | Link imported target `OgreOverlay`; include `OgreOverlay.h`, `OgreOverlayContainer.h`, and `OgreOverlayManager.h` explicitly | `SceneLoadOverlay.h`, root `CMakeLists.txt` | Overlay unit and archive link in both compilers and configurations. |
 | Removed OIS/OgreConsole headers incidentally imported Ogre/std names | Remove unused retired headers and qualify `Ogre`/`std` types | `EventEntC.h/.cpp`, `SceneLoadOverlay.h/.cpp` | Both units compile without OIS on Windows and Linux. |
+| Ogre sample-framework `Root::startRendering()` owned the process loop | `Run3App` explicitly pumps OgreBites events, advances `EngineClock`, dispatches Run3 input, calls `Root::renderOneFrame`, and closes in one exception-safe owner | `source/app/Run3App.cpp`, `source/shell_main.cpp`, `Run3FrameListener.h` | Installed five-frame smoke passes with D3D11 and GL3+ in MSVC/GCC Debug and Release. |
+| `Ogre::UTFString` and transitive Overlay declarations | UTF-8 `Ogre::String` plus explicit `OgreOverlay.h`/`OgreOverlayManager.h` includes | `buttonGUI.h/.cpp` | `buttonGUI.cpp` compiles in the 26-unit legacy target on both compilers. |
+| `Root::getSceneManagerIterator()` | `Root::getSceneManagers()` with an explicit empty check | `ogreconsole.cpp` | Console unit compiles on both compilers; no content-dependent visual test in Step 4. |
+| `SimpleRenderable::setMaterial(String)` | Resolve the `MaterialPtr` with `MaterialManager::getByName` before assignment | `ogreconsole.cpp` | Console unit compiles on both compilers; runtime material validation remains a Step 9 task. |
 
 Additional non-Ogre portability fixes in the same compile batches were limited
 to the case-correct `Tokenizer.h` include, an explicit `<iostream>` include,
@@ -22,8 +26,8 @@ and a fixed underlying type for the legal forward declaration of
 The following are not marked migrated because their owning translation units
 are still outside the compiled subset:
 
-- legacy sample-framework startup in `main.cpp`, `Run3Application.h`, and
-  `Run3FrameListener.h`;
+- the historical, unbuilt gameplay entrypoint in `main.cpp` and
+  `Run3Application.h`; the supported executable now uses `run3::Run3App`;
 - custom scene-manager/PCZ/octree factory ownership;
 - compositor chains and render-target APIs in `DeferredShading.cpp`,
   `Run3Shadowing.cpp`, `StereoManager.cpp`, and post-processing managers;

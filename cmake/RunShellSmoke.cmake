@@ -21,7 +21,7 @@ if(NOT _run3_result EQUAL 0)
             "stderr:\n${_run3_stderr}")
 endif()
 
-set(_run3_log "${RUN3_USER_DIR}/ogre.log")
+set(_run3_log "${RUN3_USER_DIR}/logs/ogre.log")
 if(NOT EXISTS "${_run3_log}")
     message(FATAL_ERROR "run3_shell did not create ${_run3_log}")
 endif()

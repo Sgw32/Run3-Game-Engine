@@ -3,6 +3,7 @@
 #include "LuaHelperFunctions.h"
 #include "Ogre.h"
 #include "global.h"
+#include <run3/input/Input.hpp>
 
 #include <lauxlib.h>
 #include <list>
@@ -76,7 +77,7 @@ public:
   virtual bool frameStarted(const Ogre::FrameEvent &evt);
   virtual bool frameEnded(const Ogre::FrameEvent &evt);
 
-  void onKeyPressed(const OIS::KeyEvent &arg);
+  void onKeyPressed(const run3::InputEvent &arg);
   void setMaterial(String name);
 
   void processLuaFunction(vector<String> params);

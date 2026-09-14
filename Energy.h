@@ -1,5 +1,4 @@
 #pragma once
-#include <OIS/OIS.h>
 #include <Ogre.h>
 #include <math.h>
 #include <vector>

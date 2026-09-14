@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scene formatVersion="1.0">
+  <environment>
+    <colourAmbient r="0.20" g="0.20" b="0.25"/>
+    <colourBackground r="0.03" g="0.05" b="0.08"/>
+  </environment>
+  <nodes>
+    <node name="Step5FixtureMarker">
+      <position x="0" y="100" z="100"/>
+      <light name="Step5FixtureLight" type="point">
+        <colourDiffuse r="0.8" g="0.85" b="1.0"/>
+        <colourSpecular r="0.8" g="0.85" b="1.0"/>
+        <lightAttenuation range="600" constant="1" linear="0" quadratic="0"/>
+      </light>
+    </node>
+    <node name="Step5FixtureCubeNode">
+      <position x="0" y="0" z="0"/>
+      <entity name="Step5FixtureCube" primitive="cube"/>
+    </node>
+  </nodes>
+</scene>

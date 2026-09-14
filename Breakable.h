@@ -2,7 +2,6 @@
 #include "POs.h"
 #include "PhysObject.h"
 #include "global.h"
-#include <OIS/OIS.h>
 #include <Ogre.h>
 #include <OgreFrameListener.h>
 #include <OgreNewt.h>

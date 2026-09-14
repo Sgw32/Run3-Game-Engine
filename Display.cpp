@@ -132,19 +132,19 @@ void Display::shutdown() {
   overlay->clear();
 }
 
-void Display::onKeyPressed(const OIS::KeyEvent &arg) {
+void Display::onKeyPressed(const run3::InputEvent &arg) {
   if (!visible)
     return;
 
   if (mEasyExit) {
-    if ((arg.key == OIS::KC_E) || (arg.key == OIS::KC_ESCAPE)) {
+    if ((arg.key == run3::Key::E) || (arg.key == run3::Key::Escape)) {
       if (isVisible()) {
         reset();
       }
     }
   }
 
-  if (arg.key == OIS::KC_RETURN) {
+  if (arg.key == run3::Key::Return) {
     // split the parameter list
     if (!elisa_chat) {
       Ogre::StringUtil::trim(prompt); // A useful addition
@@ -185,22 +185,22 @@ void Display::onKeyPressed(const OIS::KeyEvent &arg) {
 
     prompt = "";
   }
-  if (arg.key == OIS::KC_BACK)
+  if (arg.key == run3::Key::Backspace)
     prompt = prompt.substr(0, prompt.length() - 1);
-  if (arg.key == OIS::KC_PGUP) {
+  if (arg.key == run3::Key::PageUp) {
     if (start_line > 0)
       start_line--;
   }
 
-  /* if ((arg.key == OIS::KC_LSHIFT)||
-           (arg.key == OIS::KC_RSHIFT)||
-           (arg.key == OIS::KC_LSHIFT)||*/
+  /* if ((arg.key == run3::Key::LeftShift)||
+           (arg.key == run3::Key::RightShift)||
+           (arg.key == run3::Key::LeftShift)||*/
 
-  if (arg.key == OIS::KC_PGDOWN) {
+  if (arg.key == run3::Key::PageDown) {
     if (start_line < lines.size())
       start_line++;
   } else {
-    // OIS::setTextTranslation(
+    // Text translation is now performed once by the platform input adapter.
 
     char legalchars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz12"
                         "34567890+!\"#%&/()=?[]\\*-_.:,; ";

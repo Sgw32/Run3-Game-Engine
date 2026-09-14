@@ -7,7 +7,6 @@
 #include "PickupMatCallback.h"
 #include "Timeshift.h"
 #include "global.h"
-#include <OIS/OIS.h>
 #include <Ogre.h>
 #include <OgreNewt.h>
 

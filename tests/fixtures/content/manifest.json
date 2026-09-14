@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "manifest_version": 1,
+  "content_id": "run3-step5-fixture",
+  "content_version": "1",
+  "compatibility_runtime": {"lua": "5.4.8", "ogre": "14.5.2", "resource_profile": "resources.cfg"},
+  "scan_roots": ["."],
+  "resource_configs": ["resources.cfg"],
+  "xml_extensions": [".scene", ".xml"],
+  "lua_extensions": [".lua"],
+  "ogre_script_extensions": [".material", ".program", ".compositor"]
+}

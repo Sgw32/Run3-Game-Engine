@@ -8,7 +8,6 @@
 #include "PhysObject.h"
 #include "func_door.h"
 #include "global.h"
-#include <OIS/OIS.h>
 #include <Ogre.h>
 // LUA
 #include <lauxlib.h>

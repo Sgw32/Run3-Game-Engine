@@ -10,8 +10,8 @@
 #include "Player.h"
 #include "SuperFX.h"
 #include "global.h"
+#include <run3/input/Input.hpp>
 #include <CEGUI/CEGUI.h>
-#include <OIS/OIS.h>
 #include <Ogre.h>
 
 class Run3Input : public Ogre::Singleton<Run3Input> {
@@ -19,8 +19,8 @@ public:
   Run3Input();
   ~Run3Input();
   void init(Ogre::Overlay *menuOverlay, CEGUI::Window *shit);
-  void processPress(const OIS::KeyEvent &arg, bool &GUIorGame, bool ingame);
-  void processRelease(const OIS::KeyEvent &arg, bool GUIorGame, bool ingame);
+  void processPress(const run3::InputEvent &arg, bool &GUIorGame, bool ingame);
+  void processRelease(const run3::InputEvent &arg, bool GUIorGame, bool ingame);
 
 public:
   Player *player;

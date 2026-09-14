@@ -605,22 +605,22 @@ void Player::camera_force_callback(OgreNewt::Body *me) {
       /* V1=V1/100;
                V2=V2/100;*/
 
-      /*if (av.x==1&&KEY_DOWNR(OIS::KC_D))
+      /*if (av.x==1&&KEY_DOWNR(run3::Key::D))
               {
                       m_StrafeVelocity = -5*mMove;
                       strafe_jump=true;
               }
-              if (av.z==1&&KEY_DOWNR(OIS::KC_S))
+              if (av.z==1&&KEY_DOWNR(run3::Key::S))
               {
                       m_FrontVelocity = 5*mMove;
                       strafe_jump=true;
               }
-              if (av.x==-1&&KEY_DOWNR(OIS::KC_A))
+              if (av.x==-1&&KEY_DOWNR(run3::Key::A))
               {
                       m_StrafeVelocity = 5*mMove;
                       front_jump=true;
               }
-              if (av.z==-1&&KEY_DOWNR(OIS::KC_W))
+              if (av.z==-1&&KEY_DOWNR(run3::Key::W))
               {
                       m_FrontVelocity = 5*mMove;
                       front_jump=true;
@@ -1049,26 +1049,26 @@ void Player::attach_camera(bool unfreeze) {
   }
 }
 //////////////////////////////////////////
-void Player::FCPress(const OIS::KeyEvent &arg) {
+void Player::FCPress(const run3::InputEvent &arg) {
   if (noclip) {
     switch (arg.key) {
-    case OIS::KC_UP:
-    case OIS::KC_W:
+    case run3::Key::Up:
+    case run3::Key::W:
       mDirection.z = -30;
       break;
 
-    case OIS::KC_DOWN:
-    case OIS::KC_S:
+    case run3::Key::Down:
+    case run3::Key::S:
       mDirection.z = 30;
       break;
 
-    case OIS::KC_LEFT:
-    case OIS::KC_A:
+    case run3::Key::Left:
+    case run3::Key::A:
       mDirection.x = -30;
       break;
 
-    case OIS::KC_RIGHT:
-    case OIS::KC_D:
+    case run3::Key::Right:
+    case run3::Key::D:
       mDirection.x = 30;
       break;
 
@@ -1080,24 +1080,24 @@ void Player::FCPress(const OIS::KeyEvent &arg) {
     bool onEarth = isOnEarth();
 
     switch (arg.key) {
-    case OIS::KC_LSHIFT:
+    case run3::Key::LeftShift:
       fps_speed = mProps.runVel;
       SuperFX::getSingleton().toggleMotionBlur();
       break;
-    case OIS::KC_SPACE:
+    case run3::Key::Space:
       this->jump = true;
       skippingCutScene = true;
 
       /*if
-      (KEY_DOWNR(OIS::KC_W)||KEY_DOWNR(OIS::KC_A)||KEY_DOWNR(OIS::KC_S)||KEY_DOWNR(OIS::KC_D))
+      (KEY_DOWNR(run3::Key::W)||KEY_DOWNR(run3::Key::A)||KEY_DOWNR(run3::Key::S)||KEY_DOWNR(run3::Key::D))
       {	*/
 
       reset_vel = false;
       unpressed = false;
       break;
 
-    case OIS::KC_UP:
-    case OIS::KC_W:
+    case run3::Key::Up:
+    case run3::Key::W:
       if (onEarth && !front_jump) {
         m_FrontVelocity = 30 * mMove;
 
@@ -1111,8 +1111,8 @@ void Player::FCPress(const OIS::KeyEvent &arg) {
       unpressed = false;
       break;
 
-    case OIS::KC_DOWN:
-    case OIS::KC_S:
+    case run3::Key::Down:
+    case run3::Key::S:
       if (onEarth && !front_jump) {
         m_FrontVelocity = -30 * mMove;
         bod->setVelocity(Vector3(0, 0, 0));
@@ -1124,8 +1124,8 @@ void Player::FCPress(const OIS::KeyEvent &arg) {
       unpressed = false;
       break;
 
-    case OIS::KC_LEFT:
-    case OIS::KC_A:
+    case run3::Key::Left:
+    case run3::Key::A:
       if (onEarth && !strafe_jump) {
         m_StrafeVelocity = 30 * mMove;
         bod->setVelocity(Vector3(0, 0, 0));
@@ -1139,8 +1139,8 @@ void Player::FCPress(const OIS::KeyEvent &arg) {
       unpressed = false;
       break;
 
-    case OIS::KC_RIGHT:
-    case OIS::KC_D:
+    case run3::Key::Right:
+    case run3::Key::D:
       if (onEarth && !strafe_jump) {
         m_StrafeVelocity = -30 * mMove;
         bod->setVelocity(Vector3(0, 0, 0));
@@ -1153,13 +1153,13 @@ void Player::FCPress(const OIS::KeyEvent &arg) {
       if (mProps.rotate_hor)
         mViewNode->roll(Degree(1));
       break;
-    case OIS::KC_LCONTROL:
-    case OIS::KC_RCONTROL:
+    case run3::Key::LeftControl:
+    case run3::Key::RightControl:
       if (alive)
         Duck();
       break;
 
-    case OIS::KC_O:
+    case run3::Key::O:
       //	test=!test;
       if (dump) {
         /*OgreConsole::getSingleton().print(debugstr1);
@@ -1190,30 +1190,33 @@ void Player::setParentRelation(String node) {
   setParentRelation(pPar);
 }
 //////////////////////////////////////////
-void Player::MouseMove(const OIS::MouseEvent &arg, Ogre::Real time) {
+void Player::MouseMove(const run3::InputEvent &arg, Ogre::Real time) {
   if (Inventory::getSingleton().isVisible())
     return;
-  /*camera_rotation_x = -mRotate * arg.state.X.rel;
-  camera_rotation_y = -mRotate * arg.state.Y.rel;*/
+  /*camera_rotation_x = -mRotate * arg.deltaX;
+  camera_rotation_y = -mRotate * arg.deltaY;*/
   // mViewNode->yaw(Degree(camera_rotation_x), Node::TS_WORLD);]
   // if (Inventory::getSingleton().isVisible())
   //	return;
 
   if (global::getSingleton().computer_mode) {
-    if (arg.state.buttonDown(OIS::MB_Right)) {
-      mCamera->setFOVy(Degree(mCamera->getFOVy()) + Degree(arg.state.Y.rel));
+    const run3::InputState *inputState =
+        global::getSingleton().getInputState();
+    if (inputState != nullptr &&
+        inputState->mouseButtonDown(run3::MouseButton::Right)) {
+      mCamera->setFOVy(Degree(mCamera->getFOVy()) + Degree(arg.deltaY));
     }
   }
   if (!freezed) {
 
     if (noclip) {
-      mNoclipNode->yaw(Degree(-mRotate * arg.state.X.rel), Node::TS_WORLD);
-      mNoclipNode->pitch(Degree(-mRotate * arg.state.Y.rel), Node::TS_LOCAL);
+      mNoclipNode->yaw(Degree(-mRotate * arg.deltaX), Node::TS_WORLD);
+      mNoclipNode->pitch(Degree(-mRotate * arg.deltaY), Node::TS_LOCAL);
     }
     if (!noclip) {
-      camera_rotation_x = -mRotate * arg.state.X.rel +
+      camera_rotation_x = -mRotate * arg.deltaX +
                           Math::RangeRandom(-razbros * time, razbros * time);
-      camera_rotation_y = -mRotate * arg.state.Y.rel + razbros * time;
+      camera_rotation_y = -mRotate * arg.deltaY + razbros * time;
       razbros = 0;
       mViewNode->pitch(Degree(camera_rotation_y), Node::TS_LOCAL);
 
@@ -1240,7 +1243,7 @@ void Player::MouseMove(const OIS::MouseEvent &arg, Ogre::Real time) {
   }
 }
 //////////////////////////////////////////
-void Player::MousePress(const OIS::MouseEvent &arg, OIS::MouseButtonID id) {
+void Player::MousePress(const run3::InputEvent &arg, run3::MouseButton id) {
 
   if (!alive) {
     global::getSingleton().GUIorGame = false;
@@ -1273,29 +1276,29 @@ void Player::MousePress(const OIS::MouseEvent &arg, OIS::MouseButtonID id) {
   }
 }
 //////////////////////////////////////////
-void Player::MouseRelease(const OIS::MouseEvent &arg, OIS::MouseButtonID id) {
+void Player::MouseRelease(const run3::InputEvent &arg, run3::MouseButton id) {
   if (Inventory::getSingleton().isVisible())
     return;
   CWeapon::getSingleton().MouseRelease(arg, id);
 }
 //////////////////////////////////////////
 
-void Player::FCRelease(const OIS::KeyEvent &arg) {
+void Player::FCRelease(const run3::InputEvent &arg) {
   // arg.device->
   switch (arg.key) {
-  case OIS::KC_LSHIFT:
+  case run3::Key::LeftShift:
     fps_speed = mProps.stdVel;
     OgreConsole::getSingleton().print("sprint..");
     SuperFX::getSingleton().toggleMotionBlur();
     break;
-  case OIS::KC_SPACE:
+  case run3::Key::Space:
     jump = false;
     stop_count = stop_count_std;
     skippingCutScene = false;
     // unpressed=true;
     break;
-  case OIS::KC_UP:
-  case OIS::KC_W:
+  case run3::Key::Up:
+  case run3::Key::W:
     mDirection.z = 0;
     if (!mProps.inertia_active) {
       if (isOnEarth()) {
@@ -1308,8 +1311,8 @@ void Player::FCRelease(const OIS::KeyEvent &arg) {
     // bod->setVelocity(force2/100);
     break;
 
-  case OIS::KC_DOWN:
-  case OIS::KC_S:
+  case run3::Key::Down:
+  case run3::Key::S:
     mDirection.z = 0;
     if (!mProps.inertia_active) {
       if (isOnEarth()) {
@@ -1322,8 +1325,8 @@ void Player::FCRelease(const OIS::KeyEvent &arg) {
     // bod->setVelocity(force2/100);
     break;
 
-  case OIS::KC_LEFT:
-  case OIS::KC_A:
+  case run3::Key::Left:
+  case run3::Key::A:
     mDirection.x = 0;
     // if (mProps.resetVelocityOnRelease)
     if (!mProps.inertia_active) {
@@ -1341,8 +1344,8 @@ void Player::FCRelease(const OIS::KeyEvent &arg) {
       mViewNode->roll(Degree(1));
     break;
 
-  case OIS::KC_RIGHT:
-  case OIS::KC_D:
+  case run3::Key::Right:
+  case run3::Key::D:
     mDirection.x = 0;
 
     // if (mProps.resetVelocityOnRelease)
@@ -1360,8 +1363,8 @@ void Player::FCRelease(const OIS::KeyEvent &arg) {
     if (mProps.rotate_hor)
       mViewNode->roll(Degree(-1));
     break;
-  case OIS::KC_LCONTROL:
-  case OIS::KC_RCONTROL:
+  case run3::Key::LeftControl:
+  case run3::Key::RightControl:
     if (alive) {
       if (!isTop()) {
         UnDuck();
@@ -1373,10 +1376,10 @@ void Player::FCRelease(const OIS::KeyEvent &arg) {
   default:
     break;
   } // switch
-  if (global::getSingleton().getOISKeyboard()) {
-#define KEY_DOWNR(x) global::getSingleton().getOISKeyboard()->isKeyDown(x)
-    if (!KEY_DOWNR(OIS::KC_W) && !KEY_DOWNR(OIS::KC_A) &&
-        !KEY_DOWNR(OIS::KC_S) && !KEY_DOWNR(OIS::KC_D)) {
+  if (global::getSingleton().getInputState()) {
+#define KEY_DOWNR(x) global::getSingleton().getInputState()->keyDown(x)
+    if (!KEY_DOWNR(run3::Key::W) && !KEY_DOWNR(run3::Key::A) &&
+        !KEY_DOWNR(run3::Key::S) && !KEY_DOWNR(run3::Key::D)) {
       unpressed = true;
       if (!mProps.inertia_active) {
         if (isOnEarth()) {

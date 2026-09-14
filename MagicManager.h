@@ -17,8 +17,7 @@ enum WRAP_TYPE { CENTER, TOP_LEFT, TOP_LEFT_COMP };
 
 class MagicManager : public Singleton<MagicManager>,
                      public managerTemplate,
-                     public OIS::MouseListener,
-                     public OIS::KeyListener,
+                     public run3::IInputListener,
                      public Ogre::WindowEventListener {
 public:
   MagicManager();
@@ -42,12 +41,13 @@ public:
 
   inline void setGlowWasActive(bool glow) { glowWasEnabled = glow; }
 
-  bool mouseMoved(const OIS::MouseEvent &arg);
-  bool mousePressed(const OIS::MouseEvent &arg, OIS::MouseButtonID id);
-  bool mouseReleased(const OIS::MouseEvent &arg, OIS::MouseButtonID id);
+  bool mouseMoved(const run3::InputEvent &arg);
+  bool mousePressed(const run3::InputEvent &arg, run3::MouseButton id);
+  bool mouseReleased(const run3::InputEvent &arg, run3::MouseButton id);
 
-  bool keyPressed(const OIS::KeyEvent &arg);
-  bool keyReleased(const OIS::KeyEvent &arg);
+  bool keyPressed(const run3::InputEvent &arg);
+  bool keyReleased(const run3::InputEvent &arg);
+  bool onInputEvent(const run3::InputEvent &event) override;
 
   buttonGUI::buttonManager *getBMgr(void) { return buttonMgr; }
 

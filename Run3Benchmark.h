@@ -3,7 +3,6 @@
 ///////////////Copyright(c) 2010 Fyodor Zagumennov		   //////////
 /////////////////////////////////////////////////////////////////////
 #pragma once
-#include <OIS/OIS.h>
 #include <Ogre.h>
 #include <stdlib.h>
 #include <time.h>

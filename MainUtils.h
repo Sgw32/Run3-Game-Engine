@@ -2,18 +2,18 @@
 #include <CEGUI/CEGUISchemeManager.h>
 #include <CEGUI/CEGUIWindow.h>
 #include <CEGUI/CEGUIWindowManager.h>
-#include <OIS/OIS.h>
+#include <run3/input/Input.hpp>
 #include <OgreCEGUIRenderer.h>
 
-CEGUI::MouseButton convertButton(OIS::MouseButtonID buttonID) {
+CEGUI::MouseButton convertButton(run3::MouseButton buttonID) {
   switch (buttonID) {
-  case OIS::MB_Left:
+  case run3::MouseButton::Left:
     return CEGUI::LeftButton;
 
-  case OIS::MB_Right:
+  case run3::MouseButton::Right:
     return CEGUI::RightButton;
 
-  case OIS::MB_Middle:
+  case run3::MouseButton::Middle:
     return CEGUI::MiddleButton;
 
   default:

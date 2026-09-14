@@ -7,7 +7,6 @@
 #include "PhysObjectMatCallback.h"
 #include "Run3Batcher.h"
 #include "Timeshift.h"
-#include <OIS/OIS.h>
 #include <Ogre.h>
 #include <OgreNewt.h>
 

@@ -315,7 +315,7 @@ void CWeapon::addWeapon(String name) {
   }
 }
 
-void CWeapon::MousePress(const OIS::MouseEvent &arg, OIS::MouseButtonID id) {
+void CWeapon::MousePress(const run3::InputEvent &arg, run3::MouseButton id) {
   /*
   if (initialized && mSceneMgr->getEntity("punch")->isVisible())
   {
@@ -366,7 +366,7 @@ void CWeapon::MousePress(const OIS::MouseEvent &arg, OIS::MouseButtonID id) {
   }
 }
 
-void CWeapon::MouseRelease(const OIS::MouseEvent &arg, OIS::MouseButtonID id) {
+void CWeapon::MouseRelease(const run3::InputEvent &arg, run3::MouseButton id) {
   /*pweapon->MRELEASE
   shrifle->MRELEASE
   minigun->MRELEASE*/
@@ -394,7 +394,7 @@ void CWeapon::MouseRelease(const OIS::MouseEvent &arg, OIS::MouseButtonID id) {
   }
 }
 
-void CWeapon::Move(const OIS::MouseEvent &arg, Ogre::Real time) {
+void CWeapon::Move(const run3::InputEvent &arg, Ogre::Real time) {
   /*pweapon->MMOVE
   shrifle->MMOVE
   minigun->MMOVE*/
@@ -422,13 +422,13 @@ void CWeapon::Move(const OIS::MouseEvent &arg, Ogre::Real time) {
   }
 }
 
-void CWeapon::Press(const OIS::KeyEvent &arg) {
+void CWeapon::Press(const run3::InputEvent &arg) {
   /*pweapon->KPRESS
   shrifle->KPRESS
   minigun->KPRESS*/
   // #define RUN3MOD(a,b) a-div(a,b)*a //a<b
   if (!global::getSingleton().computer_mode) {
-    if (arg.key == OIS::KC_1) {
+    if (arg.key == run3::Key::Num1) {
       int lastavail = 0;
       for (int j = 0; j != fstslot.size(); j++) {
         if (canSelect(fstslot[j]))
@@ -457,7 +457,7 @@ void CWeapon::Press(const OIS::KeyEvent &arg) {
       Run3SoundRuntime::getSingleton().emitSound("Run3/sounds/select01.wav",
                                                  1.0f, false);
     }
-    if (arg.key == OIS::KC_2) {
+    if (arg.key == run3::Key::Num2) {
       int lastavail = 0;
       for (int j = 0; j != sndslot.size(); j++) {
         if (canSelect(sndslot[j]))
@@ -506,7 +506,7 @@ void CWeapon::Press(const OIS::KeyEvent &arg) {
   }
 }
 
-void CWeapon::Release(const OIS::KeyEvent &arg) {
+void CWeapon::Release(const run3::InputEvent &arg) {
   /*pweapon->KRELEASE
   shrifle->KRELEASE
   minigun->KRELEASE*/

@@ -24,6 +24,17 @@ btVector3 toBullet(Vec3 value, const UnitConversion &units) {
           static_cast<btScalar>(metres.z)};
 }
 
+btVector3 toBulletDirection(Vec3 value) {
+  btVector3 direction{static_cast<btScalar>(value.x),
+                      static_cast<btScalar>(value.y),
+                      static_cast<btScalar>(value.z)};
+  const btScalar length = direction.length();
+  if (length <= SIMD_EPSILON) {
+    throw std::invalid_argument("Bullet direction must be non-zero");
+  }
+  return direction / length;
+}
+
 Vec3 fromBullet(const btVector3 &value, const UnitConversion &units) {
   return units.toGameUnits({static_cast<double>(value.x()),
                             static_cast<double>(value.y()),
@@ -235,6 +246,29 @@ public:
     record->constraint = std::make_unique<btPoint2PointConstraint>(
         *firstBody.body, *secondBody.body, toBullet(firstPivot, units_),
         toBullet(secondPivot, units_));
+    world_->addConstraint(record->constraint.get(), disableLinkedCollision);
+    const ConstraintId id = record->id;
+    constraints_.emplace(id, std::move(record));
+    return makeConstraintHandle(id);
+  }
+
+  Constraint createHingeConstraint(
+      BodyId first, BodyId second, Vec3 firstPivot, Vec3 secondPivot,
+      Vec3 firstAxis, Vec3 secondAxis, double lowerLimitRadians,
+      double upperLimitRadians, bool disableLinkedCollision) override {
+    BodyRecord &firstBody = requireBody(first);
+    BodyRecord &secondBody = requireBody(second);
+    auto record = std::make_unique<ConstraintRecord>();
+    record->id = nextConstraint_++;
+    record->first = first;
+    record->second = second;
+    auto hinge = std::make_unique<btHingeConstraint>(
+        *firstBody.body, *secondBody.body, toBullet(firstPivot, units_),
+        toBullet(secondPivot, units_), toBulletDirection(firstAxis),
+        toBulletDirection(secondAxis));
+    hinge->setLimit(static_cast<btScalar>(lowerLimitRadians),
+                    static_cast<btScalar>(upperLimitRadians));
+    record->constraint = std::move(hinge);
     world_->addConstraint(record->constraint.get(), disableLinkedCollision);
     const ConstraintId id = record->id;
     constraints_.emplace(id, std::move(record));

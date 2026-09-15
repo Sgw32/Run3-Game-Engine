@@ -73,6 +73,11 @@ enum class CollisionGroup : CollisionMask {
   Npc = 1U << 3U,
   Trigger = 1U << 4U,
   Projectile = 1U << 5U,
+  Pickup = 1U << 6U,
+  Button = 1U << 7U,
+  Door = 1U << 8U,
+  Train = 1U << 9U,
+  Ragdoll = 1U << 10U,
   All = 0xffffffffU
 };
 
@@ -112,13 +117,31 @@ private:
 
 enum class BodyMotion { Static, Dynamic, Kinematic };
 
+enum class BodyType : std::uint32_t {
+  Unknown,
+  World,
+  Player,
+  PhysicalObject,
+  Breakable,
+  Pickup,
+  Button,
+  Trigger,
+  Door,
+  Train,
+  Projectile,
+  Npc,
+  RagdollBone
+};
+
 struct BodyMetadata {
   std::uint64_t entityId{};
-  std::uint32_t type{};
+  BodyType type{BodyType::Unknown};
+  std::uint32_t partId{};
 
   friend constexpr bool operator==(const BodyMetadata &left,
                                    const BodyMetadata &right) {
-    return left.entityId == right.entityId && left.type == right.type;
+    return left.entityId == right.entityId && left.type == right.type &&
+           left.partId == right.partId;
   }
 };
 
@@ -253,6 +276,13 @@ public:
   createPointConstraint(const BodyHandle &first, const BodyHandle &second,
                         Vec3 firstPivotGameUnits,
                         Vec3 secondPivotGameUnits,
+                        bool disableLinkedCollision = true);
+  [[nodiscard]] Constraint
+  createHingeConstraint(const BodyHandle &first, const BodyHandle &second,
+                        Vec3 firstPivotGameUnits,
+                        Vec3 secondPivotGameUnits, Vec3 firstAxis,
+                        Vec3 secondAxis, double lowerLimitRadians,
+                        double upperLimitRadians,
                         bool disableLinkedCollision = true);
 
   [[nodiscard]] std::size_t bodyCount() const noexcept;

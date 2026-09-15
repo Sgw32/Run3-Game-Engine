@@ -14,6 +14,54 @@ Last updated: 2026-09-15
 | 5 — content manifest, validation, and render fixture | Completed | The read-only validator and deterministic conversion boundary pass their fixtures on D3D11/GL3+; the untouched full content backlog is categorized below. |
 | 6A — Bullet physics backend and tests | Completed | Pinned Bullet 3.25#3 and null backends pass the same unit/fixture contract on MSVC and GCC. |
 | 6B — static world and player | Completed | The Run3-owned capsule player and static mesh map path run `tlwcao` and `tlwhome02`; deterministic fixtures and real-map 30/60/144 schedules pass. |
+| 6C — dynamic physics, contacts, constraints, ragdolls, AIR3 | Completed | Typed dynamic/contact behavior, evidenced constraints, RAII ragdolls, and query-injected AIR3 pass on MSVC/GCC; Newton is absent from the live build. |
+
+## 2026-09-15 — Step 6C
+
+Completed:
+
+- Extended the physics contract with scoped `BodyType`, stable entity/part IDs,
+  campaign collision groups, and RAII Bullet/null hinge constraints. Bullet
+  user pointers remain backend-owned; gameplay exposes no Bullet headers.
+- Added `DynamicPhysicsScene` slices for physical/breakable objects, pickups,
+  buttons, triggers, doors, trains, projectile damage, NPC contact, and a
+  lifetime-owned ragdoll fallback. Gameplay dispatch drains copied contact
+  values only after stepping.
+- Main-scene `<phys>` and `<breakable>` objects now use dynamic Bullet box
+  bounds and pull interpolated transforms into Ogre. Static structural meshes
+  retain the Step 6B triangle path.
+- Implemented only point/ball-socket and limited-hinge mappings. Player
+  orientation uses its angular lock and doors/trains are kinematic; unused
+  fuzzy-test machinery was not ported.
+- Added `IPhysicsQuery`, `WorldPhysicsQuery`, and static `run3_air3`. AIR3 path
+  search has no Ogre/OgreNewt dependency and is tested through an injected
+  obstruction query.
+- Classified 37 project-listed Newton translation units as retired historical
+  evidence and removed the Newton feature switch from CMake. A CTest scan
+  rejects Newton headers, link names, or the retired option in every live
+  source/header. Historical files remain unbuilt so unrelated gameplay is not
+  destroyed merely to erase migration evidence.
+- Added eight Step 6C cases covering contacts, damage, doors/trains, NPC IDs,
+  hinge lifetime, AIR3, ragdoll expiry/unload, and attached representative
+  content. `tlwcao` and `tlwhome02` are checked for required declared slices;
+  this one integration case skips if optional local content is absent.
+
+Mappings and tuning are in [DYNAMIC_PHYSICS.md](DYNAMIC_PHYSICS.md).
+
+Verification:
+
+| Configuration | Toolchain | Result |
+|---|---|---|
+| `windows-msvc-x64-debug` | MSVC 19.51 x64 | Build passed; 51/51 CTests passed |
+| `windows-msvc-x64-release` | MSVC 19.51 x64 | Build passed; 51/51 CTests passed |
+| `linux-ninja-debug` | GCC 13.3 x64 under WSL | Build passed; 51/51 CTests passed |
+| `linux-ninja-release` | GCC 13.3 x64 under WSL | Build passed; 51/51 CTests passed |
+| `linux-ninja-sanitizers` | GCC 13.3 ASan + UBSan | Focused targets built; 24/24 physics-labeled tests passed with leak detection |
+
+An installed Windows Debug/D3D11 `tlwcao` run loaded 368 visuals and 166
+collision sections, skipped zero, rendered one fixed-step frame, and shut down
+cleanly. Sequence XML/Lua binding to the typed factories remains Step 8; it is
+not duplicated inside physics. No Step 7 work was started.
 
 ## 2026-09-15 — Pre-6C texture and player-height adjustments
 

@@ -15,6 +15,7 @@ namespace {
 using Catch::Matchers::WithinAbs;
 using run3::physics::BodyDesc;
 using run3::physics::BodyMotion;
+using run3::physics::BodyType;
 using run3::physics::CollisionGroup;
 using run3::physics::ContactPhase;
 using run3::physics::PhysicsConfig;
@@ -162,13 +163,13 @@ TEST_CASE("raycast results are nearest-first and honor groups and masks") {
   BodyDesc nearDesc = body(Shape::box({20.0, 20.0, 20.0}),
                            BodyMotion::Static, {100.0, 0.0, 0.0});
   nearDesc.group = CollisionGroup::World;
-  nearDesc.metadata = {11, 101};
+  nearDesc.metadata = {11, BodyType::PhysicalObject, 101};
   auto nearBody = world.createBody(nearDesc);
 
   BodyDesc farDesc = body(Shape::box({20.0, 20.0, 20.0}),
                           BodyMotion::Static, {300.0, 0.0, 0.0});
   farDesc.group = CollisionGroup::Player;
-  farDesc.metadata = {22, 202};
+  farDesc.metadata = {22, BodyType::Player, 202};
   auto farBody = world.createBody(farDesc);
 
   RaycastQuery all{{0.0, 0.0, 0.0}, {500.0, 0.0, 0.0}};
@@ -196,14 +197,14 @@ TEST_CASE("trigger contacts are copied into a safe begin persist end queue") {
   triggerDesc.trigger = true;
   triggerDesc.group = CollisionGroup::Trigger;
   triggerDesc.mask = run3::physics::collisionMask(CollisionGroup::Player);
-  triggerDesc.metadata = {7, 70};
+  triggerDesc.metadata = {7, BodyType::Trigger, 70};
   auto trigger = world.createBody(triggerDesc);
 
   BodyDesc actorDesc = body(Shape::box({20.0, 20.0, 20.0}),
                             BodyMotion::Dynamic, {}, 1.0);
   actorDesc.group = CollisionGroup::Player;
   actorDesc.mask = run3::physics::collisionMask(CollisionGroup::Trigger);
-  actorDesc.metadata = {8, 80};
+  actorDesc.metadata = {8, BodyType::Player, 80};
   auto actor = world.createBody(actorDesc);
 
   static_cast<void>(world.advance(fixedStep));

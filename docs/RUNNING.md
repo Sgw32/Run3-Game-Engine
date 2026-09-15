@@ -1,11 +1,14 @@
-# Running the Step 6B first-person shell
+# Running the Step 6C first-person shell
 
 `run3_shell` can now load the static geometry and collision for The Long Way's
 `tlwcao` and `tlwhome02` maps and place the new capsule player at the map spawn.
 Use `tlwcao` for the quickest check; `tlwhome02` (also accepted as
 `tlwhome2`) is substantially larger. This is a first-person map viewer and
-physics prototype, not yet the complete game: gameplay scripts, doors, trains,
-NPCs, weapons, audio, and final materials are later porting steps.
+physics prototype, not yet the complete game. Step 6C adds live Bullet motion
+for main-scene `<phys>`/`<breakable>` objects and typed/tested physics behavior
+for doors, trains, triggers, pickups, projectiles, NPC collision, ragdolls, and
+AIR3. Step 8 binds those factories to sequence XML/Lua; audio and final
+materials are later steps.
 
 Build and test first with [BUILDING.md](BUILDING.md). Run the installed binary,
 because `cmake --install` stages the Ogre plugins, runtime libraries,
@@ -162,7 +165,7 @@ Configuration uses `key=value` lines and this precedence:
 2. `<user-root>/config/run3.cfg`
 3. command-line arguments (highest)
 
-The recognized Step 6B keys are `renderer`, `frames`, `content-root`,
+The recognized runtime keys are `renderer`, `frames`, `content-root`,
 `user-root`, `map`, `map-quality`, `resource-profile`, `player-height-cm`,
 `render-hz`, `fullscreen`, `noclip`, and `physics-debug`. Relative paths resolve
 from the executable directory, not the process working directory.
@@ -198,3 +201,7 @@ Use `ctest --preset <preset> -R "^run3_player\." --output-on-failure` for the
 focused player tests. If an Ogre plugin cannot be loaded, reinstall the shell
 instead of copying individual DLL/shared-library files. On Linux, interactive
 rendering requires a working display and OpenGL driver.
+
+Use `ctest --preset <preset> -R "^run3_step6c\." --output-on-failure` for the
+dynamic entities, contacts, constraints, AIR3, ragdoll lifetime, unload, and
+representative-map fixtures.

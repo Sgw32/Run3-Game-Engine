@@ -265,6 +265,30 @@ Constraint PhysicsWorld::createPointConstraint(
                                          disableLinkedCollision);
 }
 
+Constraint PhysicsWorld::createHingeConstraint(
+    const BodyHandle &first, const BodyHandle &second, Vec3 firstPivot,
+    Vec3 secondPivot, Vec3 firstAxis, Vec3 secondAxis,
+    double lowerLimitRadians, double upperLimitRadians,
+    bool disableLinkedCollision) {
+  if (!finite(firstPivot) || !finite(secondPivot) || !finite(firstAxis) ||
+      !finite(secondAxis) || !std::isfinite(lowerLimitRadians) ||
+      !std::isfinite(upperLimitRadians) ||
+      lowerLimitRadians > upperLimitRadians) {
+    throw std::invalid_argument("invalid hinge constraint description");
+  }
+  const auto lengthSquared = [](Vec3 axis) {
+    return axis.x * axis.x + axis.y * axis.y + axis.z * axis.z;
+  };
+  if (lengthSquared(firstAxis) <= 1e-24 ||
+      lengthSquared(secondAxis) <= 1e-24) {
+    throw std::invalid_argument("hinge axes must be non-zero");
+  }
+  return backend_->createHingeConstraint(
+      checkedBody(first), checkedBody(second), firstPivot, secondPivot,
+      firstAxis, secondAxis, lowerLimitRadians, upperLimitRadians,
+      disableLinkedCollision);
+}
+
 std::size_t PhysicsWorld::bodyCount() const noexcept {
   return backend_ ? backend_->bodyCount() : 0;
 }

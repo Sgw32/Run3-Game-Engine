@@ -39,9 +39,9 @@ TEST_CASE("legacy input dispatcher consumes backend-neutral replay input") {
 TEST_CASE("disabled legacy features fail visibly") {
     using run3::legacy::Feature;
     constexpr std::array features{
-        Feature::newton,      Feature::ois,        Feature::cegui,
-        Feature::hydrax,      Feature::skyx,       Feature::legacyAudio,
-        Feature::directShow,  Feature::serial,     Feature::namedPipes,
+        Feature::ois,        Feature::cegui,       Feature::hydrax,
+        Feature::skyx,       Feature::legacyAudio, Feature::directShow,
+        Feature::serial,     Feature::namedPipes,
     };
 
     for (const auto feature : features) {

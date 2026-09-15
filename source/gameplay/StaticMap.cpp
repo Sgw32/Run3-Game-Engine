@@ -146,7 +146,7 @@ std::string normalizedMapName(std::string name) {
   }
   if (name != "tlwhome02" && name != "tlwcao") {
     throw std::invalid_argument(
-        "Step 6B supports --map tlwhome02 (alias tlwhome2) or --map tlwcao");
+        "Run3 supports --map tlwhome02 (alias tlwhome2) or --map tlwcao");
   }
   return name;
 }
@@ -344,7 +344,8 @@ public:
             scale.x * sceneMultiplier, scale.y * sceneMultiplier,
             scale.z * sceneMultiplier}));
       } else if ((tag == "entity" || tag == "nocollide" || tag == "phys" ||
-                  tag == "pblock" || tag == "blockbox") &&
+                  tag == "breakable" || tag == "pblock" ||
+                  tag == "blockbox") &&
                  nodes.size() > 1) {
         const auto meshIt = values.find("meshFile");
         if (meshIt == values.end() || meshIt->second.empty()) {
@@ -381,10 +382,45 @@ public:
             nodes.back()->_update(true, true);
             const Ogre::Vector3 derivedScale = nodes.back()->_getDerivedScale();
             const Ogre::MeshPtr mesh = entity->getMesh();
-            MeshGeometry geometry = extractMesh(mesh, derivedScale);
-            if (geometry.indices.empty()) {
-              ++stats_.skippedSections;
+            const bool dynamic = tag == "phys" || tag == "breakable";
+            if (dynamic) {
+              const Ogre::AxisAlignedBox bounds = entity->getBoundingBox();
+              Ogre::Vector3 half = bounds.getHalfSize();
+              half.x = std::abs(half.x * derivedScale.x);
+              half.y = std::abs(half.y * derivedScale.y);
+              half.z = std::abs(half.z * derivedScale.z);
+              constexpr Ogre::Real minimumHalfExtent = 0.01F;
+              half.makeCeil(Ogre::Vector3(minimumHalfExtent));
+              const Ogre::Quaternion orientation =
+                  nodes.back()->_getDerivedOrientation();
+              const Ogre::Vector3 localCenter = bounds.getCenter() * derivedScale;
+              physics::BodyDesc body(physics::Shape::box(fromOgre(half)));
+              body.motion = physics::BodyMotion::Dynamic;
+              body.massKg = number(values, "mass", tag == "breakable" ? 40.0 : 10.0);
+              if (body.massKg <= 0.0) {
+                body.massKg = 10.0;
+              }
+              body.group = physics::CollisionGroup::Dynamic;
+              body.mask = physics::collisionMask(physics::CollisionGroup::All);
+              body.transform.position = fromOgre(
+                  nodes.back()->_getDerivedPosition() + orientation * localCenter);
+              body.transform.rotation = fromOgre(orientation);
+              body.metadata.entityId = sequence;
+              body.metadata.type = tag == "breakable"
+                                       ? physics::BodyType::Breakable
+                                       : physics::BodyType::PhysicalObject;
+              BodyBinding binding;
+              binding.node = nodes.back();
+              binding.localCenter = localCenter;
+              binding.body = world_->createBody(body);
+              bodies_.push_back(std::move(binding));
+              ++stats_.collisionSections;
             } else {
+              MeshGeometry geometry = extractMesh(mesh, derivedScale);
+              if (geometry.indices.empty()) {
+                ++stats_.skippedSections;
+                continue;
+              }
               physics::BodyDesc body(physics::Shape::triangleMesh(
                   std::move(geometry.vertices), std::move(geometry.indices)));
               body.motion = physics::BodyMotion::Static;
@@ -399,10 +435,13 @@ public:
               body.transform.rotation =
                   fromOgre(nodes.back()->_getDerivedOrientation());
               body.metadata.entityId = sequence;
+              body.metadata.type = physics::BodyType::World;
               const std::size_t triangleCount =
                   entity->getMesh()->getNumSubMeshes();
               static_cast<void>(triangleCount);
-              bodies_.push_back(world_->createBody(body));
+              BodyBinding binding;
+              binding.body = world_->createBody(body);
+              bodies_.push_back(std::move(binding));
               stats_.triangles += body.shape.indices().size() / 3;
               ++stats_.collisionSections;
             }
@@ -419,7 +458,7 @@ public:
         } catch (const Ogre::Exception &error) {
           ++stats_.skippedSections;
           Ogre::LogManager::getSingleton().logMessage(
-              "Step 6B skipped '" + meshIt->second + "': " +
+              "Step 6C skipped '" + meshIt->second + "': " +
               error.getDescription());
         }
       } else if ((tag == "subentity" || tag == "subnocollide") &&
@@ -436,13 +475,13 @@ public:
             }
           } catch (const std::exception &) {
             Ogre::LogManager::getSingleton().logMessage(
-                "Step 6B ignored invalid subentity index: " + index->second);
+                "Step 6C ignored invalid subentity index: " + index->second);
           }
         }
       }
     }
     Ogre::LogManager::getSingleton().logMessage(
-        "Step 6B map " + map + ": visuals=" +
+        "Step 6C map " + map + ": visuals=" +
         std::to_string(stats_.visualSections) + " collision=" +
         std::to_string(stats_.collisionSections) + " triangles=" +
         std::to_string(stats_.triangles) + " skipped=" +
@@ -466,7 +505,7 @@ public:
     if (!legacy) {
       if (unresolvedMaterials_.insert(legacyName).second) {
         Ogre::LogManager::getSingleton().logMessage(
-            "Step 6B texture fallback: no diffuse texture for material '" +
+            "Step 6C texture fallback: no diffuse texture for material '" +
             legacyName + "'");
       }
       return {};
@@ -547,7 +586,7 @@ public:
                                     true);
       } catch (const Ogre::Exception &error) {
         Ogre::LogManager::getSingleton().logMessage(
-            "Step 6B resource skipped: " + path.string() + ": " +
+            "Step 6C resource skipped: " + path.string() + ": " +
             error.getDescription());
       }
     }
@@ -582,12 +621,43 @@ public:
     unresolvedMaterials_.clear();
   }
 
+  void syncDynamicTransforms() {
+    for (auto &binding : bodies_) {
+      if (binding.node == nullptr || !binding.body.valid()) {
+        continue;
+      }
+      const physics::Transform transform =
+          world_->interpolatedTransform(binding.body);
+      const Ogre::Quaternion orientation = toOgre(transform.rotation);
+      const Ogre::Vector3 derivedPosition =
+          toOgre(transform.position) - orientation * binding.localCenter;
+      Ogre::Node *parent = binding.node->getParent();
+      if (parent != nullptr) {
+        const Ogre::Quaternion parentOrientation =
+            parent->_getDerivedOrientation();
+        binding.node->setPosition(parentOrientation.Inverse() *
+                                  (derivedPosition - parent->_getDerivedPosition()) /
+                                  parent->_getDerivedScale());
+        binding.node->setOrientation(parentOrientation.Inverse() * orientation);
+      } else {
+        binding.node->setPosition(derivedPosition);
+        binding.node->setOrientation(orientation);
+      }
+    }
+  }
+
+  struct BodyBinding {
+    Ogre::SceneNode *node{};
+    Ogre::Vector3 localCenter{Ogre::Vector3::ZERO};
+    physics::BodyHandle body;
+  };
+
   Ogre::SceneManager *sceneManager_{};
   physics::PhysicsWorld *world_{};
   Ogre::SceneNode *rootNode_{};
   std::vector<Ogre::Entity *> entities_;
   std::vector<Ogre::SceneNode *> debugNodes_;
-  std::vector<physics::BodyHandle> bodies_;
+  std::vector<BodyBinding> bodies_;
   std::vector<AxisAlignedVolume> ladders_;
   LegacyMaterialCatalog materialCatalog_;
   std::unordered_map<std::string, Ogre::MaterialPtr> compatibleMaterials_;
@@ -611,6 +681,9 @@ void StaticMap::setDebugDraw(bool enabled) {
   for (Ogre::SceneNode *node : implementation_->debugNodes_) {
     node->showBoundingBox(enabled);
   }
+}
+void StaticMap::syncDynamicTransforms() {
+  implementation_->syncDynamicTransforms();
 }
 physics::Vec3 StaticMap::spawnPosition() const noexcept {
   return implementation_->spawn_;

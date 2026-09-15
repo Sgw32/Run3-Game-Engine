@@ -11,8 +11,6 @@ FeatureUnavailable::FeatureUnavailable(const std::string_view name)
 
 const char* featureName(const Feature feature) noexcept {
     switch (feature) {
-    case Feature::newton:
-        return "Newton/OgreNewt";
     case Feature::ois:
         return "OIS";
     case Feature::cegui:
@@ -35,8 +33,6 @@ const char* featureName(const Feature feature) noexcept {
 
 bool featureAvailable(const Feature feature) noexcept {
     switch (feature) {
-    case Feature::newton:
-        return RUN3_LEGACY_ENABLE_NEWTON != 0;
     case Feature::ois:
         return RUN3_LEGACY_ENABLE_OIS != 0;
     case Feature::cegui:

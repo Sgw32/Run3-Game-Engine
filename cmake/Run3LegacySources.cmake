@@ -162,6 +162,49 @@ set(RUN3_LEGACY_OBSOLETE_DEMO_TOOL_SOURCES
     FuzzyTest2.cpp
     graphics.cpp)
 
+# Newton-coupled translation units replaced by run3_physics/run3_gameplay or
+# deliberately retired because The Long Way does not use the experiment. They
+# remain in the repository only as historical behavior evidence and are not
+# eligible for the live compatibility target.
+set(RUN3_LEGACY_RETIRED_NEWTON_SOURCES
+    BlastWave.cpp
+    Button.cpp
+    ButtonContactMatCallback.cpp
+    Bullet.cpp
+    Computer.cpp
+    CWeapon.cpp
+    DotSceneLoader.cpp
+    Energy.cpp
+    Generator.cpp
+    LaserMinigun.cpp
+    LoadMap.cpp
+    MirrorManager.cpp
+    NPCManager.cpp
+    Pendulum.cpp
+    PhysObject.cpp
+    PhysObjectMatCallback.cpp
+    Pickup.cpp
+    PickupMatCallback.cpp
+    Player.cpp
+    PlayerContactCallback.cpp
+    Punch.cpp
+    Ragdoll.cpp
+    Rotating.cpp
+    Sequence.cpp
+    Shockrifle.cpp
+    Train.cpp
+    func_door.cpp
+    generic_lua_weapon.cpp
+    global.cpp
+    enemyMatCallback.cpp
+    neutralMatCallback.cpp
+    npc_aerial.cpp
+    npc_enemy.cpp
+    npc_friend.cpp
+    npc_neutral.cpp
+    npc_template.cpp
+    Ladder.cpp)
+
 # This vcproj-listed file contains only an incomplete, unterminated commented
 # copy of TinyXML's string implementation. TIXML_USE_STL does not need it.
 set(RUN3_LEGACY_MALFORMED_UNUSED_SOURCES tinystr.cpp)
@@ -170,6 +213,7 @@ set(_run3_legacy_accounted_sources
     ${RUN3_LEGACY_REUSABLE_SOURCES}
     ${RUN3_LEGACY_ENTRYPOINT_SOURCE}
     ${RUN3_LEGACY_OBSOLETE_DEMO_TOOL_SOURCES}
+    ${RUN3_LEGACY_RETIRED_NEWTON_SOURCES}
     ${RUN3_LEGACY_MALFORMED_UNUSED_SOURCES})
 set(RUN3_LEGACY_DEFERRED_SOURCES ${RUN3_LEGACY_VCPROJ_SOURCES})
 list(REMOVE_ITEM RUN3_LEGACY_DEFERRED_SOURCES

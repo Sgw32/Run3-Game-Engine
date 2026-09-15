@@ -48,6 +48,16 @@ public:
     return makeConstraintHandle(id);
   }
 
+  Constraint createHingeConstraint(BodyId first, BodyId second, Vec3, Vec3,
+                                   Vec3, Vec3, double, double,
+                                   bool) override {
+    requireBody(first);
+    requireBody(second);
+    const ConstraintId id = nextConstraint_++;
+    constraints_.emplace(id, NullConstraint{first, second});
+    return makeConstraintHandle(id);
+  }
+
   void destroyBody(BodyId id) noexcept override {
     bodies_.erase(id);
     for (auto iterator = constraints_.begin(); iterator != constraints_.end();) {

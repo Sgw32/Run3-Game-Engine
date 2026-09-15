@@ -15,6 +15,11 @@ public:
   [[nodiscard]] virtual Constraint
   createPointConstraint(BodyId first, BodyId second, Vec3 firstPivot,
                         Vec3 secondPivot, bool disableLinkedCollision) = 0;
+  [[nodiscard]] virtual Constraint
+  createHingeConstraint(BodyId first, BodyId second, Vec3 firstPivot,
+                        Vec3 secondPivot, Vec3 firstAxis, Vec3 secondAxis,
+                        double lowerLimitRadians, double upperLimitRadians,
+                        bool disableLinkedCollision) = 0;
   virtual void destroyBody(BodyId id) noexcept = 0;
   virtual void destroyConstraint(ConstraintId id) noexcept = 0;
   [[nodiscard]] virtual bool hasBody(BodyId id) const noexcept = 0;

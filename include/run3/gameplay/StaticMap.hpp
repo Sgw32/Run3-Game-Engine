@@ -47,6 +47,7 @@ public:
   StaticMapStats load(const StaticMapOptions &options);
   void unload() noexcept;
   void setDebugDraw(bool enabled);
+  void syncDynamicTransforms();
 
   [[nodiscard]] physics::Vec3 spawnPosition() const noexcept;
   [[nodiscard]] const std::vector<AxisAlignedVolume> &ladderVolumes() const;

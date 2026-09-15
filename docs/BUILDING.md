@@ -251,14 +251,22 @@ preset:
 cmake --preset linux-ninja-debug -B build/linux-ninja-sanitizers \
   -DRUN3_ENABLE_SANITIZERS=ON -DRUN3_BUILD_LEGACY=OFF \
   -DRUN3_BUILD_TOOLS=OFF
-cmake --build build/linux-ninja-sanitizers --target run3_physics_tests
+cmake --build build/linux-ninja-sanitizers --target run3_physics_tests run3_step6c_tests
 ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1 \
   ctest --test-dir build/linux-ninja-sanitizers \
-  -R "^run3_physics\." --output-on-failure
+  -L physics --output-on-failure
 ```
 
-See [PHYSICS_BEHAVIOR.md](porting/PHYSICS_BEHAVIOR.md) for the unit contract,
-legacy operation inventory, and Step 6B/6C migration boundary.
+See [PHYSICS_BEHAVIOR.md](porting/PHYSICS_BEHAVIOR.md) for the unit contract
+and legacy operation inventory, and
+[DYNAMIC_PHYSICS.md](porting/DYNAMIC_PHYSICS.md) for the Step 6C mappings.
+
+For the Step 6C vertical slices only:
+
+```text
+cmake --build --preset <preset> --target run3_step6c_tests
+ctest --preset <preset> -R "^run3_step6c\." --output-on-failure
+```
 
 ## Step 6B player verification
 

@@ -268,6 +268,9 @@ int Run3App::run() {
           static_cast<void>(player_->simulateFixedStep());
           ++simulatedSteps_;
         }
+        if (staticMap_) {
+          staticMap_->syncDynamicTransforms();
+        }
         const physics::Vec3 eye = player_->eyePosition();
         cameraNode_->setPosition(static_cast<Ogre::Real>(eye.x),
                                  static_cast<Ogre::Real>(eye.y),

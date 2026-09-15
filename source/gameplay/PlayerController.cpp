@@ -79,7 +79,7 @@ void PlayerController::rebuildBody(bool crouched) {
   description.group = physics::CollisionGroup::Player;
   description.mask = playerWorldMask();
   description.sleepingAllowed = false;
-  description.metadata.type = 1;
+  description.metadata.type = physics::BodyType::Player;
   body_ = world_->createBody(description);
   crouched_ = crouched;
   noclipPosition_ = position;

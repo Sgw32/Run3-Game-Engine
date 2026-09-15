@@ -3,9 +3,6 @@
 #include <stdexcept>
 #include <string_view>
 
-#ifndef RUN3_LEGACY_ENABLE_NEWTON
-#define RUN3_LEGACY_ENABLE_NEWTON 0
-#endif
 #ifndef RUN3_LEGACY_ENABLE_OIS
 #define RUN3_LEGACY_ENABLE_OIS 0
 #endif
@@ -34,7 +31,6 @@
 namespace run3::legacy {
 
 enum class Feature {
-    newton,
     ois,
     cegui,
     hydrax,

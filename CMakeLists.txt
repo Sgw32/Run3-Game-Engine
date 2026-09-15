@@ -20,7 +20,6 @@ option(RUN3_ENABLE_SANITIZERS
        "Enable AddressSanitizer and UndefinedBehaviorSanitizer where supported"
        OFF)
 
-option(RUN3_LEGACY_ENABLE_NEWTON "Enable Newton/OgreNewt compatibility" OFF)
 option(RUN3_LEGACY_ENABLE_OIS "Enable OIS compatibility" OFF)
 option(RUN3_LEGACY_ENABLE_CEGUI "Enable CEGUI compatibility" OFF)
 option(RUN3_LEGACY_ENABLE_HYDRAX "Enable Hydrax compatibility" OFF)
@@ -100,6 +99,7 @@ endif()
 
 add_library(run3_physics STATIC
             source/physics/Physics.cpp
+            source/physics/PhysicsQuery.cpp
             source/physics/NullPhysicsBackend.cpp
             source/physics/BulletPhysicsBackend.cpp)
 add_library(run3::physics ALIAS run3_physics)
@@ -111,7 +111,15 @@ target_link_libraries(
     PRIVATE run3::warnings run3::sanitizers BulletDynamics BulletCollision
             LinearMath)
 
+add_library(run3_air3 STATIC source/air3/AirPathFind.cpp)
+add_library(run3::air3 ALIAS run3_air3)
+target_compile_features(run3_air3 PUBLIC cxx_std_17)
+target_include_directories(
+    run3_air3 PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(run3_air3 PUBLIC run3::physics PRIVATE run3::warnings)
+
 add_library(run3_gameplay STATIC
+            source/gameplay/DynamicPhysicsScene.cpp
             source/gameplay/LegacyMaterialCatalog.cpp
             source/gameplay/PlayerController.cpp
             source/gameplay/StaticMap.cpp)
@@ -178,7 +186,6 @@ if(RUN3_BUILD_LEGACY)
     endif()
 
     set(_run3_unimplemented_legacy_features
-        RUN3_LEGACY_ENABLE_NEWTON
         RUN3_LEGACY_ENABLE_OIS
         RUN3_LEGACY_ENABLE_CEGUI
         RUN3_LEGACY_ENABLE_HYDRAX
@@ -204,8 +211,7 @@ if(RUN3_BUILD_LEGACY)
         PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
     target_compile_definitions(
         run3_legacy
-        PUBLIC RUN3_LEGACY_ENABLE_NEWTON=0
-               RUN3_LEGACY_ENABLE_OIS=0
+        PUBLIC RUN3_LEGACY_ENABLE_OIS=0
                RUN3_LEGACY_ENABLE_CEGUI=0
                RUN3_LEGACY_ENABLE_HYDRAX=0
                RUN3_LEGACY_ENABLE_SKYX=0
@@ -318,6 +324,19 @@ if(RUN3_BUILD_TESTS)
     catch_discover_tests(run3_player_tests
                          TEST_PREFIX "run3_player."
                          PROPERTIES LABELS "physics;step6b")
+
+    add_executable(run3_step6c_tests tests/step6c_physics_tests.cpp)
+    target_compile_features(run3_step6c_tests PRIVATE cxx_std_17)
+    target_compile_definitions(
+        run3_step6c_tests
+        PRIVATE RUN3_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(
+        run3_step6c_tests
+        PRIVATE run3::warnings run3::sanitizers run3::core run3::physics
+                run3::air3 run3::gameplay Catch2::Catch2WithMain)
+    catch_discover_tests(run3_step6c_tests
+                         TEST_PREFIX "run3_step6c."
+                         PROPERTIES LABELS "physics;step6c")
     add_test(
         NAME run3_physics.backend-header-isolation
         COMMAND
@@ -334,6 +353,14 @@ if(RUN3_BUILD_TESTS)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckStep6BBoundary.cmake")
     set_tests_properties(run3_player.public-header-boundary
                          PROPERTIES LABELS "physics;step6b")
+    add_test(
+        NAME run3_physics.step6c-live-newton-boundary
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DRUN3_SOURCE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckStep6CBoundary.cmake")
+    set_tests_properties(run3_physics.step6c-live-newton-boundary
+                         PROPERTIES LABELS "physics;step6c")
 
     add_executable(run3_converter_stub tests/converter_stub.cpp)
     target_compile_features(run3_converter_stub PRIVATE cxx_std_17)

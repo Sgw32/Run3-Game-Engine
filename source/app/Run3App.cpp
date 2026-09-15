@@ -189,7 +189,14 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
   options.mapQuality = configuration.valueOr("map-quality", "low");
   options.resourceProfile =
       configuration.valueOr("resource-profile", "resources_low_low.cfg");
+  options.playerHeightCm =
+      configuredDouble(configuration, "player-height-cm", 180.0);
+  if (options.playerHeightCm < 120.0 || options.playerHeightCm > 240.0) {
+    throw std::runtime_error(
+        "player-height-cm must be between 120 and 240 centimetres");
+  }
   options.renderHz = configuredDouble(configuration, "render-hz");
+  options.fullscreen = configuredBool(configuration, "fullscreen");
   options.startNoclip = configuredBool(configuration, "noclip");
   options.physicsDebug = configuredBool(configuration, "physics-debug");
   return options;
@@ -201,7 +208,8 @@ void printRun3AppUsage() {
          " [--user-dir PATH] [--content-root PATH]\n"
       << "       [--validate-content] [--manifest PATH] [--report PATH]\n"
       << "       [--map tlwcao|tlwhome02] [--map-quality low|medium|high]\n"
-      << "       [--resource-profile FILE] [--noclip] [--physics-debug]\n"
+      << "       [--resource-profile FILE] [--player-height-cm N]\n"
+      << "       [--fullscreen|--windowed] [--noclip] [--physics-debug]\n"
       << "       [--render-hz 30|60|144]\n"
       << "Precedence: command line > user config > content defaults.\n"
       << "Relative paths are resolved from the executable directory.\n";
@@ -342,7 +350,8 @@ bool Run3App::oneTimeConfig() {
   }
   const Ogre::ConfigOptionMap &config = selected->getConfigOptions();
   if (config.find("Full Screen") != config.end()) {
-    selected->setConfigOption("Full Screen", "No");
+    selected->setConfigOption("Full Screen",
+                              options_.fullscreen ? "Yes" : "No");
   }
   if (config.find("VSync") != config.end()) {
     selected->setConfigOption("VSync", "No");
@@ -418,7 +427,14 @@ void Run3App::setup() {
         {options_.paths.contentRoot(), options_.mapName, options_.mapQuality,
          options_.resourceProfile});
     static_cast<void>(mapStats);
-    player_ = std::make_unique<gameplay::PlayerController>(*physicsWorld_);
+    gameplay::PlayerConfig playerConfig;
+    playerConfig.standingHeight = options_.playerHeightCm;
+    playerConfig.crouchingHeight = options_.playerHeightCm * (11.0 / 18.0);
+    playerConfig.eyeOffset = options_.playerHeightCm * (5.0 / 12.0);
+    playerConfig.crouchingEyeOffset =
+        playerConfig.crouchingHeight * (5.0 / 22.0);
+    player_ = std::make_unique<gameplay::PlayerController>(*physicsWorld_,
+                                                           playerConfig);
     player_->spawn(staticMap_->spawnPosition());
     player_->setNoclip(options_.startNoclip);
     physicsDebug_ = options_.physicsDebug;

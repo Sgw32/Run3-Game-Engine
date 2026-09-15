@@ -36,7 +36,8 @@ fs::path cliPath(const std::string &value, const fs::path &executableDir) {
       " [--user-dir PATH] [--content-root PATH] [--validate-content]"
       " [--manifest PATH] [--report PATH]"
       " [--map tlwcao|tlwhome02] [--map-quality low|medium|high]"
-      " [--resource-profile FILE] [--noclip] [--physics-debug]"
+      " [--resource-profile FILE] [--player-height-cm N]"
+      " [--fullscreen|--windowed] [--noclip] [--physics-debug]"
       " [--render-hz 30|60|144]");
 }
 
@@ -130,6 +131,14 @@ CommandLine parseCommandLine(const std::vector<std::string> &arguments,
       result.validateContent = true;
       continue;
     }
+    if (argument == "--fullscreen") {
+      result.values["fullscreen"] = "true";
+      continue;
+    }
+    if (argument == "--windowed") {
+      result.values["fullscreen"] = "false";
+      continue;
+    }
     if (argument == "--noclip" || argument == "--physics-debug") {
       result.values[argument.substr(2)] = "true";
       continue;
@@ -156,6 +165,8 @@ CommandLine parseCommandLine(const std::vector<std::string> &arguments,
       result.values["map-quality"] = value;
     } else if (argument == "--resource-profile") {
       result.values["resource-profile"] = value;
+    } else if (argument == "--player-height-cm") {
+      result.values["player-height-cm"] = value;
     } else if (argument == "--render-hz") {
       result.values["render-hz"] = value;
     } else {

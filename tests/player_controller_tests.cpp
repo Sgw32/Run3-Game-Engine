@@ -1,4 +1,5 @@
 #include <run3/app/EngineClock.hpp>
+#include <run3/gameplay/LegacyMaterialCatalog.hpp>
 #include <run3/gameplay/PlayerController.hpp>
 #include <run3/physics/Physics.hpp>
 
@@ -8,9 +9,11 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <filesystem>
 #include <vector>
 
 namespace {
+namespace fs = std::filesystem;
 using run3::gameplay::PlayerCommand;
 using run3::gameplay::PlayerController;
 using run3::physics::BodyDesc;
@@ -60,6 +63,26 @@ ScheduledResult simulateAtRenderRate(unsigned renderHz) {
   return result;
 }
 } // namespace
+
+TEST_CASE("legacy materials retain diffuse textures without loading old shaders") {
+  run3::gameplay::LegacyMaterialCatalog catalog;
+  catalog.scan(fs::path(RUN3_TEST_SOURCE_DIR) / "tests" / "fixtures" /
+               "materials");
+
+  const auto inherited = catalog.find("run3/testchild");
+  REQUIRE(inherited);
+  CHECK(inherited->texture == "test_diffuse.dds");
+  CHECK(inherited->transparent);
+  CHECK(inherited->doubleSided);
+  const auto opaqueMultipass = catalog.find("Run3/TestOpaqueChild");
+  REQUIRE(opaqueMultipass);
+  CHECK(opaqueMultipass->texture == "opaque_diffuse.dds");
+  CHECK_FALSE(opaqueMultipass->transparent);
+  const auto direct = catalog.find("Run3/TestDirect");
+  REQUIRE(direct);
+  CHECK(direct->texture == "direct.png");
+  CHECK_FALSE(catalog.find("Run3/Missing"));
+}
 
 TEST_CASE("static triangle fixture supports and raycasts the player") {
   PhysicsWorld world = run3::physics::createBulletPhysicsWorld();

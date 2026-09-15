@@ -49,6 +49,19 @@ TEST_CASE("Configuration precedence is CLI then user then content") {
   CHECK(result.valueOr("quality", "") == "high");
   CHECK(result.unsignedOr("frames", 0) == 10);
   CHECK(result.valueOr("missing", "fallback") == "fallback");
+
+  const run3::CommandLine commandLine = run3::parseCommandLine(
+      {"run3_shell", "--map", "tlwcao", "--player-height-cm", "180",
+       "--fullscreen", "--noclip"},
+      fs::path("bin"));
+  CHECK(commandLine.values.at("map") == "tlwcao");
+  CHECK(commandLine.values.at("player-height-cm") == "180");
+  CHECK(commandLine.values.at("fullscreen") == "true");
+  CHECK(commandLine.values.at("noclip") == "true");
+
+  const run3::CommandLine windowedOverride = run3::parseCommandLine(
+      {"run3_shell", "--fullscreen", "--windowed"}, fs::path("bin"));
+  CHECK(windowedOverride.values.at("fullscreen") == "false");
 }
 
 TEST_CASE("OgreBites key and mouse values translate at the platform edge") {

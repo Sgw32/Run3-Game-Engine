@@ -1,6 +1,6 @@
 # Run3 porting status
 
-Last updated: 2026-09-14
+Last updated: 2026-09-15
 
 ## Milestones
 
@@ -14,6 +14,54 @@ Last updated: 2026-09-14
 | 5 — content manifest, validation, and render fixture | Completed | The read-only validator and deterministic conversion boundary pass their fixtures on D3D11/GL3+; the untouched full content backlog is categorized below. |
 | 6A — Bullet physics backend and tests | Completed | Pinned Bullet 3.25#3 and null backends pass the same unit/fixture contract on MSVC and GCC. |
 | 6B — static world and player | Completed | The Run3-owned capsule player and static mesh map path run `tlwcao` and `tlwhome02`; deterministic fixtures and real-map 30/60/144 schedules pass. |
+
+## 2026-09-15 — Pre-6C texture and player-height adjustments
+
+Completed:
+
+- Corrected the compatibility catalog's depth classification after visual
+  evaluation: the legacy opaque base materials use `scene_blend add` for a
+  secondary per-light pass, not for object transparency. The collapsed RTSS
+  material now leaves depth writes enabled for those surfaces, while genuine
+  `alpha_blend`/`depth_write off` materials remain transparent. This removes
+  the far-object-on-top ordering artifact without changing mesh normals or
+  source assets.
+- Added `fullscreen=true` configuration plus `--fullscreen` and `--windowed`
+  CLI overrides. Windowed mode remains the default.
+- Removed the Step 6B whole-map `BaseWhite` override. A read-only legacy
+  material catalog now resolves diffuse texture aliases, inheritance,
+  transparency, and double-sided culling without executing the old
+  D3D9/Cg-era programs. Ogre's mesh-serializer listener captures each original
+  submesh material name before Ogre can substitute a missing material, and the
+  loader creates a small RTSS-compatible material for it. Explicit scene XML
+  entity/subentity material overrides are honored as well. Source assets are
+  neither modified nor converted.
+- Kept a visible white fallback at individual-material granularity. On
+  `tlwcao`, 205 textured materials were generated, 195 textures were loaded,
+  four material definitions were unresolved, and one referenced texture was
+  absent from the source content. On `tlwhome02`, the corresponding counts were
+  375, 346, five, and five. These isolated content gaps remain logged instead
+  of making the whole map white. Advanced normal/specular/effect parity remains
+  Step 9.
+- Added the game-facing `player-height-cm` setting and
+  `--player-height-cm N` override. It defaults to 180 cm, accepts 120–240 cm,
+  and proportionally derives the standing/crouching capsule and camera offsets.
+  The persistent setting lives in `<user-root>/config/run3.cfg`.
+- Added a portable legacy-material catalog fixture and extended the existing
+  configuration-precedence test for the new height option.
+
+Verification:
+
+| Configuration | Toolchain | Result |
+|---|---|---|
+| `windows-msvc-x64-debug` | MSVC 19.51 x64 | Build passed; 42/42 CTests passed; corrected-depth D3D11 `tlwcao` created an 800x600 fullscreen window, rendered one frame, and shut down cleanly; earlier texture launches covered `tlwhome02` |
+| `windows-msvc-x64-release` | MSVC 19.51 x64 | Build passed; 42/42 CTests passed |
+| `linux-ninja-debug` | GCC 13.3 x64 under WSL | Build passed; 42/42 CTests passed; GL3+ `tlwcao` loaded 205 compatible materials and shut down cleanly |
+| `linux-ninja-release` | GCC 13.3 x64 under WSL | Build passed; 42/42 CTests passed, including GL3+ smoke |
+
+Exact rebuild, launch, controls, and player-height configuration commands are
+in [RUNNING.md](../RUNNING.md). This is a compatibility-material pass, not
+Step 6C; no additional legacy gameplay subsystem was migrated.
 
 ## 2026-09-14 — Step 6B
 
@@ -63,10 +111,10 @@ reported the expected unchanged noclip spawn, and shut down cleanly.
 
 Known Step 6B boundaries:
 
-- Maps deliberately use Ogre's RTSS-capable white fallback material. Original
-  fixed-function materials fail under D3D11/GL3+ and remain the recorded Step
-  5/Step 9 visual-portability backlog. Geometry and collision are complete;
-  this milestone does not claim material parity.
+- The 2026-09-15 compatibility pass now preserves legacy diffuse textures,
+  transparency, and culling through generated RTSS materials. Advanced
+  normal/specular maps and custom shader effects remain the Step 9 visual
+  portability backlog; this milestone does not claim final material parity.
 - The parent/train and ladder controller contracts are fixture-tested, but
   moving train bodies, scripted ladder triggers, breakables, doors, weapons,
   and use actions are not instantiated from maps until Step 6C/Step 8.

@@ -36,7 +36,9 @@ struct Run3AppOptions {
   std::string mapName;
   std::string mapQuality{"low"};
   std::string resourceProfile{"resources_low_low.cfg"};
+  double playerHeightCm{180.0};
   double renderHz{};
+  bool fullscreen{};
   bool startNoclip{};
   bool physicsDebug{};
 };

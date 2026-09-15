@@ -1,0 +1,27 @@
+material Run3/TestTransparent
+{
+    technique
+    {
+        pass
+        {
+            scene_blend alpha_blend
+            depth_write off
+            cull_hardware none
+        }
+    }
+}
+
+material Run3/TestOpaqueMultipass
+{
+    technique
+    {
+        pass
+        {
+        }
+        pass
+        {
+            scene_blend add
+            iteration once_per_light
+        }
+    }
+}

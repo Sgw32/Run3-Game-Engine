@@ -155,6 +155,9 @@ available.
 - `--map tlwcao|tlwhome02` to enter one of the Step 6B maps
 - `--map-quality low|medium|high` (default `low`)
 - `--resource-profile FILE` (default `resources_low_low.cfg`)
+- `--player-height-cm N` to set the 120–240 cm player capsule (default `180`)
+- `--fullscreen` to create a fullscreen render window (`--windowed` overrides
+  a persisted fullscreen setting)
 - `--noclip` to start with collision and gravity disabled
 - `--physics-debug` to show collision-section bounds at startup
 - `--render-hz 30|60|144` for deterministic bounded validation runs
@@ -173,9 +176,11 @@ Optional configuration files use `key=value` lines. Content defaults are read
 from `<content-root>/config/run3.cfg`, then user settings from
 `<user-root>/config/run3.cfg`; command-line values win over both. Supported
 Step 6B keys are `renderer`, `frames`, `content-root`, `user-root`, `map`,
-`map-quality`, `resource-profile`, `render-hz`, `noclip`, and `physics-debug`.
-Relative configured roots and CLI paths are anchored at the executable
-directory.
+`map-quality`, `resource-profile`, `player-height-cm`, `render-hz`,
+`fullscreen`, `noclip`, and `physics-debug`. Relative configured roots and CLI
+paths are anchored at the executable directory. Persist height as
+`player-height-cm=180` and fullscreen mode as `fullscreen=true` in
+`<user-root>/config/run3.cfg`, or override it with the matching CLI option.
 
 The authorized local The Long Way content can be supplied explicitly without
 copying it into an installation. This opens the smaller map in noclip mode:

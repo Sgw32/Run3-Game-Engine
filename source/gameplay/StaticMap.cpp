@@ -1,6 +1,7 @@
 #include <run3/gameplay/StaticMap.hpp>
 
 #include <run3/core/Log.hpp>
+#include <run3/gameplay/LegacyMaterialCatalog.hpp>
 
 #include <OgreAxisAlignedBox.h>
 #include <OgreEntity.h>
@@ -9,16 +10,25 @@
 #include <OgreHardwareVertexBuffer.h>
 #include <OgreLogManager.h>
 #include <OgreLog.h>
+#include <OgreMaterial.h>
+#include <OgreMaterialManager.h>
 #include <OgreMesh.h>
 #include <OgreMeshManager.h>
+#include <OgreMeshSerializer.h>
+#include <OgrePass.h>
 #include <OgreResourceGroupManager.h>
 #include <OgreSceneManager.h>
 #include <OgreSceneNode.h>
+#include <OgreSubEntity.h>
 #include <OgreSubMesh.h>
+#include <OgreTechnique.h>
+#include <OgreTextureUnitState.h>
+#include <OgreShaderGenerator.h>
 
 #include <algorithm>
 #include <cctype>
 #include <fstream>
+#include <optional>
 #include <regex>
 #include <set>
 #include <sstream>
@@ -241,6 +251,29 @@ public:
     }
 
     registerResources(options.contentRoot, options.resourceProfile);
+    materialCatalog_.scan(options.contentRoot);
+    class CompatibilityListener final : public Ogre::MeshSerializerListener {
+    public:
+      explicit CompatibilityListener(Impl &owner) : owner_(&owner) {}
+      void processMaterialName(Ogre::Mesh *, Ogre::String *name) override {
+        if (const Ogre::MaterialPtr material = owner_->compatibleMaterial(*name)) {
+          *name = material->getName();
+        }
+      }
+      void processSkeletonName(Ogre::Mesh *, Ogre::String *) override {}
+      void processMeshCompleted(Ogre::Mesh *) override {}
+
+    private:
+      Impl *owner_{};
+    } materialListener(*this);
+    Ogre::MeshManager &meshManager = Ogre::MeshManager::getSingleton();
+    Ogre::MeshSerializerListener *previousListener = meshManager.getListener();
+    meshManager.setListener(&materialListener);
+    struct ListenerRestore final {
+      Ogre::MeshManager *manager{};
+      Ogre::MeshSerializerListener *listener{};
+      ~ListenerRestore() { manager->setListener(listener); }
+    } restoreListener{&meshManager, previousListener};
     const std::string xml = readText(mapDirectory / sceneFile);
     rootNode_ = sceneManager_->getRootSceneNode()->createChildSceneNode(
         "Run3Step6BMapRoot");
@@ -252,6 +285,8 @@ public:
     double sceneMultiplier = 1.0;
     bool firstPlayer = true;
     std::size_t sequence = 0;
+    Ogre::Entity *activeEntity{};
+    std::string activeEntityTag;
 
     for (std::sregex_iterator it(xml.begin(), xml.end(), tagExpression), end;
          it != end; ++it) {
@@ -265,6 +300,10 @@ public:
                                rawAttributes[rawAttributes.find_last_not_of(
                                    " \t\r\n")] == '/';
       if (closing) {
+        if (activeEntity != nullptr && tag == activeEntityTag) {
+          activeEntity = nullptr;
+          activeEntityTag.clear();
+        }
         if (tag == "node" && nodes.size() > 1) {
           nodes.pop_back();
           nodeNames.pop_back();
@@ -317,12 +356,25 @@ public:
               "Run3Step6BEntity/" + std::to_string(sequence++);
           Ogre::Entity *entity = sceneManager_->createEntity(
               entityName, meshIt->second, resourceGroup_);
-          entity->setMaterialName("BaseWhite");
+          const auto entityMaterial = values.find("materialFile");
+          if (entityMaterial != values.end()) {
+            for (unsigned subIndex = 0;
+                 subIndex < entity->getNumSubEntities(); ++subIndex) {
+              assignCompatibleMaterial(entity->getSubEntity(subIndex),
+                                       entityMaterial->second);
+            }
+          }
           nodes.back()->attachObject(entity);
           if (tag == "pblock" || tag == "blockbox") {
             entity->setVisible(false);
           }
           entities_.push_back(entity);
+          activeEntity = entity;
+          activeEntityTag = tag;
+          if (selfClosing) {
+            activeEntity = nullptr;
+            activeEntityTag.clear();
+          }
           debugNodes_.push_back(nodes.back());
           ++stats_.visualSections;
           if (tag != "nocollide") {
@@ -370,6 +422,23 @@ public:
               "Step 6B skipped '" + meshIt->second + "': " +
               error.getDescription());
         }
+      } else if ((tag == "subentity" || tag == "subnocollide") &&
+                 activeEntity != nullptr) {
+        const auto material = values.find("materialName");
+        const auto index = values.find("index");
+        if (material != values.end() && index != values.end()) {
+          try {
+            const auto subIndex =
+                static_cast<unsigned>(std::stoul(index->second));
+            if (subIndex < activeEntity->getNumSubEntities()) {
+              assignCompatibleMaterial(activeEntity->getSubEntity(subIndex),
+                                       material->second);
+            }
+          } catch (const std::exception &) {
+            Ogre::LogManager::getSingleton().logMessage(
+                "Step 6B ignored invalid subentity index: " + index->second);
+          }
+        }
       }
     }
     Ogre::LogManager::getSingleton().logMessage(
@@ -377,8 +446,69 @@ public:
         std::to_string(stats_.visualSections) + " collision=" +
         std::to_string(stats_.collisionSections) + " triangles=" +
         std::to_string(stats_.triangles) + " skipped=" +
-        std::to_string(stats_.skippedSections));
+        std::to_string(stats_.skippedSections) + " textured-materials=" +
+        std::to_string(compatibleMaterials_.size()) +
+        " unresolved-materials=" +
+        std::to_string(unresolvedMaterials_.size()));
     return stats_;
+  }
+
+  Ogre::MaterialPtr compatibleMaterial(const std::string &legacyName) {
+    if (legacyName.empty() || legacyName == "BaseWhite") {
+      return {};
+    }
+    if (const auto cached = compatibleMaterials_.find(legacyName);
+        cached != compatibleMaterials_.end()) {
+      return cached->second;
+    }
+    const std::optional<LegacyMaterialInfo> legacy =
+        materialCatalog_.find(legacyName);
+    if (!legacy) {
+      if (unresolvedMaterials_.insert(legacyName).second) {
+        Ogre::LogManager::getSingleton().logMessage(
+            "Step 6B texture fallback: no diffuse texture for material '" +
+            legacyName + "'");
+      }
+      return {};
+    }
+
+    const std::string generatedName =
+        "Run3/CompatTexture/" + std::to_string(compatibleMaterials_.size());
+    Ogre::MaterialPtr generated = Ogre::MaterialManager::getSingleton().create(
+        generatedName, resourceGroup_);
+    Ogre::Pass *pass = generated->getTechnique(0)->getPass(0);
+    pass->setLightingEnabled(true);
+    pass->setAmbient(1.0F, 1.0F, 1.0F);
+    pass->setDiffuse(1.0F, 1.0F, 1.0F, 1.0F);
+    Ogre::TextureUnitState *texture =
+        pass->createTextureUnitState(legacy->texture);
+    texture->setTextureFiltering(Ogre::TFO_ANISOTROPIC);
+    texture->setTextureAnisotropy(8);
+    if (legacy->transparent) {
+      pass->setSceneBlending(Ogre::SBT_TRANSPARENT_ALPHA);
+      pass->setDepthWriteEnabled(false);
+    }
+    if (legacy->doubleSided) {
+      pass->setCullingMode(Ogre::CULL_NONE);
+    }
+    if (Ogre::RTShader::ShaderGenerator *shaderGenerator =
+            Ogre::RTShader::ShaderGenerator::getSingletonPtr()) {
+      static_cast<void>(shaderGenerator->createShaderBasedTechnique(
+          *generated, Ogre::MaterialManager::DEFAULT_SCHEME_NAME,
+          Ogre::RTShader::ShaderGenerator::DEFAULT_SCHEME_NAME));
+    }
+    compatibleMaterials_[legacyName] = generated;
+    return generated;
+  }
+
+  void assignCompatibleMaterial(Ogre::SubEntity *subEntity,
+                                const std::string &legacyName) {
+    const Ogre::MaterialPtr generated = compatibleMaterial(legacyName);
+    if (generated) {
+      subEntity->setMaterial(generated);
+    } else {
+      subEntity->setMaterialName("BaseWhite");
+    }
   }
 
   void registerResources(const fs::path &contentRoot,
@@ -421,9 +551,9 @@ public:
             error.getDescription());
       }
     }
-    // Step 5 records the old script failures. Step 6B deliberately does not
-    // initialise the full legacy material set: D3D11/GL3+ cannot render many
-    // fixed-function techniques. Geometry uses Ogre's RTSS-capable fallback.
+    // Do not initialise the full legacy script set: many programs target
+    // D3D9-era profiles. Static-map materials are rebuilt as texture-preserving
+    // RTSS materials instead.
   }
 
   void unload() noexcept {
@@ -448,6 +578,8 @@ public:
       }
     }
     stats_ = {};
+    compatibleMaterials_.clear();
+    unresolvedMaterials_.clear();
   }
 
   Ogre::SceneManager *sceneManager_{};
@@ -457,6 +589,9 @@ public:
   std::vector<Ogre::SceneNode *> debugNodes_;
   std::vector<physics::BodyHandle> bodies_;
   std::vector<AxisAlignedVolume> ladders_;
+  LegacyMaterialCatalog materialCatalog_;
+  std::unordered_map<std::string, Ogre::MaterialPtr> compatibleMaterials_;
+  std::set<std::string> unresolvedMaterials_;
   physics::Vec3 spawn_{};
   StaticMapStats stats_;
   const Ogre::String resourceGroup_{"Run3Step6BContent"};

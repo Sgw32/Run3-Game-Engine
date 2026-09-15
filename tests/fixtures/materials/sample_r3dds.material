@@ -1,0 +1,23 @@
+material Run3/TestChild : Run3/TestTransparent
+{
+    set_texture_alias MainTexture test_diffuse.dds
+}
+
+material Run3/TestOpaqueChild : Run3/TestOpaqueMultipass
+{
+    set_texture_alias MainTexture opaque_diffuse.dds
+}
+
+material Run3/TestDirect
+{
+    technique
+    {
+        pass
+        {
+            texture_unit
+            {
+                texture direct.png
+            }
+        }
+    }
+}

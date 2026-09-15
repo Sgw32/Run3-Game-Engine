@@ -15,7 +15,7 @@ CTest boundary check enforces that rule.
 
 | Legacy behavior | Step 6B implementation | Validation |
 |---|---|---|
-| Newton ellipsoid plus UpVector joints | Dynamic Y-axis capsule, zero angular factor, 40 kg, fixed 60 Hz | Upright/fall/rest fixture |
+| Newton ellipsoid plus UpVector joints | Dynamic Y-axis capsule, zero angular factor, 40 kg, fixed 60 Hz; game default 180 cm | Upright/fall/rest fixture |
 | Walk and sprint | Camera-yaw-relative velocity, normalized diagonal input, 300/520 game units/s | Walk/run and replay tests |
 | Gravity and floor test | Bullet gravity at -981 game units/s² and an own-body-excluding downward ray | Box and indexed-mesh floors |
 | Jump | Grounded, rising-edge jump at 360 game units/s | Jump fixture |
@@ -29,9 +29,11 @@ CTest boundary check enforces that rule.
 
 The capsule is intentional. It has stable ground contact and slides around
 corners more predictably than attempting to reproduce Newton's highly
-anisotropic 20x100x20 ellipsoid. The new speeds, capsule height, and 35-unit
-step are initial compatibility values and should be tuned against a recorded
-legacy playthrough rather than per-map hacks.
+anisotropic 20x100x20 ellipsoid. The game default is 180 cm with an
+approximately 165 cm eye height. `player-height-cm` in the user configuration
+or `--player-height-cm` on the command line accepts 120–240 cm and derives the
+crouch/eye dimensions proportionally. Speeds and the 35-unit step remain
+initial compatibility values to tune against a recorded legacy playthrough.
 
 ## Static geometry rules
 
@@ -54,12 +56,13 @@ legacy playthrough rather than per-map hacks.
 ## Visual compatibility boundary
 
 The original material scripts contain duplicate GPU program names and many
-D3D9 fixed-function techniques. A direct D3D11 trial failed at render time on
-a technique without a vertex shader. Step 6B therefore assigns Ogre's
-RTSS-capable white fallback to map geometry. This makes the world navigable and
-the geometry easy to inspect, but textures/shaders are not visually equivalent.
-That is a Step 9 task and the Step 5 report remains the source of content
-failures.
+D3D9-only programs. Loading them directly under D3D11 failed at render time.
+The compatibility loader now inventories material inheritance and aliases,
+then builds simple Ogre 14 RTSS materials with each legacy diffuse texture.
+XML subentity overrides are honored. Alpha blending and double-sided flags are
+carried across where declared or inherited. Advanced shader behavior remains a
+Step 9 task, and a genuinely missing texture falls back per material rather
+than making the whole map white.
 
 ## Recorded map runs
 

@@ -38,6 +38,10 @@ find_package(
 find_package(Bullet 3.25 EXACT CONFIG REQUIRED)
 find_package(Lua 5.4 EXACT REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+# The vcpkg manifest/override is the exact version authority. sol2 3.5.0's
+# upstream config advertises its compatibility ABI as 4.0.0, so CMake's EXACT
+# package-version check cannot be used reliably here.
+find_package(sol2 CONFIG REQUIRED)
 find_package(tinyxml2 CONFIG REQUIRED)
 find_package(Threads REQUIRED)
 find_path(MINIAUDIO_INCLUDE_DIR miniaudio.h REQUIRED)
@@ -162,9 +166,28 @@ target_include_directories(
 target_link_libraries(run3_gameplay PUBLIC run3::physics
                       PRIVATE run3::warnings OgreMain OgreRTShaderSystem)
 
-add_library(run3_asset_validation STATIC
-            source/content/AssetValidation.cpp
-            source/content/Sha256.cpp)
+add_library(run3_xml STATIC source/content/XmlParser.cpp)
+add_library(run3::xml ALIAS run3_xml)
+target_compile_features(run3_xml PUBLIC cxx_std_17)
+target_include_directories(
+    run3_xml PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(run3_xml PRIVATE run3::warnings tinyxml2::tinyxml2)
+
+# sol2 and the Lua C API are implementation details of this target. Game and
+# content code depend only on the Run3-owned ScriptEngine interface.
+add_library(run3_scripting STATIC source/scripting/ScriptEngine.cpp)
+add_library(run3::scripting ALIAS run3_scripting)
+target_compile_features(run3_scripting PUBLIC cxx_std_17)
+target_include_directories(
+    run3_scripting
+    PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    PRIVATE ${LUA_INCLUDE_DIR})
+target_link_libraries(
+    run3_scripting
+    PRIVATE run3::warnings run3::sanitizers sol2::sol2 ${LUA_LIBRARIES})
+
+add_library(run3_asset_validation STATIC source/content/AssetValidation.cpp
+                                         source/content/Sha256.cpp)
 add_library(run3::asset_validation ALIAS run3_asset_validation)
 target_compile_features(run3_asset_validation PUBLIC cxx_std_17)
 target_include_directories(
@@ -172,9 +195,8 @@ target_include_directories(
     PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 target_link_libraries(
     run3_asset_validation
-    PUBLIC ${LUA_LIBRARIES} nlohmann_json::nlohmann_json tinyxml2::tinyxml2
+    PUBLIC run3::xml run3::scripting nlohmann_json::nlohmann_json
     PRIVATE run3::warnings)
-target_include_directories(run3_asset_validation PRIVATE ${LUA_INCLUDE_DIR})
 
 if(WIN32 AND RUN3_ENABLE_OPTIONAL_DEVICES)
     set(_run3_optional_device_source source/platform/OptionalDevicesWin32.cpp)
@@ -249,9 +271,9 @@ if(RUN3_BUILD_LEGACY)
                RUN3_LEGACY_ENABLE_DIRECTSHOW=0
                RUN3_LEGACY_ENABLE_SERIAL=0
                RUN3_LEGACY_ENABLE_NAMED_PIPES=0
-        PRIVATE TIXML_USE_STL NOMINMAX)
+        PRIVATE NOMINMAX)
     target_link_libraries(run3_legacy PUBLIC run3::core run3::optional_devices
-                                             OgreMain OgreOverlay)
+                                             run3::xml OgreMain OgreOverlay)
 
     # Keep concessions local to untouched legacy translation units. New glue
     # and all other first-party targets retain the normal warning policy.
@@ -360,6 +382,27 @@ if(RUN3_BUILD_TESTS)
     catch_discover_tests(run3_asset_validation_tests
                          TEST_PREFIX "run3_assets."
                          PROPERTIES LABELS "assets")
+
+    add_executable(run3_step8_tests tests/step8_tests.cpp)
+    target_compile_features(run3_step8_tests PRIVATE cxx_std_17)
+    target_compile_definitions(
+        run3_step8_tests
+        PRIVATE RUN3_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(
+        run3_step8_tests
+        PRIVATE run3::warnings run3::xml run3::scripting
+                Catch2::Catch2WithMain)
+    catch_discover_tests(run3_step8_tests
+                         TEST_PREFIX "run3_step8."
+                         PROPERTIES LABELS "step8;xml;lua")
+    add_test(
+        NAME run3_step8.legacy-boundary
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DRUN3_SOURCE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckStep8Boundary.cmake")
+    set_tests_properties(run3_step8.legacy-boundary
+                         PROPERTIES LABELS "step8;xml;lua")
 
     add_executable(run3_physics_tests tests/physics_mapping_tests.cpp)
     target_compile_features(run3_physics_tests PRIVATE cxx_std_17)

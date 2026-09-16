@@ -1,8 +1,8 @@
 #include <run3/content/AssetValidation.hpp>
+#include <run3/content/XmlParser.hpp>
+#include <run3/scripting/ScriptEngine.hpp>
 
-#include <lua.hpp>
 #include <nlohmann/json.hpp>
-#include <tinyxml2.h>
 
 #include <algorithm>
 #include <cctype>
@@ -201,14 +201,13 @@ std::vector<std::string> directLogicalNames(const AssetResourceLocation &locatio
   return names;
 }
 
-void inspectXmlReferences(tinyxml2::XMLElement *element,
+void inspectXmlReferences(const content::XmlNode &element,
                           const std::function<void(std::string)> &accept) {
-  for (auto *attribute = element->FirstAttribute(); attribute != nullptr;
-       attribute = attribute->Next()) {
-    accept(attribute->Value());
+  for (const auto &[name, value] : element.attributes) {
+    (void)name;
+    accept(value);
   }
-  for (auto *child = element->FirstChildElement(); child != nullptr;
-       child = child->NextSiblingElement()) {
+  for (const content::XmlNode &child : element.children) {
     inspectXmlReferences(child, accept);
   }
 }
@@ -336,8 +335,7 @@ AssetReport validateContent(const AssetValidationOptions &options) {
   report.luaVersion = runtime.at("lua").get<std::string>();
   report.ogreVersion = runtime.at("ogre").get<std::string>();
   report.resourceProfile = runtime.at("resource_profile").get<std::string>();
-  const std::string compiledLua = std::string(LUA_VERSION_MAJOR) + "." +
-                                  LUA_VERSION_MINOR + "." + LUA_VERSION_RELEASE;
+  const std::string compiledLua = scripting::luaRuntimeVersion();
   if (report.luaVersion != compiledLua) {
     throw std::runtime_error("Manifest requires Lua " + report.luaVersion +
                              ", but run3_asset_check uses Lua " + compiledLua);
@@ -574,10 +572,8 @@ AssetReport validateContent(const AssetValidationOptions &options) {
                     source.relativePath, "Referenced file was not found: " + value);
   };
 
-  lua_State *lua = luaL_newstate();
-  if (lua == nullptr) {
-    throw std::runtime_error("Could not create the Lua syntax-check state");
-  }
+  scripting::ScriptEngine scripts(
+      {report.contentRoot, report.contentRoot, 1'000'000});
   const std::regex quotedReference(
       R"re(["']([^"']+\.[A-Za-z0-9_]+)["'])re");
   const std::regex scriptReference(
@@ -585,30 +581,25 @@ AssetReport validateContent(const AssetValidationOptions &options) {
       std::regex::icase);
   for (const AssetFile &file : report.files) {
     if (xmlExtensions.count(file.extension) != 0) {
-      tinyxml2::XMLDocument document;
-      const auto result = document.LoadFile(file.absolutePath.string().c_str());
       ++report.checks["xml_files"];
-      if (result != tinyxml2::XML_SUCCESS) {
-        report.addIssue(AssetIssueSeverity::Error, "xml-not-well-formed",
-                        file.relativePath,
-                        document.ErrorStr() == nullptr ? "XML parse failed"
-                                                       : document.ErrorStr());
-      } else if (auto *root = document.RootElement()) {
-        inspectXmlReferences(root, [&](std::string value) {
+      try {
+        const content::XmlDocument document = content::parseXmlFile(
+            file.absolutePath, content::XmlSchema::configAdjacent);
+        inspectXmlReferences(document.root, [&](std::string value) {
           inspectReference(file, std::move(value));
         });
+      } catch (const content::XmlParseError &error) {
+        report.addIssue(AssetIssueSeverity::Error, "xml-not-well-formed",
+                        file.relativePath, error.what());
       }
     }
     if (luaExtensions.count(file.extension) != 0) {
       ++report.checks["lua_files"];
-      if (luaL_loadfile(lua, file.absolutePath.string().c_str()) != LUA_OK) {
-        const char *message = lua_tostring(lua, -1);
+      try {
+        (void)scripts.checkFile(file.absolutePath);
+      } catch (const scripting::ScriptError &error) {
         report.addIssue(AssetIssueSeverity::Error, "lua-parse",
-                        file.relativePath,
-                        message == nullptr ? "Lua syntax parse failed" : message);
-        lua_pop(lua, 1);
-      } else {
-        lua_pop(lua, 1);
+                        file.relativePath, error.what());
       }
     }
     if (file.extension == ".mesh" || file.extension == ".skeleton") {
@@ -622,7 +613,7 @@ AssetReport validateContent(const AssetValidationOptions &options) {
                         "Ogre serializer header/version marker is invalid");
       }
     }
-    // XML references were already visited through tinyxml2 attributes above.
+    // XML references were already visited through the Run3 XML tree above.
     // Avoid a second regex pass over every scene; large legacy maps otherwise
     // pay twice for the same references.
     if (luaExtensions.count(file.extension) != 0 ||
@@ -643,7 +634,6 @@ AssetReport validateContent(const AssetValidationOptions &options) {
       }
     }
   }
-  lua_close(lua);
   return report;
 }
 

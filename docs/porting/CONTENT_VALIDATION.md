@@ -18,7 +18,9 @@ The validator performs these checks:
   configuration/group are reported;
 - filename-like references in XML attributes, Lua strings, and Ogre scripts
   resolve exactly as Linux would see them;
-- XML is well formed and Lua is parsed, but not executed, by exact Lua 5.4.8;
+- XML is parsed through the Run3/TinyXML2 schema adapter and Lua is loaded, but
+  not executed, by `ScriptEngine` on exact Lua 5.4.8 (including the single
+  documented Lua 5.0 `\s` compatibility rule);
 - mesh and skeleton serializer headers are checked, then every binary is
   imported through the Ogre 14.5.2 serializers;
 - active-profile `.program`, `.material`, and `.compositor` resources are

@@ -1,0 +1,8 @@
+schema=config-adjacent
+legacy-attribute-normalization=false
+node /first line=1
+attr /first @debug="false"
+attr /first @start="false"
+node /first/renderer[0] line=2
+attr /first/renderer[0] @fullscreen="false"
+attr /first/renderer[0] @name="d3d11"

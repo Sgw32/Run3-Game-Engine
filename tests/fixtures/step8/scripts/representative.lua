@@ -1,0 +1,7 @@
+assert(io == nil and os == nil and package == nil and debug == nil)
+assert(dofile == nil and loadfile == nil)
+playMusic("music/theme.mp3")
+gameText("step8 compatibility")
+npcEvent("guard", "follow")
+enableTrigger("exit")
+changeLevel("tlwcao")

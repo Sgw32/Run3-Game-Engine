@@ -13,10 +13,10 @@ AIR3 submodule), not ABI analysis. Regenerate them with
 | OIS | Not recorded | 45 / 395 | Linked as `OIS[_d].lib`; replace behind Run3 input boundary |
 | Newton and OgreNewt | Not recorded | 97 / 679 | `newton.lib`, `OgreNewt_Main.lib`; replace behind Bullet adapter |
 | CEGUI | Not recorded | 6 / 473 | `CEGUIBase` and `OgreGUIRenderer`; replace menu layer, retain only temporary compatibility where required |
-| Lua and luabind | Lua 5.0 path in project; luabind version unknown | 26 / 972 | `lua.lib`, `lualib.lib`; later isolate and move to Lua 5.4/sol2 |
+| Lua and luabind | Lua 5.0 path in project; no tracked luabind registration found | 26 / 972 | Historical `lua.lib`/`lualib.lib`; Step 8 replaced the live boundary with pinned Lua 5.4/sol2 and a Run3-owned sandbox |
 | OpenAL and ALUT | OpenAL 1.1 SDK path | 4 / 100 | Historical `OpenAL32.lib`/`alut.lib` path; Step 7 replaced the live build with `run3::audio` and retains these sources only as migration evidence |
 | Audiere | 1.9.4 in project path | 2 / 15 | Historical Release music path; Step 7 replaced it with the streaming `run3::audio` music facade |
-| TinyXML | Bundled 2.5.3 constants in `tinyxml.h` | 17 / 1,663 | Bundled sources; replace behind parser tests with TinyXML2 |
+| TinyXML | Bundled 2.5.3 constants in `tinyxml.h` | 17 / 1,663 | Step 8 retired bundled sources from live targets; TinyXML2 is private to `run3::xml` behind golden schema tests |
 | Hydrax | 0.5.1 in project path | 2 / 39 | Release-only library; make water implementation optional |
 | SkyX | 0.1 in project path | 3 / 9 | Release-only library; make sky implementation optional |
 | NVIDIA Cg | Plugin visible in runtime log | 0 direct source references | Cg programs are content/material driven; remove from required renderer path |
@@ -78,8 +78,9 @@ The committed manifest uses vcpkg baseline
 |---|---|---|
 | Bullet (`bullet3`) | 3.25 port revision 3 | Private implementation of `run3::physics`; imported targets `BulletDynamics`, `BulletCollision`, and `LinearMath`; Zlib license |
 | Ogre classic | 14.5.2 | Renderer shell, asset parsing, and conversion tools |
-| Lua | 5.4.8 | Syntax-only content validation |
-| TinyXML2 | 11.0.0 | Content/fixture XML validation |
+| Lua | 5.4.8 | Private `ScriptEngine` runtime and content validation; exact manifest override |
+| sol2 | 3.5.0 port revision 1 | Private binding implementation in `run3::scripting`; exact manifest override |
+| TinyXML2 | 11.0.0 | Private implementation of Run3 XML/schema parsing |
 | miniaudio | 0.11.25 | Private implementation of `run3::audio`; exact manifest override; Unlicense or MIT-0 |
 | nlohmann-json | 3.12.0 port revision 2 | Machine-readable asset report |
 | Catch2 | 3.16.0 | Unit and integration tests |
@@ -99,6 +100,13 @@ audio feature switch in the live target graph. The baseline port verifies the
 0.11.25 GitHub archive with SHA-512
 `8cdfe5cd66dd84628430a24026b307c21158b4776492eec234c2ce3cf0da3ae26fe8162f3ed285502f6002fdf252ccb660f7c216e044e3c306b75b0997700b45`.
 See [AUDIO.md](AUDIO.md).
+
+Lua/sol2 headers are confined to `source/scripting/ScriptEngine.cpp`, and
+TinyXML2 headers to `source/content/XmlParser.cpp`. A CTest repository boundary
+enforces those constraints. The old external Lua libraries and bundled
+TinyXML translation units are not compiled or linked. See
+[XML_LUA.md](XML_LUA.md) for the inventory, compatibility policy, sandbox, and
+full-content results.
 
 ## Update template
 

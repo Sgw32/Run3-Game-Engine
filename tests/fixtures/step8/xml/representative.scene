@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<scene formatVersion="1.0" multiplier="1">
+  <environment>
+    <colourAmbient r="0.6" g="0.6" b="0.5" />
+    <player fov="45" x="-4637" y="-9262" z="1600" />
+  </environment>
+  <nodes>
+    <node name="desk#1">
+      <position x="10" y="20" z="30" />
+      <entity meshFile="desk.mesh" castShadows="false" />
+    </node>
+  </nodes>
+</scene>

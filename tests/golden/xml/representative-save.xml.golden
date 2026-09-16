@@ -1,0 +1,16 @@
+schema=save
+legacy-attribute-normalization=false
+node /savefile line=1
+attr /savefile @a="7"
+attr /savefile @map="tlwcao"
+attr /savefile @maxh="100"
+attr /savefile @mulh="1"
+attr /savefile @ra="8"
+attr /savefile @rb="9"
+attr /savefile @rc="10"
+attr /savefile @rx1="1"
+attr /savefile @rx2="2"
+attr /savefile @ry1="3"
+attr /savefile @ry2="4"
+attr /savefile @rz1="5"
+attr /savefile @rz2="6"

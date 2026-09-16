@@ -1,8 +1,8 @@
 #include "run3/legacy/LegacySmoke.hpp"
+#include <run3/content/XmlParser.hpp>
 
 #include "../../CTParameters.h"
 #include "../../Tokenizer.h"
-#include "../../tinyxml.h"
 
 #include <string>
 
@@ -18,10 +18,10 @@ bool reusableSourcesSmoke() {
     tokenizer.setDelim(" ");
     tokenizer.setString("run3 legacy");
 
-    TiXmlDocument document;
-    document.Parse("<run3 step=\"3\"/>");
-    return !document.Error() && document.RootElement() != nullptr &&
-           std::string{document.RootElement()->Value()} == "run3";
+    const auto document = run3::content::parseXml(
+        "<run3 step=\"8\"/>", "legacy-smoke.xml",
+        run3::content::XmlSchema::configAdjacent);
+    return document.root.name == "run3";
 }
 
 } // namespace run3::legacy

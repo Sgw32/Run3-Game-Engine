@@ -1,6 +1,5 @@
 #include <run3/content/OgreAssetValidation.hpp>
-
-#include <tinyxml2.h>
+#include <run3/content/XmlParser.hpp>
 
 #include <OgreColourValue.h>
 #include <OgreDataStream.h>
@@ -86,14 +85,20 @@ Ogre::DataStreamPtr openDataStream(const AssetFile &file) {
       new Ogre::FileStreamDataStream(file.relativePath, stream, true));
 }
 
-float attribute(tinyxml2::XMLElement &element, const char *name,
+float attribute(const content::XmlNode &element, const char *name,
                 float fallback) {
-  float result = fallback;
-  element.QueryFloatAttribute(name, &result);
-  return result;
+  const std::string *value = element.attribute(name);
+  if (value == nullptr) {
+    return fallback;
+  }
+  try {
+    return std::stof(*value);
+  } catch (const std::exception &) {
+    return fallback;
+  }
 }
 
-Ogre::ColourValue colour(tinyxml2::XMLElement *element,
+Ogre::ColourValue colour(const content::XmlNode *element,
                          const Ogre::ColourValue &fallback) {
   if (element == nullptr) {
     return fallback;
@@ -105,58 +110,51 @@ Ogre::ColourValue colour(tinyxml2::XMLElement *element,
 }
 
 void loadRenderFixture(const fs::path &path, Ogre::SceneManager &sceneManager) {
-  tinyxml2::XMLDocument document;
-  if (document.LoadFile(path.string().c_str()) != tinyxml2::XML_SUCCESS) {
-    throw std::runtime_error(document.ErrorStr() == nullptr
-                                 ? "Fixture XML could not be parsed"
-                                 : document.ErrorStr());
-  }
-  tinyxml2::XMLElement *scene = document.FirstChildElement("scene");
-  if (scene != nullptr) {
-    if (auto *environment = scene->FirstChildElement("environment")) {
+  const content::XmlDocument document =
+      content::parseXmlFile(path, content::XmlSchema::scene);
+  const content::XmlNode *scene = &document.root;
+  if (const auto *environment = scene->firstChild("environment")) {
       sceneManager.setAmbientLight(colour(
-          environment->FirstChildElement("colourAmbient"),
+          environment->firstChild("colourAmbient"),
           Ogre::ColourValue(0.25F, 0.25F, 0.25F)));
-    }
   }
-  tinyxml2::XMLElement *nodes =
-      scene == nullptr ? nullptr : scene->FirstChildElement("nodes");
+  const content::XmlNode *nodes = scene->firstChild("nodes");
   if (nodes == nullptr) {
     throw std::runtime_error("Fixture scene has no <scene>/<nodes> element");
   }
   std::size_t index{};
-  for (auto *nodeElement = nodes->FirstChildElement("node");
-       nodeElement != nullptr;
-       nodeElement = nodeElement->NextSiblingElement("node")) {
-    const char *configuredName = nodeElement->Attribute("name");
+  for (const content::XmlNode &nodeElement : nodes->children) {
+    if (nodeElement.name != "node") {
+      continue;
+    }
+    const std::string *configuredName = nodeElement.attribute("name");
     const std::string name = configuredName == nullptr
                                  ? "Run3Step5Node" + std::to_string(index++)
-                                 : configuredName;
+                                 : *configuredName;
     Ogre::SceneNode *node =
         sceneManager.getRootSceneNode()->createChildSceneNode(name);
-    if (auto *position = nodeElement->FirstChildElement("position")) {
+    if (const auto *position = nodeElement.firstChild("position")) {
       node->setPosition(attribute(*position, "x", 0),
                         attribute(*position, "y", 0),
                         attribute(*position, "z", 0));
     }
-    if (auto *lightElement = nodeElement->FirstChildElement("light")) {
-      const char *lightName = lightElement->Attribute("name");
+    if (const auto *lightElement = nodeElement.firstChild("light")) {
+      const std::string *lightName = lightElement->attribute("name");
       Ogre::Light *light = sceneManager.createLight(
-          lightName == nullptr ? name + "/Light" : lightName);
+          lightName == nullptr ? name + "/Light" : *lightName);
+      const std::string *configuredType = lightElement->attribute("type");
       const std::string type =
-          lightElement->Attribute("type") == nullptr
-              ? "point"
-              : lightElement->Attribute("type");
+          configuredType == nullptr ? "point" : *configuredType;
       light->setType(type == "directional" ? Ogre::Light::LT_DIRECTIONAL
                                             : Ogre::Light::LT_POINT);
       light->setDiffuseColour(colour(
-          lightElement->FirstChildElement("colourDiffuse"),
+          lightElement->firstChild("colourDiffuse"),
           Ogre::ColourValue::White));
       light->setSpecularColour(colour(
-          lightElement->FirstChildElement("colourSpecular"),
+          lightElement->firstChild("colourSpecular"),
           Ogre::ColourValue::White));
-      if (auto *attenuation =
-              lightElement->FirstChildElement("lightAttenuation")) {
+      if (const auto *attenuation =
+              lightElement->firstChild("lightAttenuation")) {
         light->setAttenuation(attribute(*attenuation, "range", 1000),
                               attribute(*attenuation, "constant", 1),
                               attribute(*attenuation, "linear", 0),
@@ -164,15 +162,15 @@ void loadRenderFixture(const fs::path &path, Ogre::SceneManager &sceneManager) {
       }
       node->attachObject(light);
     }
-    if (auto *entityElement = nodeElement->FirstChildElement("entity")) {
-      const char *primitive = entityElement->Attribute("primitive");
-      if (primitive == nullptr || std::string(primitive) != "cube") {
+    if (const auto *entityElement = nodeElement.firstChild("entity")) {
+      const std::string *primitive = entityElement->attribute("primitive");
+      if (primitive == nullptr || *primitive != "cube") {
         throw std::runtime_error(
             "Fixture entities must use the assetless primitive=\"cube\"");
       }
-      const char *entityName = entityElement->Attribute("name");
+      const std::string *entityName = entityElement->attribute("name");
       node->attachObject(sceneManager.createEntity(
-          entityName == nullptr ? name + "/Cube" : entityName,
+          entityName == nullptr ? name + "/Cube" : *entityName,
           Ogre::SceneManager::PT_CUBE));
     }
   }

@@ -125,9 +125,6 @@ set(RUN3_LEGACY_VCPROJ_SOURCES
 # Reusable source subset compiled during Step 3. Every file is in the vcproj
 # list above and has no dependency on an unreproducible legacy SDK.
 set(RUN3_LEGACY_REUSABLE_SOURCES
-    tinyxml.cpp
-    tinyxmlerror.cpp
-    tinyxmlparser.cpp
     recorder.cpp
     strings.cpp
     Tokenizer.cpp
@@ -212,6 +209,13 @@ set(RUN3_LEGACY_RETIRED_AUDIO_SOURCES
     Run3SoundRuntime.cpp
     SoundManager.cpp)
 
+# Step 8 replaces bundled TinyXML 1 with the Run3-owned TinyXML2 adapter.
+# These project-listed files remain historical parser evidence only.
+set(RUN3_LEGACY_RETIRED_XML_SOURCES
+    tinyxml.cpp
+    tinyxmlerror.cpp
+    tinyxmlparser.cpp)
+
 # This vcproj-listed file contains only an incomplete, unterminated commented
 # copy of TinyXML's string implementation. TIXML_USE_STL does not need it.
 set(RUN3_LEGACY_MALFORMED_UNUSED_SOURCES tinystr.cpp)
@@ -222,6 +226,7 @@ set(_run3_legacy_accounted_sources
     ${RUN3_LEGACY_OBSOLETE_DEMO_TOOL_SOURCES}
     ${RUN3_LEGACY_RETIRED_NEWTON_SOURCES}
     ${RUN3_LEGACY_RETIRED_AUDIO_SOURCES}
+    ${RUN3_LEGACY_RETIRED_XML_SOURCES}
     ${RUN3_LEGACY_MALFORMED_UNUSED_SOURCES})
 set(RUN3_LEGACY_DEFERRED_SOURCES ${RUN3_LEGACY_VCPROJ_SOURCES})
 list(REMOVE_ITEM RUN3_LEGACY_DEFERRED_SOURCES

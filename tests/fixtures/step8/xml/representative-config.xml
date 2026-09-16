@@ -1,0 +1,3 @@
+<first start="false" debug="false">
+  <renderer name="d3d11" fullscreen="false" />
+</first>

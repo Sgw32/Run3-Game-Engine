@@ -4,7 +4,8 @@ The root build compiles the Step 1 probe, the controlled legacy compatibility
 library, `run3_shell`, the Step 5 `run3_asset_check`, the Step 6A
 `run3_physics` Bullet/null backend, and the Step 6B `run3_gameplay` static-map
 and player layer. Step 7 adds the Run3-owned audio API with null and pinned
-miniaudio backends. The shell uses `Run3App` and an
+miniaudio backends. Step 8 adds Run3-owned XML and scripting targets backed by
+pinned TinyXML2, Lua 5.4, and sol2. The shell uses `Run3App` and an
 application-owned loop; it does not inspect local `OgreSDK/` or `Run3Dep/`
 directories. Ogre classic 14.5.2 and its official conversion tools are restored solely from the pinned vcpkg
 manifest; see
@@ -61,6 +62,13 @@ To compile selected targets after configuration:
 
 ```powershell
 cmake --build --preset windows-msvc-x64-debug --target run3_shell run3_asset_check run3_legacy run3_runtime_tests run3_audio_tests run3_physics_tests run3_player_tests
+```
+
+To build and run only the XML/Lua migration tests:
+
+```powershell
+cmake --build --preset windows-msvc-x64-debug --target run3_step8_tests
+ctest --preset windows-msvc-x64-debug -L step8
 ```
 
 The build-tree executables are placed in

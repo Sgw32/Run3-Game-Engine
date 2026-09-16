@@ -1,0 +1,12 @@
+<sequence>
+  <adents>
+    <lua script="run3/lua/chapters/tlwcao/startup_low.lua" />
+    <timer name="radio_end" period=28 lua="run3/lua/radio_end.lua" />
+    <npc name="guard" velocity=110 animated="true">
+      <position x=0 y=1 z=2 />
+    </npc>
+  </adents>
+  <events>
+    <trigger name="door" wait="-1" />
+  </events>
+</sequence>

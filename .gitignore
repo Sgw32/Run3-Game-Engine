@@ -12,6 +12,8 @@
 /CTestTestfile.cmake
 /Testing/
 /cmake_install.cmake
+__pycache__/
+*.py[cod]
 
 # Per-developer CMake overrides must remain local.
 /CMakeUserPresets.json

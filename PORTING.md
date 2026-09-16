@@ -16,9 +16,9 @@ Progress checklist (mark a step only when its exit criteria pass):
 - [x] 5 — content validation and first rendered map
 - [x] 6A — Bullet backend tests
 - [x] 6B — static world and player
-- [ ] 6C — remaining physics and AIR3
+- [x] 6C — remaining physics and AIR3
 - [x] 7 — unified audio
-- [ ] 8 — XML and Lua
+- [x] 8 — XML and Lua
 - [ ] 9 — UI and visual portability
 - [ ] 10 — complete campaign pass
 - [ ] 11 — modularity and code-quality ratchet

@@ -1,0 +1,16 @@
+schema=facial-animation
+legacy-attribute-normalization=false
+node /facialanimation line=2
+attr /facialanimation @patched="false"
+attr /facialanimation @subtitle_text="Please show your documents."
+node /facialanimation/node[0] line=3
+attr /facialanimation/node[0] @letter="G"
+attr /facialanimation/node[0] @time="0"
+node /facialanimation/node[1] line=4
+attr /facialanimation/node[1] @letter="R"
+attr /facialanimation/node[1] @patch="true"
+attr /facialanimation/node[1] @time="0.103423076923077"
+node /facialanimation/file[2] line=5
+attr /facialanimation/file[2] @name="run3/sounds/pogran/document01.wav"
+node /facialanimation/realfile[3] line=6
+attr /facialanimation/realfile[3] @name="C:\\Run3v0.72\\run3\\sounds\\speech\\document01.wav"

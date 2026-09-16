@@ -7,11 +7,11 @@ filesystem glob is used.
 
 ## Compiled reusable subset
 
-`run3_legacy` is a static compatibility library. It currently compiles 26 of
+`run3_legacy` is a static compatibility library. It currently compiles 23 of
 the 119 project-listed translation units:
 
-- Bundled support (6): `tinyxml.cpp`, `tinyxmlerror.cpp`,
-  `tinyxmlparser.cpp`, `recorder.cpp`, `strings.cpp`, and `Tokenizer.cpp`.
+- Bundled support retained (3): `recorder.cpp`, `strings.cpp`, and
+  `Tokenizer.cpp`. Step 8 retired the three bundled TinyXML translation units.
 - CaduneTree (4): `CTParameters.cpp`, `CTSection.cpp`, `CTSerializer.cpp`, and
   `CTStem.cpp`.
 - Ogre deferred-render helpers (5): `AmbientLight.cpp`, `GeomUtils.cpp`,
@@ -25,7 +25,7 @@ the 119 project-listed translation units:
 
 The new `source/legacy/LegacyFeatures.cpp` and `LegacySmoke.cpp` files are
 compatibility glue and are deliberately not counted as vcproj sources.
-`run3_legacy` links the Run3-owned core/optional-device targets plus the
+`run3_legacy` links the Run3-owned core/optional-device/XML targets plus the
 reproducible `OgreMain` and `OgreOverlay` imported targets. The old project
 libraries and local SDK directories are not searched.
 
@@ -44,13 +44,14 @@ These project-listed files are intentionally outside the future game runtime:
 | `graphics.cpp` | 1 | Retired console-colour helper for the old Eliza utility; its portable compatibility functions emit a logging warning. |
 | `tinystr.cpp` | 1 | Malformed, unterminated commented copy of TinyXML's non-STL string implementation. The selected `TIXML_USE_STL` path neither needs nor links it. |
 
-No other translation unit has been labelled an obsolete demo/tool. Of the 93
+No other translation unit has been labelled an obsolete demo/tool. Of the 96
 project-listed units not compiled by `run3_legacy`, 48 remain deferred runtime
 work, one is the separately recorded historical entrypoint, four are the
 reviewed exclusions above, 37 are retired Newton implementations, and three
 are retired audio implementations (`SoundManager.cpp`, `Run3SoundRuntime.cpp`,
-and `MusicPlayer.cpp`). Retired sources remain historical behavior evidence;
-none is silently discarded or linked.
+and `MusicPlayer.cpp`). Three more are the Step 8-retired TinyXML 1
+implementations. Retired sources remain historical behavior evidence; none is
+silently discarded or linked.
 
 ## Feature gates and null backends
 
@@ -103,7 +104,7 @@ translation units; the AIR3 submodule remains outside this Step 4 edit boundary.
 
 The compiled subset has zero errors on MSVC and GCC. Known warning debt remains
 in untouched legacy code, primarily initializer-order and numeric-conversion
-diagnostics, TinyXML switch fallthrough, unused locals, a non-virtual UI
+diagnostics, unused locals, a non-virtual UI
 destructor, and unsafe iterator/arithmetic patterns.
 One behavioral probe of `Tokenizer::getTokenNumber` hung under MSVC because
 `firstToken` dereferences an end iterator. The compile smoke deliberately does

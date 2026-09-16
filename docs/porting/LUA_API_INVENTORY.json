@@ -1,0 +1,6890 @@
+{
+  "schema_version": 1,
+  "legacy_runtime": "Lua 5.0 C API",
+  "target_runtime": "Lua 5.4.8 + sol2 3.5.0#1",
+  "source_files_scanned": 296,
+  "c_api_calls": {
+    "lua_call": 14,
+    "lua_close": 4,
+    "lua_dofile": 1,
+    "lua_getglobal": 19,
+    "lua_gettable": 2,
+    "lua_gettop": 140,
+    "lua_isfunction": 14,
+    "lua_isnumber": 6,
+    "lua_isstring": 243,
+    "lua_open": 3,
+    "lua_pop": 7,
+    "lua_pushnumber": 77,
+    "lua_pushstring": 7,
+    "lua_register": 202,
+    "lua_settop": 4,
+    "lua_toboolean": 1,
+    "lua_tonumber": 7,
+    "lua_tostring": 260,
+    "luaopen_base": 1,
+    "luaopen_io": 1,
+    "luaopen_math": 1,
+    "luaopen_string": 1,
+    "luaopen_table": 1
+  },
+  "c_api_sites": [
+    {
+      "api": "lua_register",
+      "source": "Credits.cpp",
+      "line": 17
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Credits.h",
+      "line": 24
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Credits.h",
+      "line": 28
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Credits.h",
+      "line": 30
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 26
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 27
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 28
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 29
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 30
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 31
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 32
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 33
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 34
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 35
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 36
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 37
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 38
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 39
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 40
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 41
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 42
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 43
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 44
+    },
+    {
+      "api": "lua_register",
+      "source": "Display.cpp",
+      "line": 45
+    },
+    {
+      "api": "lua_settop",
+      "source": "Display.cpp",
+      "line": 47
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "Display.cpp",
+      "line": 48
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "Display.cpp",
+      "line": 49
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.cpp",
+      "line": 50
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.cpp",
+      "line": 51
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "Display.cpp",
+      "line": 222
+    },
+    {
+      "api": "lua_isfunction",
+      "source": "Display.cpp",
+      "line": 225
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Display.cpp",
+      "line": 228
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Display.cpp",
+      "line": 229
+    },
+    {
+      "api": "lua_pushstring",
+      "source": "Display.cpp",
+      "line": 233
+    },
+    {
+      "api": "lua_call",
+      "source": "Display.cpp",
+      "line": 239
+    },
+    {
+      "api": "lua_isnumber",
+      "source": "Display.cpp",
+      "line": 242
+    },
+    {
+      "api": "lua_tonumber",
+      "source": "Display.cpp",
+      "line": 243
+    },
+    {
+      "api": "lua_pop",
+      "source": "Display.cpp",
+      "line": 245
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.cpp",
+      "line": 250
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.cpp",
+      "line": 251
+    },
+    {
+      "api": "lua_pop",
+      "source": "Display.cpp",
+      "line": 252
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Display.h",
+      "line": 94
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.h",
+      "line": 98
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.h",
+      "line": 98
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.h",
+      "line": 98
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.h",
+      "line": 99
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.h",
+      "line": 101
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.h",
+      "line": 102
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.h",
+      "line": 103
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.h",
+      "line": 104
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Display.h",
+      "line": 138
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.h",
+      "line": 142
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.h",
+      "line": 144
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Display.h",
+      "line": 150
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.h",
+      "line": 154
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.h",
+      "line": 155
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Display.h",
+      "line": 162
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.h",
+      "line": 166
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.h",
+      "line": 167
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Display.h",
+      "line": 174
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.h",
+      "line": 178
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.h",
+      "line": 178
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.h",
+      "line": 178
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.h",
+      "line": 179
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.h",
+      "line": 180
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.h",
+      "line": 181
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.h",
+      "line": 182
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.h",
+      "line": 183
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Display.h",
+      "line": 196
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.h",
+      "line": 200
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.h",
+      "line": 201
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Display.h",
+      "line": 208
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.h",
+      "line": 212
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.h",
+      "line": 213
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Display.h",
+      "line": 224
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Display.h",
+      "line": 228
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Display.h",
+      "line": 229
+    },
+    {
+      "api": "lua_register",
+      "source": "ExplosionManager.cpp",
+      "line": 11
+    },
+    {
+      "api": "lua_register",
+      "source": "ExplosionManager.cpp",
+      "line": 12
+    },
+    {
+      "api": "lua_gettop",
+      "source": "ExplosionManager.h",
+      "line": 21
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 25
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 25
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 25
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 26
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 26
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 26
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 27
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 28
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 29
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 30
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 31
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 32
+    },
+    {
+      "api": "lua_gettop",
+      "source": "ExplosionManager.h",
+      "line": 38
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 42
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 42
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 42
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 43
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 43
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 43
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 44
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 44
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 45
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 46
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 47
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 48
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 49
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 50
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 51
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 52
+    },
+    {
+      "api": "lua_gettop",
+      "source": "ExplosionManager.h",
+      "line": 58
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 62
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 62
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 62
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 63
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 63
+    },
+    {
+      "api": "lua_isstring",
+      "source": "ExplosionManager.h",
+      "line": 63
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 64
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 65
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 66
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 67
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 68
+    },
+    {
+      "api": "lua_tostring",
+      "source": "ExplosionManager.h",
+      "line": 69
+    },
+    {
+      "api": "lua_register",
+      "source": "Generator.cpp",
+      "line": 11
+    },
+    {
+      "api": "lua_register",
+      "source": "Generator.cpp",
+      "line": 12
+    },
+    {
+      "api": "lua_register",
+      "source": "Generator.cpp",
+      "line": 13
+    },
+    {
+      "api": "lua_register",
+      "source": "Generator.cpp",
+      "line": 14
+    },
+    {
+      "api": "lua_register",
+      "source": "Generator.cpp",
+      "line": 15
+    },
+    {
+      "api": "lua_register",
+      "source": "Generator.cpp",
+      "line": 16
+    },
+    {
+      "api": "lua_register",
+      "source": "Generator.cpp",
+      "line": 17
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Generator.h",
+      "line": 16
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Generator.h",
+      "line": 20
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Generator.h",
+      "line": 20
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Generator.h",
+      "line": 22
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Generator.h",
+      "line": 23
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Generator.h",
+      "line": 28
+    },
+    {
+      "api": "lua_isnumber",
+      "source": "Generator.h",
+      "line": 32
+    },
+    {
+      "api": "lua_tonumber",
+      "source": "Generator.h",
+      "line": 33
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Generator.h",
+      "line": 38
+    },
+    {
+      "api": "lua_isnumber",
+      "source": "Generator.h",
+      "line": 42
+    },
+    {
+      "api": "lua_tonumber",
+      "source": "Generator.h",
+      "line": 43
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Generator.h",
+      "line": 48
+    },
+    {
+      "api": "lua_isnumber",
+      "source": "Generator.h",
+      "line": 52
+    },
+    {
+      "api": "lua_tonumber",
+      "source": "Generator.h",
+      "line": 53
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Generator.h",
+      "line": 58
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Generator.h",
+      "line": 62
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Generator.h",
+      "line": 64
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Generator.h",
+      "line": 69
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Generator.h",
+      "line": 73
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Generator.h",
+      "line": 75
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 18
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 19
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 20
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 22
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 23
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 24
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 25
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 26
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 27
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 28
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 29
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 30
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 31
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 32
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 34
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 36
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 38
+    },
+    {
+      "api": "lua_register",
+      "source": "MagicManager.cpp",
+      "line": 40
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "MagicManager.h",
+      "line": 70
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "MagicManager.h",
+      "line": 78
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 96
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "MagicManager.h",
+      "line": 100
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 108
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "MagicManager.h",
+      "line": 111
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 117
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 118
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 119
+    },
+    {
+      "api": "lua_gettop",
+      "source": "MagicManager.h",
+      "line": 126
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 130
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 130
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 130
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 131
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 131
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 132
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 133
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 135
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 136
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 170
+    },
+    {
+      "api": "lua_gettop",
+      "source": "MagicManager.h",
+      "line": 183
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 196
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 196
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 196
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 197
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 197
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 197
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 200
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 201
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 203
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 204
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 239
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 249
+    },
+    {
+      "api": "lua_gettop",
+      "source": "MagicManager.h",
+      "line": 258
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 271
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 271
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 271
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 272
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 272
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 272
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 273
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 276
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 277
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 279
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 280
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 315
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 325
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 327
+    },
+    {
+      "api": "lua_gettop",
+      "source": "MagicManager.h",
+      "line": 374
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 378
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 378
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 378
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 379
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 379
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 380
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 381
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 383
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 384
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 392
+    },
+    {
+      "api": "lua_gettop",
+      "source": "MagicManager.h",
+      "line": 406
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 410
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 410
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 410
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 411
+    },
+    {
+      "api": "lua_isstring",
+      "source": "MagicManager.h",
+      "line": 411
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 412
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 413
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 415
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 416
+    },
+    {
+      "api": "lua_tostring",
+      "source": "MagicManager.h",
+      "line": 424
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 32
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 33
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 34
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 35
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 36
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 37
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 38
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 39
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 40
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 41
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 42
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 43
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 44
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 45
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 46
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 47
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 48
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 49
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 50
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 51
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 52
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 53
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 54
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 55
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 56
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 57
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 58
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 59
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 60
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 61
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 62
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 63
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 64
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 65
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 66
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 67
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 68
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 69
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 70
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 71
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 72
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 73
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 74
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 75
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 76
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 77
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 78
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 79
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 80
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 81
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 82
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 83
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 84
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 85
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 86
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 87
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 88
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 89
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 90
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 91
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 92
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 93
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 94
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 95
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 96
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 97
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 98
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 99
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 100
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 101
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 102
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 103
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 104
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 105
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 106
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 107
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 108
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 109
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 110
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 111
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 112
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 113
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 114
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 115
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 116
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 117
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 118
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 119
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 120
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 121
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 122
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 123
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 124
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 125
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 126
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 127
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 128
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 129
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 130
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 131
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 132
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 133
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 134
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 135
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 136
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 137
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 138
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 139
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 140
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 141
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 142
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 143
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 144
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 145
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 146
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 147
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 148
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 149
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 150
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 151
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 152
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 153
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 154
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 155
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 156
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 157
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 158
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 159
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 160
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 161
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 162
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 163
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 164
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 165
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 166
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 167
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 168
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 169
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 170
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 171
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 172
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 173
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 174
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 175
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 177
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 178
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 179
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 180
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 181
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 182
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 183
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 186
+    },
+    {
+      "api": "lua_register",
+      "source": "Sequence.cpp",
+      "line": 187
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 204
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 208
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 209
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 216
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 220
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 221
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 228
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 232
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 233
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 240
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 244
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 245
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 252
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 256
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 257
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 268
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 272
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 273
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 287
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 291
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 292
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 307
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 311
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 311
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 311
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 315
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 318
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 320
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 341
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 345
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 346
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 352
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 357
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 359
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 366
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 370
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 371
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 378
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 382
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 383
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 390
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 407
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 411
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 412
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 434
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 438
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 439
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 446
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 450
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 451
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 458
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 462
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 463
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 470
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 474
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 475
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 482
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 486
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 487
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 494
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 498
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 499
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 506
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 510
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 511
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 518
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 522
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 523
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 535
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 539
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 540
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 555
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 559
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 560
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 574
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 578
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 578
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 578
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 579
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 580
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 581
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 582
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 585
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 597
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 601
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 602
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 615
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 619
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 620
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 635
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 639
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 640
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 652
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 656
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 657
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 669
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 673
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 674
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 686
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 690
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 691
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 724
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 728
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 729
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 736
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 740
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 740
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 741
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 742
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 749
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 753
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 754
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 771
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 775
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 775
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 776
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 777
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 784
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 788
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 789
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 796
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 800
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 801
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 812
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 816
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 817
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 818
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 846
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 850
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 851
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 852
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 880
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 884
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 884
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 885
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 886
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 914
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 918
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 918
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 919
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 920
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 948
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 952
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 954
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 956
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 958
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 960
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 962
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 964
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 966
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 968
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 970
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 972
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 974
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 980
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 984
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 985
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 986
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 993
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1003
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1007
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1008
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1015
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1019
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1020
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1027
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1031
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1031
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1031
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1032
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1034
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1035
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1041
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1045
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1046
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1053
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1057
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1058
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1065
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1069
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1069
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1069
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1070
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1072
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1073
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1079
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1083
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1083
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1084
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1085
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1092
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1096
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1097
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1104
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1108
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1109
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1116
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1120
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1120
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1120
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1121
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1121
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1122
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1123
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1126
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1127
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1128
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1137
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1141
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1142
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1154
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1158
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1159
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1171
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1175
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1176
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1220
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1224
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1225
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1237
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1241
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1241
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1241
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1242
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1243
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1244
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1260
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1264
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1264
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1264
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1265
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1266
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1267
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1268
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1269
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1285
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1289
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1289
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1289
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1290
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1291
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1292
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1308
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1312
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1312
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1312
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1313
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1314
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1315
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1326
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1330
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1331
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1339
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1343
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1344
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1356
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1360
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1361
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1374
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1378
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1379
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1392
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1396
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1397
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1409
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1413
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1414
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1426
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1430
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1431
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1445
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1449
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1450
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1464
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1468
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1469
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1483
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1487
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1488
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1502
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1506
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1507
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1531
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1535
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1536
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1548
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1553
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1553
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1554
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1555
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1571
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1575
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1576
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1588
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1592
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1593
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1605
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1609
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1609
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1610
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1611
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1626
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1630
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1631
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1638
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1642
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1642
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1642
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1645
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1664
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1664
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1665
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1666
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1667
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1667
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1674
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1678
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1681
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1703
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1704
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1705
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1705
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1717
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1721
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1721
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1722
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1723
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1730
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1734
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1735
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1742
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1746
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1746
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1746
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1747
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1748
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1749
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1750
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1751
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1758
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1762
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1762
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1763
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1764
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1769
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1771
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1773
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1783
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1787
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1787
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1789
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1790
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1795
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1797
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1799
+    },
+    {
+      "api": "lua_pushstring",
+      "source": "Sequence.h",
+      "line": 1800
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1811
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1815
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1815
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1816
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1817
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1820
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1826
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1832
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1845
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1849
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1849
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1851
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1852
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1856
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1858
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1860
+    },
+    {
+      "api": "lua_pushstring",
+      "source": "Sequence.h",
+      "line": 1861
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1874
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1878
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1879
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1886
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1890
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1890
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1890
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1891
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1892
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1893
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1920
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1924
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1924
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1924
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1926
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1927
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1947
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1951
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1951
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1951
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1953
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1954
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1969
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1973
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1973
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1974
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1975
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1980
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1982
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 1984
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 1994
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1998
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1998
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 1998
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 1999
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2000
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2001
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2059
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2060
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2061
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2066
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2067
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2068
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2074
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2075
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2076
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2081
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2082
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2083
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2089
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2090
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2091
+    },
+    {
+      "api": "lua_pushstring",
+      "source": "Sequence.h",
+      "line": 2096
+    },
+    {
+      "api": "lua_tonumber",
+      "source": "Sequence.h",
+      "line": 2097
+    },
+    {
+      "api": "lua_pushstring",
+      "source": "Sequence.h",
+      "line": 2103
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2104
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2105
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2106
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2113
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2114
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2115
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2121
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2122
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2123
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2128
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2129
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2130
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "Sequence.h",
+      "line": 2136
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2141
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2145
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2146
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2172
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2176
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2177
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2192
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2196
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2197
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2205
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2209
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2209
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2210
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2211
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2238
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2242
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2243
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2250
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2254
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2255
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2263
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2267
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2268
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2276
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2280
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2281
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2289
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2293
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2294
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2308
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2312
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2313
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2321
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2325
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2325
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2326
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2327
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2336
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2340
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2341
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2349
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2353
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2354
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2362
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2366
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2366
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2367
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2368
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2378
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2382
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2382
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2383
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2384
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2396
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2400
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2401
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2409
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2413
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2414
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2428
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2432
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2433
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2441
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2445
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2446
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2455
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2459
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2459
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2460
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2461
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2471
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2475
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2475
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2476
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2477
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2487
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2491
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2491
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2491
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2492
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2493
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2494
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2501
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2505
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2506
+    },
+    {
+      "api": "lua_gettop",
+      "source": "Sequence.h",
+      "line": 2513
+    },
+    {
+      "api": "lua_isstring",
+      "source": "Sequence.h",
+      "line": 2517
+    },
+    {
+      "api": "lua_tostring",
+      "source": "Sequence.h",
+      "line": 2518
+    },
+    {
+      "api": "lua_register",
+      "source": "SuperFX.cpp",
+      "line": 50
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "generic_lua_weapon.cpp",
+      "line": 81
+    },
+    {
+      "api": "lua_isfunction",
+      "source": "generic_lua_weapon.cpp",
+      "line": 84
+    },
+    {
+      "api": "lua_call",
+      "source": "generic_lua_weapon.cpp",
+      "line": 85
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "generic_lua_weapon.cpp",
+      "line": 90
+    },
+    {
+      "api": "lua_isfunction",
+      "source": "generic_lua_weapon.cpp",
+      "line": 92
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 93
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 94
+    },
+    {
+      "api": "lua_call",
+      "source": "generic_lua_weapon.cpp",
+      "line": 95
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "generic_lua_weapon.cpp",
+      "line": 99
+    },
+    {
+      "api": "lua_isfunction",
+      "source": "generic_lua_weapon.cpp",
+      "line": 101
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 102
+    },
+    {
+      "api": "lua_call",
+      "source": "generic_lua_weapon.cpp",
+      "line": 103
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "generic_lua_weapon.cpp",
+      "line": 107
+    },
+    {
+      "api": "lua_isfunction",
+      "source": "generic_lua_weapon.cpp",
+      "line": 109
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 110
+    },
+    {
+      "api": "lua_call",
+      "source": "generic_lua_weapon.cpp",
+      "line": 111
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "generic_lua_weapon.cpp",
+      "line": 128
+    },
+    {
+      "api": "lua_isfunction",
+      "source": "generic_lua_weapon.cpp",
+      "line": 130
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 131
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 132
+    },
+    {
+      "api": "lua_call",
+      "source": "generic_lua_weapon.cpp",
+      "line": 133
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "generic_lua_weapon.cpp",
+      "line": 138
+    },
+    {
+      "api": "lua_isfunction",
+      "source": "generic_lua_weapon.cpp",
+      "line": 140
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 141
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 142
+    },
+    {
+      "api": "lua_call",
+      "source": "generic_lua_weapon.cpp",
+      "line": 143
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "generic_lua_weapon.cpp",
+      "line": 148
+    },
+    {
+      "api": "lua_isfunction",
+      "source": "generic_lua_weapon.cpp",
+      "line": 150
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 151
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 152
+    },
+    {
+      "api": "lua_call",
+      "source": "generic_lua_weapon.cpp",
+      "line": 153
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "generic_lua_weapon.cpp",
+      "line": 183
+    },
+    {
+      "api": "lua_isfunction",
+      "source": "generic_lua_weapon.cpp",
+      "line": 185
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 186
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 187
+    },
+    {
+      "api": "lua_call",
+      "source": "generic_lua_weapon.cpp",
+      "line": 188
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "generic_lua_weapon.cpp",
+      "line": 193
+    },
+    {
+      "api": "lua_isfunction",
+      "source": "generic_lua_weapon.cpp",
+      "line": 195
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 196
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 197
+    },
+    {
+      "api": "lua_call",
+      "source": "generic_lua_weapon.cpp",
+      "line": 198
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "generic_lua_weapon.cpp",
+      "line": 203
+    },
+    {
+      "api": "lua_isfunction",
+      "source": "generic_lua_weapon.cpp",
+      "line": 205
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 206
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 207
+    },
+    {
+      "api": "lua_call",
+      "source": "generic_lua_weapon.cpp",
+      "line": 208
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "generic_lua_weapon.cpp",
+      "line": 262
+    },
+    {
+      "api": "lua_isfunction",
+      "source": "generic_lua_weapon.cpp",
+      "line": 264
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 265
+    },
+    {
+      "api": "lua_call",
+      "source": "generic_lua_weapon.cpp",
+      "line": 266
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "generic_lua_weapon.cpp",
+      "line": 273
+    },
+    {
+      "api": "lua_isfunction",
+      "source": "generic_lua_weapon.cpp",
+      "line": 275
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 276
+    },
+    {
+      "api": "lua_call",
+      "source": "generic_lua_weapon.cpp",
+      "line": 277
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "generic_lua_weapon.cpp",
+      "line": 280
+    },
+    {
+      "api": "lua_isfunction",
+      "source": "generic_lua_weapon.cpp",
+      "line": 282
+    },
+    {
+      "api": "lua_pushnumber",
+      "source": "generic_lua_weapon.cpp",
+      "line": 283
+    },
+    {
+      "api": "lua_call",
+      "source": "generic_lua_weapon.cpp",
+      "line": 284
+    },
+    {
+      "api": "lua_close",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 25
+    },
+    {
+      "api": "luaopen_base",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 31
+    },
+    {
+      "api": "luaopen_string",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 32
+    },
+    {
+      "api": "luaopen_table",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 33
+    },
+    {
+      "api": "luaopen_math",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 34
+    },
+    {
+      "api": "luaopen_io",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 35
+    },
+    {
+      "api": "lua_dofile",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 44
+    },
+    {
+      "api": "lua_settop",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 63
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 65
+    },
+    {
+      "api": "lua_isnumber",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 69
+    },
+    {
+      "api": "lua_tonumber",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 76
+    },
+    {
+      "api": "lua_pop",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 79
+    },
+    {
+      "api": "lua_settop",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 87
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 89
+    },
+    {
+      "api": "lua_isstring",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 93
+    },
+    {
+      "api": "lua_tostring",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 100
+    },
+    {
+      "api": "lua_pop",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 103
+    },
+    {
+      "api": "lua_settop",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 111
+    },
+    {
+      "api": "lua_getglobal",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 113
+    },
+    {
+      "api": "lua_isstring",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 117
+    },
+    {
+      "api": "lua_toboolean",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 124
+    },
+    {
+      "api": "lua_pop",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 127
+    },
+    {
+      "api": "lua_pushstring",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 137
+    },
+    {
+      "api": "lua_gettable",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 141
+    },
+    {
+      "api": "lua_isstring",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 145
+    },
+    {
+      "api": "lua_tostring",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 152
+    },
+    {
+      "api": "lua_pop",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 154
+    },
+    {
+      "api": "lua_pushstring",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 164
+    },
+    {
+      "api": "lua_gettable",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 168
+    },
+    {
+      "api": "lua_isnumber",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 172
+    },
+    {
+      "api": "lua_tonumber",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 179
+    },
+    {
+      "api": "lua_pop",
+      "source": "lua/LuaHelperFunctions.h",
+      "line": 181
+    },
+    {
+      "api": "lua_open",
+      "source": "lua/Scriptor.h",
+      "line": 28
+    },
+    {
+      "api": "lua_close",
+      "source": "lua/Scriptor.h",
+      "line": 33
+    },
+    {
+      "api": "lua_open",
+      "source": "main.cpp",
+      "line": 976
+    },
+    {
+      "api": "lua_close",
+      "source": "main.cpp",
+      "line": 987
+    },
+    {
+      "api": "lua_open",
+      "source": "main.cpp",
+      "line": 1026
+    },
+    {
+      "api": "lua_close",
+      "source": "main.cpp",
+      "line": 1039
+    }
+  ],
+  "luabind_registration_sites": [],
+  "exports": [
+    {
+      "name": "COMSendData",
+      "signature": "int(lua_State*)",
+      "callback": "COMSendData",
+      "group": "devices",
+      "source": "Sequence.cpp",
+      "line": 107
+    },
+    {
+      "name": "Fade",
+      "signature": "int(lua_State*)",
+      "callback": "Fade",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 63
+    },
+    {
+      "name": "FadeOut",
+      "signature": "int(lua_State*)",
+      "callback": "FadeOut",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 64
+    },
+    {
+      "name": "HUDDisable",
+      "signature": "int(lua_State*)",
+      "callback": "disableHUD",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 76
+    },
+    {
+      "name": "HUDEnable",
+      "signature": "int(lua_State*)",
+      "callback": "enableHUD",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 75
+    },
+    {
+      "name": "HUDHide",
+      "signature": "int(lua_State*)",
+      "callback": "hideHUD",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 74
+    },
+    {
+      "name": "HUDflashText",
+      "signature": "int(lua_State*)",
+      "callback": "flashText",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 43
+    },
+    {
+      "name": "SkyX_setExposure",
+      "signature": "int(lua_State*)",
+      "callback": "SkyX_setExposure",
+      "group": "rendering",
+      "source": "Sequence.cpp",
+      "line": 173
+    },
+    {
+      "name": "SkyX_setHeightPosition",
+      "signature": "int(lua_State*)",
+      "callback": "SkyX_setHeightPosition",
+      "group": "rendering",
+      "source": "Sequence.cpp",
+      "line": 170
+    },
+    {
+      "name": "SkyX_setInnerRadius",
+      "signature": "int(lua_State*)",
+      "callback": "SkyX_setInnerRadius",
+      "group": "rendering",
+      "source": "Sequence.cpp",
+      "line": 172
+    },
+    {
+      "name": "SkyX_setMie",
+      "signature": "int(lua_State*)",
+      "callback": "SkyX_setMie",
+      "group": "rendering",
+      "source": "Sequence.cpp",
+      "line": 174
+    },
+    {
+      "name": "SkyX_setOuterRadius",
+      "signature": "int(lua_State*)",
+      "callback": "SkyX_setOuterRadius",
+      "group": "rendering",
+      "source": "Sequence.cpp",
+      "line": 171
+    },
+    {
+      "name": "SkyX_setRayleighMultiplier",
+      "signature": "int(lua_State*)",
+      "callback": "SkyX_setRayleighMultiplier",
+      "group": "rendering",
+      "source": "Sequence.cpp",
+      "line": 175
+    },
+    {
+      "name": "SkyX_setSampleNumber",
+      "signature": "int(lua_State*)",
+      "callback": "SkyX_setSampleNumber",
+      "group": "rendering",
+      "source": "Sequence.cpp",
+      "line": 177
+    },
+    {
+      "name": "SkyX_setTimeMultiplier",
+      "signature": "int(lua_State*)",
+      "callback": "SkyX_setTimeMultiplier",
+      "group": "rendering",
+      "source": "Sequence.cpp",
+      "line": 169
+    },
+    {
+      "name": "SkyX_updateParameters",
+      "signature": "int(lua_State*)",
+      "callback": "SkyX_updateParameters",
+      "group": "rendering",
+      "source": "Sequence.cpp",
+      "line": 178
+    },
+    {
+      "name": "VectorToString",
+      "signature": "int(lua_State*)",
+      "callback": "tostringl2",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 145
+    },
+    {
+      "name": "WeaponStrip",
+      "signature": "int(lua_State*)",
+      "callback": "stripWeapons",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 77
+    },
+    {
+      "name": "__all_npcEvent",
+      "signature": "int(lua_State*)",
+      "callback": "__all_npcEvent",
+      "group": "npc",
+      "source": "Sequence.cpp",
+      "line": 140
+    },
+    {
+      "name": "activateMPReg",
+      "signature": "int(lua_State*)",
+      "callback": "activateMPReg",
+      "group": "audio",
+      "source": "Sequence.cpp",
+      "line": 60
+    },
+    {
+      "name": "addAmbientSound",
+      "signature": "int(lua_State*)",
+      "callback": "addAmbientSound",
+      "group": "audio",
+      "source": "Sequence.cpp",
+      "line": 155
+    },
+    {
+      "name": "addWeapon",
+      "signature": "int(lua_State*)",
+      "callback": "addWeapon",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 78
+    },
+    {
+      "name": "add__register",
+      "signature": "int(lua_State*)",
+      "callback": "add__register",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 137
+    },
+    {
+      "name": "bod__getor",
+      "signature": "int(lua_State*)",
+      "callback": "bod__getor",
+      "group": "physics",
+      "source": "Sequence.cpp",
+      "line": 128
+    },
+    {
+      "name": "bod__getpos",
+      "signature": "int(lua_State*)",
+      "callback": "bod__getpos",
+      "group": "physics",
+      "source": "Sequence.cpp",
+      "line": 121
+    },
+    {
+      "name": "bod__getpos2",
+      "signature": "int(lua_State*)",
+      "callback": "bod__getpos2",
+      "group": "physics",
+      "source": "Sequence.cpp",
+      "line": 123
+    },
+    {
+      "name": "bod__setor",
+      "signature": "int(lua_State*)",
+      "callback": "bod__setor",
+      "group": "physics",
+      "source": "Sequence.cpp",
+      "line": 129
+    },
+    {
+      "name": "bod__setpos",
+      "signature": "int(lua_State*)",
+      "callback": "bod__setpos",
+      "group": "physics",
+      "source": "Sequence.cpp",
+      "line": 122
+    },
+    {
+      "name": "bod__setpos2",
+      "signature": "int(lua_State*)",
+      "callback": "bod__setpos2",
+      "group": "physics",
+      "source": "Sequence.cpp",
+      "line": 124
+    },
+    {
+      "name": "buttonGUI_activateCenter640",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_activateCenter640",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 32
+    },
+    {
+      "name": "buttonGUI_activateTopLeft640",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_activateTopLeft640",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 36
+    },
+    {
+      "name": "buttonGUI_activateTopLeftComp640",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_activateTopLeftComp640",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 38
+    },
+    {
+      "name": "buttonGUI_create3DButton",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_create3DButton",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 19
+    },
+    {
+      "name": "buttonGUI_create3DButtonQuat",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_create3DButtonQuat",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 20
+    },
+    {
+      "name": "buttonGUI_createButton",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_createButton",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 18
+    },
+    {
+      "name": "buttonGUI_createButtonS",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_createButtonS",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 22
+    },
+    {
+      "name": "buttonGUI_createDummy",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_createDummy",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 23
+    },
+    {
+      "name": "buttonGUI_deactivate640",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_deactivateCenter640",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 40
+    },
+    {
+      "name": "buttonGUI_deactivateCenter640",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_deactivateCenter640",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 34
+    },
+    {
+      "name": "buttonGUI_deleteAllButtons",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_deleteAllButtons",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 24
+    },
+    {
+      "name": "buttonGUI_getCursX",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_getCursX",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 25
+    },
+    {
+      "name": "buttonGUI_getCursY",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_getCursY",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 26
+    },
+    {
+      "name": "buttonGUI_getX",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_getX",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 29
+    },
+    {
+      "name": "buttonGUI_getY",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_getY",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 30
+    },
+    {
+      "name": "buttonGUI_hideCursor",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_hideCursor",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 27
+    },
+    {
+      "name": "buttonGUI_setPos",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_setPos",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 31
+    },
+    {
+      "name": "buttonGUI_showCursor",
+      "signature": "int(lua_State*)",
+      "callback": "buttonGUI_showCursor",
+      "group": "ui",
+      "source": "MagicManager.cpp",
+      "line": 28
+    },
+    {
+      "name": "changeLevel",
+      "signature": "int(lua_State*)",
+      "callback": "changeLevel",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 73
+    },
+    {
+      "name": "closeDoor",
+      "signature": "int(lua_State*)",
+      "callback": "closeDoor",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 33
+    },
+    {
+      "name": "commandLeaderGroup",
+      "signature": "int(lua_State*)",
+      "callback": "commandLeaderGroup",
+      "group": "npc",
+      "source": "Sequence.cpp",
+      "line": 156
+    },
+    {
+      "name": "createParticleSystem",
+      "signature": "int(lua_State*)",
+      "callback": "createParticleSystem",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 89
+    },
+    {
+      "name": "cursor__getposx",
+      "signature": "int(lua_State*)",
+      "callback": "cursor__getposx",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 119
+    },
+    {
+      "name": "cursor__getposy",
+      "signature": "int(lua_State*)",
+      "callback": "cursor__getposy",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 120
+    },
+    {
+      "name": "dActivateElisa",
+      "signature": "int(lua_State*)",
+      "callback": "s_activateElisa",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 36
+    },
+    {
+      "name": "dActivateKeyExit",
+      "signature": "int(lua_State*)",
+      "callback": "s_activateKeyExit",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 38
+    },
+    {
+      "name": "dClear",
+      "signature": "int(lua_State*)",
+      "callback": "clearScreen",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 28
+    },
+    {
+      "name": "dCompPrint",
+      "signature": "int(lua_State*)",
+      "callback": "writeLn",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 26
+    },
+    {
+      "name": "dDeactivateElisa",
+      "signature": "int(lua_State*)",
+      "callback": "s_deactivateElisa",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 37
+    },
+    {
+      "name": "dDeactivateKeyExit",
+      "signature": "int(lua_State*)",
+      "callback": "s_deactivateKeyExit",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 39
+    },
+    {
+      "name": "dMaterialSet",
+      "signature": "int(lua_State*)",
+      "callback": "setTexture",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 27
+    },
+    {
+      "name": "dNewLine",
+      "signature": "int(lua_State*)",
+      "callback": "newLine",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 32
+    },
+    {
+      "name": "dPrefix",
+      "signature": "int(lua_State*)",
+      "callback": "setInChar",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 29
+    },
+    {
+      "name": "dResetDimensions",
+      "signature": "int(lua_State*)",
+      "callback": "resetDimensions",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 35
+    },
+    {
+      "name": "dSetDimensions",
+      "signature": "int(lua_State*)",
+      "callback": "setDimensions",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 34
+    },
+    {
+      "name": "dSetFont",
+      "signature": "int(lua_State*)",
+      "callback": "setFont",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 30
+    },
+    {
+      "name": "dSetFontSize",
+      "signature": "int(lua_State*)",
+      "callback": "setFontSize",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 31
+    },
+    {
+      "name": "dSetMaxLines",
+      "signature": "int(lua_State*)",
+      "callback": "setMaxLines",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 33
+    },
+    {
+      "name": "dSetTextColor",
+      "signature": "int(lua_State*)",
+      "callback": "turnOff",
+      "group": "ui",
+      "source": "Display.cpp",
+      "line": 45
+    },
+    {
+      "name": "deactivateMPReg",
+      "signature": "int(lua_State*)",
+      "callback": "deactivateMPReg",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 61
+    },
+    {
+      "name": "dec__register",
+      "signature": "int(lua_State*)",
+      "callback": "dec__register",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 139
+    },
+    {
+      "name": "deleteDoor",
+      "signature": "int(lua_State*)",
+      "callback": "deleteDoor",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 183
+    },
+    {
+      "name": "deleteParticleSystem",
+      "signature": "int(lua_State*)",
+      "callback": "deleteParticleSystem",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 90
+    },
+    {
+      "name": "destroyNPC",
+      "signature": "int(lua_State*)",
+      "callback": "destroyNPC",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 168
+    },
+    {
+      "name": "disableAmbientSound",
+      "signature": "int(lua_State*)",
+      "callback": "disableAmbientSound",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 45
+    },
+    {
+      "name": "disableEmitter",
+      "signature": "int(lua_State*)",
+      "callback": "disableEmitter",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 101
+    },
+    {
+      "name": "disableInventory",
+      "signature": "int(lua_State*)",
+      "callback": "disableInventory",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 105
+    },
+    {
+      "name": "disableLight",
+      "signature": "int(lua_State*)",
+      "callback": "disableLight",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 42
+    },
+    {
+      "name": "disableTimer",
+      "signature": "int(lua_State*)",
+      "callback": "disableTimer",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 110
+    },
+    {
+      "name": "disableTrainSaveMode",
+      "signature": "int(lua_State*)",
+      "callback": "disableTrainSaveMode",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 88
+    },
+    {
+      "name": "disableTrigger",
+      "signature": "int(lua_State*)",
+      "callback": "disableTrigger",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 103
+    },
+    {
+      "name": "dssao",
+      "signature": "int(lua_State*)",
+      "callback": "dssao",
+      "group": "ui",
+      "source": "Sequence.cpp",
+      "line": 146
+    },
+    {
+      "name": "emitSound",
+      "signature": "int(lua_State*)",
+      "callback": "emitSound",
+      "group": "audio",
+      "source": "Sequence.cpp",
+      "line": 44
+    },
+    {
+      "name": "emitSound2",
+      "signature": "int(lua_State*)",
+      "callback": "emitSound2",
+      "group": "audio",
+      "source": "Sequence.cpp",
+      "line": 47
+    },
+    {
+      "name": "enableAmbientSound",
+      "signature": "int(lua_State*)",
+      "callback": "enableAmbientSound",
+      "group": "audio",
+      "source": "Sequence.cpp",
+      "line": 46
+    },
+    {
+      "name": "enableEmitter",
+      "signature": "int(lua_State*)",
+      "callback": "enableEmitter",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 100
+    },
+    {
+      "name": "enableInventory",
+      "signature": "int(lua_State*)",
+      "callback": "enableInventory",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 104
+    },
+    {
+      "name": "enableLight",
+      "signature": "int(lua_State*)",
+      "callback": "enableLight",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 39
+    },
+    {
+      "name": "enableTimer",
+      "signature": "int(lua_State*)",
+      "callback": "enableTimer",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 109
+    },
+    {
+      "name": "enableTrainSaveMode",
+      "signature": "int(lua_State*)",
+      "callback": "enableTrainSaveMode",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 87
+    },
+    {
+      "name": "enableTrigger",
+      "signature": "int(lua_State*)",
+      "callback": "enableTrigger",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 102
+    },
+    {
+      "name": "exit",
+      "signature": "int(lua_State*)",
+      "callback": "turnOff",
+      "group": "world",
+      "source": "Display.cpp",
+      "line": 42
+    },
+    {
+      "name": "exitAllComputers",
+      "signature": "int(lua_State*)",
+      "callback": "exitAllComputers",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 166
+    },
+    {
+      "name": "explosion",
+      "signature": "int(lua_State*)",
+      "callback": "explosion",
+      "group": "world",
+      "source": "ExplosionManager.cpp",
+      "line": 11
+    },
+    {
+      "name": "explosion2",
+      "signature": "int(lua_State*)",
+      "callback": "explosion2",
+      "group": "world",
+      "source": "ExplosionManager.cpp",
+      "line": 12
+    },
+    {
+      "name": "fadeoutMusic",
+      "signature": "int(lua_State*)",
+      "callback": "fadeoutMusic",
+      "group": "audio",
+      "source": "Sequence.cpp",
+      "line": 59
+    },
+    {
+      "name": "fireExtinguish",
+      "signature": "int(lua_State*)",
+      "callback": "fireExtinguish",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 152
+    },
+    {
+      "name": "fireFire",
+      "signature": "int(lua_State*)",
+      "callback": "fireFire",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 153
+    },
+    {
+      "name": "fireToggle",
+      "signature": "int(lua_State*)",
+      "callback": "fireToggle",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 154
+    },
+    {
+      "name": "forceDelete",
+      "signature": "int(lua_State*)",
+      "callback": "forceDelete",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 97
+    },
+    {
+      "name": "fragmentGPUProgramParams",
+      "signature": "int(lua_State*)",
+      "callback": "fragmentGPUProgramParams",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 49
+    },
+    {
+      "name": "fragmentGPUProgramTime",
+      "signature": "int(lua_State*)",
+      "callback": "fragmentGPUProgramTime",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 50
+    },
+    {
+      "name": "freezeBod",
+      "signature": "int(lua_State*)",
+      "callback": "freezeBod",
+      "group": "physics",
+      "source": "Sequence.cpp",
+      "line": 95
+    },
+    {
+      "name": "gameText",
+      "signature": "int(lua_State*)",
+      "callback": "gameText",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 51
+    },
+    {
+      "name": "gameText2",
+      "signature": "int(lua_State*)",
+      "callback": "gameText2",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 52
+    },
+    {
+      "name": "gameTextColor",
+      "signature": "int(lua_State*)",
+      "callback": "gameTextColor",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 53
+    },
+    {
+      "name": "gameTextSize",
+      "signature": "int(lua_State*)",
+      "callback": "gameTextSize",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 54
+    },
+    {
+      "name": "gen_Fire",
+      "signature": "int(lua_State*)",
+      "callback": "Fire",
+      "group": "world",
+      "source": "Generator.cpp",
+      "line": 17
+    },
+    {
+      "name": "gen_setCenter",
+      "signature": "int(lua_State*)",
+      "callback": "setCenter",
+      "group": "world",
+      "source": "Generator.cpp",
+      "line": 15
+    },
+    {
+      "name": "gen_setNumberX",
+      "signature": "int(lua_State*)",
+      "callback": "setNumberX",
+      "group": "world",
+      "source": "Generator.cpp",
+      "line": 12
+    },
+    {
+      "name": "gen_setNumberY",
+      "signature": "int(lua_State*)",
+      "callback": "setNumberY",
+      "group": "world",
+      "source": "Generator.cpp",
+      "line": 13
+    },
+    {
+      "name": "gen_setNumberZ",
+      "signature": "int(lua_State*)",
+      "callback": "setNumberZ",
+      "group": "world",
+      "source": "Generator.cpp",
+      "line": 14
+    },
+    {
+      "name": "gen_setPhysObject",
+      "signature": "int(lua_State*)",
+      "callback": "setPhysObject",
+      "group": "world",
+      "source": "Generator.cpp",
+      "line": 11
+    },
+    {
+      "name": "gen_setSpace",
+      "signature": "int(lua_State*)",
+      "callback": "setSpace",
+      "group": "world",
+      "source": "Generator.cpp",
+      "line": 16
+    },
+    {
+      "name": "getFov",
+      "signature": "int(lua_State*)",
+      "callback": "getFov",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 163
+    },
+    {
+      "name": "getPixelCount1",
+      "signature": "int(lua_State*)",
+      "callback": "getPixelCount1",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 40
+    },
+    {
+      "name": "getPixelCount2",
+      "signature": "int(lua_State*)",
+      "callback": "getPixelCount2",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 41
+    },
+    {
+      "name": "get__register",
+      "signature": "int(lua_State*)",
+      "callback": "get__register",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 136
+    },
+    {
+      "name": "godmode",
+      "signature": "int(lua_State*)",
+      "callback": "godmode",
+      "group": "player",
+      "source": "Sequence.cpp",
+      "line": 106
+    },
+    {
+      "name": "hideEntity",
+      "signature": "int(lua_State*)",
+      "callback": "hideEntity",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 69
+    },
+    {
+      "name": "inc__register",
+      "signature": "int(lua_State*)",
+      "callback": "inc__register",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 138
+    },
+    {
+      "name": "killEverybody",
+      "signature": "int(lua_State*)",
+      "callback": "killEverybody",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 93
+    },
+    {
+      "name": "lockDoor",
+      "signature": "int(lua_State*)",
+      "callback": "lockDoor",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 34
+    },
+    {
+      "name": "logMessage",
+      "signature": "int(lua_State*)",
+      "callback": "logMessage",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 130
+    },
+    {
+      "name": "logoff",
+      "signature": "int(lua_State*)",
+      "callback": "turnOff",
+      "group": "world",
+      "source": "Display.cpp",
+      "line": 41
+    },
+    {
+      "name": "materialEntity",
+      "signature": "int(lua_State*)",
+      "callback": "materialEntity",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 68
+    },
+    {
+      "name": "nod__getpos",
+      "signature": "int(lua_State*)",
+      "callback": "nod__getpos",
+      "group": "physics",
+      "source": "Sequence.cpp",
+      "line": 126
+    },
+    {
+      "name": "nod__getpos2",
+      "signature": "int(lua_State*)",
+      "callback": "nod__getpos2",
+      "group": "physics",
+      "source": "Sequence.cpp",
+      "line": 125
+    },
+    {
+      "name": "nod__setpos2",
+      "signature": "int(lua_State*)",
+      "callback": "nod__setpos2",
+      "group": "physics",
+      "source": "Sequence.cpp",
+      "line": 127
+    },
+    {
+      "name": "npcEvent",
+      "signature": "int(lua_State*)",
+      "callback": "npcEvent",
+      "group": "npc",
+      "source": "Sequence.cpp",
+      "line": 141
+    },
+    {
+      "name": "npcEvent2",
+      "signature": "int(lua_State*)",
+      "callback": "npcEvent2",
+      "group": "npc",
+      "source": "Sequence.cpp",
+      "line": 142
+    },
+    {
+      "name": "openDoor",
+      "signature": "int(lua_State*)",
+      "callback": "openDoor",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 32
+    },
+    {
+      "name": "playMusic",
+      "signature": "int(lua_State*)",
+      "callback": "playMusic",
+      "group": "audio",
+      "source": "Sequence.cpp",
+      "line": 55
+    },
+    {
+      "name": "playerShake",
+      "signature": "int(lua_State*)",
+      "callback": "playerShake",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 70
+    },
+    {
+      "name": "player__allowFlash",
+      "signature": "int(lua_State*)",
+      "callback": "player__allowFlash",
+      "group": "player",
+      "source": "Sequence.cpp",
+      "line": 115
+    },
+    {
+      "name": "player__destroyFlash",
+      "signature": "int(lua_State*)",
+      "callback": "player__destroyFlash",
+      "group": "player",
+      "source": "Sequence.cpp",
+      "line": 116
+    },
+    {
+      "name": "player__getdirx",
+      "signature": "int(lua_State*)",
+      "callback": "player__getdirx",
+      "group": "player",
+      "source": "Sequence.cpp",
+      "line": 131
+    },
+    {
+      "name": "player__getdiry",
+      "signature": "int(lua_State*)",
+      "callback": "player__getdiry",
+      "group": "player",
+      "source": "Sequence.cpp",
+      "line": 132
+    },
+    {
+      "name": "player__getdirz",
+      "signature": "int(lua_State*)",
+      "callback": "player__getdirz",
+      "group": "player",
+      "source": "Sequence.cpp",
+      "line": 133
+    },
+    {
+      "name": "player__getdistf",
+      "signature": "int(lua_State*)",
+      "callback": "player__getdistf",
+      "group": "player",
+      "source": "Sequence.cpp",
+      "line": 134
+    },
+    {
+      "name": "player__getposx",
+      "signature": "int(lua_State*)",
+      "callback": "player__getposx",
+      "group": "player",
+      "source": "Sequence.cpp",
+      "line": 112
+    },
+    {
+      "name": "player__getposy",
+      "signature": "int(lua_State*)",
+      "callback": "player__getposy",
+      "group": "player",
+      "source": "Sequence.cpp",
+      "line": 113
+    },
+    {
+      "name": "player__getposz",
+      "signature": "int(lua_State*)",
+      "callback": "player__getposz",
+      "group": "player",
+      "source": "Sequence.cpp",
+      "line": 114
+    },
+    {
+      "name": "player__setRegeneration",
+      "signature": "int(lua_State*)",
+      "callback": "player__setRegeneration",
+      "group": "player",
+      "source": "Sequence.cpp",
+      "line": 118
+    },
+    {
+      "name": "player__toggleFlash",
+      "signature": "int(lua_State*)",
+      "callback": "player__toggleFlash",
+      "group": "player",
+      "source": "Sequence.cpp",
+      "line": 117
+    },
+    {
+      "name": "powerComputer",
+      "signature": "int(lua_State*)",
+      "callback": "powerComputer",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 86
+    },
+    {
+      "name": "processDotScene",
+      "signature": "int(lua_State*)",
+      "callback": "processDotScene",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 187
+    },
+    {
+      "name": "processSequence",
+      "signature": "int(lua_State*)",
+      "callback": "processSequence",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 186
+    },
+    {
+      "name": "quit",
+      "signature": "int(lua_State*)",
+      "callback": "turnOff",
+      "group": "world",
+      "source": "Display.cpp",
+      "line": 44
+    },
+    {
+      "name": "random_number",
+      "signature": "int(lua_State*)",
+      "callback": "random_number",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 144
+    },
+    {
+      "name": "removeCutScene",
+      "signature": "int(lua_State*)",
+      "callback": "removeCutScene2",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 164
+    },
+    {
+      "name": "resetCameraParent",
+      "signature": "int(lua_State*)",
+      "callback": "resetCameraParent",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 149
+    },
+    {
+      "name": "resetFarClipDist",
+      "signature": "int(lua_State*)",
+      "callback": "resetFarClipDist",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 160
+    },
+    {
+      "name": "resetFov",
+      "signature": "int(lua_State*)",
+      "callback": "resetFov",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 167
+    },
+    {
+      "name": "resetNearClipDist",
+      "signature": "int(lua_State*)",
+      "callback": "resetNearClipDist",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 158
+    },
+    {
+      "name": "return",
+      "signature": "int(lua_State*)",
+      "callback": "turnOff",
+      "group": "world",
+      "source": "Display.cpp",
+      "line": 43
+    },
+    {
+      "name": "reverseTrain",
+      "signature": "int(lua_State*)",
+      "callback": "reverseTrain",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 79
+    },
+    {
+      "name": "rotateFuzzyObject",
+      "signature": "int(lua_State*)",
+      "callback": "rotateFuzzyObject",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 165
+    },
+    {
+      "name": "runScript",
+      "signature": "int(lua_State*)",
+      "callback": "runScript",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 108
+    },
+    {
+      "name": "setAccDoor",
+      "signature": "int(lua_State*)",
+      "callback": "setAccDoor",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 83
+    },
+    {
+      "name": "setAccTrain",
+      "signature": "int(lua_State*)",
+      "callback": "setAccTrain",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 82
+    },
+    {
+      "name": "setCameraParent",
+      "signature": "int(lua_State*)",
+      "callback": "setCameraParent",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 147
+    },
+    {
+      "name": "setCompositorEnabled",
+      "signature": "int(lua_State*)",
+      "callback": "setCompositorEnab",
+      "group": "rendering",
+      "source": "Sequence.cpp",
+      "line": 48
+    },
+    {
+      "name": "setFarClipDist",
+      "signature": "int(lua_State*)",
+      "callback": "setFarClipDist",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 159
+    },
+    {
+      "name": "setFov",
+      "signature": "int(lua_State*)",
+      "callback": "setFov",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 162
+    },
+    {
+      "name": "setFullCameraParent",
+      "signature": "int(lua_State*)",
+      "callback": "setFullCameraParent",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 148
+    },
+    {
+      "name": "setMPRegVolume",
+      "signature": "int(lua_State*)",
+      "callback": "setMPRegVolume",
+      "group": "audio",
+      "source": "Sequence.cpp",
+      "line": 62
+    },
+    {
+      "name": "setMusicVolume",
+      "signature": "int(lua_State*)",
+      "callback": "setMusicVolume",
+      "group": "audio",
+      "source": "Sequence.cpp",
+      "line": 57
+    },
+    {
+      "name": "setNPCManagerStep",
+      "signature": "int(lua_State*)",
+      "callback": "setNPCManagerStep",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 182
+    },
+    {
+      "name": "setNearClipDist",
+      "signature": "int(lua_State*)",
+      "callback": "setNearClipDist",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 157
+    },
+    {
+      "name": "setRotSpeed",
+      "signature": "int(lua_State*)",
+      "callback": "setRotSpeed",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 37
+    },
+    {
+      "name": "setSkyBox",
+      "signature": "int(lua_State*)",
+      "callback": "setSkyBox",
+      "group": "rendering",
+      "source": "Sequence.cpp",
+      "line": 65
+    },
+    {
+      "name": "setSpeedTrain",
+      "signature": "int(lua_State*)",
+      "callback": "setSpeedTrain",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 81
+    },
+    {
+      "name": "setTimeK",
+      "signature": "int(lua_State*)",
+      "callback": "setTimeK",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 91
+    },
+    {
+      "name": "set__register",
+      "signature": "int(lua_State*)",
+      "callback": "set__register",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 135
+    },
+    {
+      "name": "shockCutScene",
+      "signature": "int(lua_State*)",
+      "callback": "shockCutScene",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 161
+    },
+    {
+      "name": "showEntity",
+      "signature": "int(lua_State*)",
+      "callback": "showEntity",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 67
+    },
+    {
+      "name": "shutdown",
+      "signature": "int(lua_State*)",
+      "callback": "turnOff",
+      "group": "world",
+      "source": "Display.cpp",
+      "line": 40
+    },
+    {
+      "name": "startCredits",
+      "signature": "int(lua_State*)",
+      "callback": "startCredits",
+      "group": "world",
+      "source": "Credits.cpp",
+      "line": 17
+    },
+    {
+      "name": "startCutScene",
+      "signature": "int(lua_State*)",
+      "callback": "startCutScene",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 71
+    },
+    {
+      "name": "startEvent",
+      "signature": "int(lua_State*)",
+      "callback": "startEvent",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 85
+    },
+    {
+      "name": "startSeqScript",
+      "signature": "int(lua_State*)",
+      "callback": "startSeqScript",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 72
+    },
+    {
+      "name": "startTrain",
+      "signature": "int(lua_State*)",
+      "callback": "startTrain",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 80
+    },
+    {
+      "name": "stopMusic",
+      "signature": "int(lua_State*)",
+      "callback": "stopMusic",
+      "group": "audio",
+      "source": "Sequence.cpp",
+      "line": 58
+    },
+    {
+      "name": "stopTrain",
+      "signature": "int(lua_State*)",
+      "callback": "stopTrain",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 84
+    },
+    {
+      "name": "teleport",
+      "signature": "int(lua_State*)",
+      "callback": "teleport",
+      "group": "player",
+      "source": "Sequence.cpp",
+      "line": 150
+    },
+    {
+      "name": "teleport_rel",
+      "signature": "int(lua_State*)",
+      "callback": "teleport_rel",
+      "group": "player",
+      "source": "Sequence.cpp",
+      "line": 151
+    },
+    {
+      "name": "timeShift",
+      "signature": "int(lua_State*)",
+      "callback": "timeShift",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 92
+    },
+    {
+      "name": "toString",
+      "signature": "int(lua_State*)",
+      "callback": "tostringl",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 143
+    },
+    {
+      "name": "toggleDoor",
+      "signature": "int(lua_State*)",
+      "callback": "toggleDoor",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 36
+    },
+    {
+      "name": "toggleEmitter",
+      "signature": "int(lua_State*)",
+      "callback": "toggleEmitter",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 99
+    },
+    {
+      "name": "toggleEntity",
+      "signature": "int(lua_State*)",
+      "callback": "toggleEntity",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 66
+    },
+    {
+      "name": "toggleLight",
+      "signature": "int(lua_State*)",
+      "callback": "toggleLight",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 38
+    },
+    {
+      "name": "toggleMusic",
+      "signature": "int(lua_State*)",
+      "callback": "playMusic",
+      "group": "audio",
+      "source": "Sequence.cpp",
+      "line": 56
+    },
+    {
+      "name": "toggleNightvision",
+      "signature": "int(lua_State*)",
+      "callback": "toggleNightvision",
+      "group": "world",
+      "source": "SuperFX.cpp",
+      "line": 50
+    },
+    {
+      "name": "toggleParticleSystem",
+      "signature": "int(lua_State*)",
+      "callback": "toggleParticleSystem",
+      "group": "world",
+      "source": "Sequence.cpp",
+      "line": 98
+    },
+    {
+      "name": "toggleTimer",
+      "signature": "int(lua_State*)",
+      "callback": "toggleTimer",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 111
+    },
+    {
+      "name": "transformToPhys",
+      "signature": "int(lua_State*)",
+      "callback": "transformToPhys",
+      "group": "physics",
+      "source": "Sequence.cpp",
+      "line": 94
+    },
+    {
+      "name": "turnoff__Module",
+      "signature": "int(lua_State*)",
+      "callback": "turnoff__Module",
+      "group": "devices",
+      "source": "Sequence.cpp",
+      "line": 179
+    },
+    {
+      "name": "turnoff__NPCManager",
+      "signature": "int(lua_State*)",
+      "callback": "turnoff__NPCManager",
+      "group": "devices",
+      "source": "Sequence.cpp",
+      "line": 181
+    },
+    {
+      "name": "turnoff__Sequence",
+      "signature": "int(lua_State*)",
+      "callback": "turnoff__Sequence",
+      "group": "devices",
+      "source": "Sequence.cpp",
+      "line": 180
+    },
+    {
+      "name": "unfreezeBod",
+      "signature": "int(lua_State*)",
+      "callback": "unfreezeBod",
+      "group": "physics",
+      "source": "Sequence.cpp",
+      "line": 96
+    },
+    {
+      "name": "unlockDoor",
+      "signature": "int(lua_State*)",
+      "callback": "unlockDoor",
+      "group": "sequence",
+      "source": "Sequence.cpp",
+      "line": 35
+    }
+  ],
+  "duplicate_export_names": [],
+  "content_script_count": 955,
+  "content_export_call_counts": {
+    "COMSendData": 131,
+    "Fade": 2,
+    "FadeOut": 1,
+    "HUDDisable": 25,
+    "HUDHide": 37,
+    "HUDflashText": 3,
+    "VectorToString": 1,
+    "WeaponStrip": 3,
+    "__all_npcEvent": 2,
+    "activateMPReg": 23,
+    "addAmbientSound": 5,
+    "addWeapon": 2,
+    "add__register": 3,
+    "bod__getor": 3,
+    "bod__getpos": 22,
+    "bod__getpos2": 4,
+    "bod__setor": 30,
+    "bod__setpos": 20,
+    "buttonGUI_activateCenter640": 13,
+    "buttonGUI_activateTopLeft640": 16,
+    "buttonGUI_activateTopLeftComp640": 17,
+    "buttonGUI_create3DButton": 4,
+    "buttonGUI_createButton": 286,
+    "buttonGUI_deactivate640": 15,
+    "buttonGUI_deactivateCenter640": 38,
+    "buttonGUI_deleteAllButtons": 75,
+    "buttonGUI_getCursX": 4,
+    "buttonGUI_getCursY": 4,
+    "buttonGUI_getX": 16,
+    "buttonGUI_getY": 8,
+    "buttonGUI_hideCursor": 2,
+    "buttonGUI_setPos": 43,
+    "changeLevel": 24,
+    "closeDoor": 70,
+    "commandLeaderGroup": 41,
+    "dActivateElisa": 2,
+    "dActivateKeyExit": 10,
+    "dClear": 88,
+    "dCompPrint": 339,
+    "dMaterialSet": 109,
+    "dPrefix": 83,
+    "dResetDimensions": 5,
+    "dSetDimensions": 49,
+    "dSetFont": 83,
+    "dSetFontSize": 90,
+    "dSetMaxLines": 78,
+    "deactivateMPReg": 2,
+    "destroyNPC": 10,
+    "disableAmbientSound": 38,
+    "disableEmitter": 4,
+    "disableInventory": 4,
+    "disableLight": 33,
+    "disableTimer": 81,
+    "disableTrainSaveMode": 2,
+    "disableTrigger": 5,
+    "dssao": 3,
+    "emitSound": 472,
+    "emitSound2": 3,
+    "enableAmbientSound": 17,
+    "enableEmitter": 2,
+    "enableInventory": 10,
+    "enableLight": 15,
+    "enableTimer": 103,
+    "enableTrainSaveMode": 5,
+    "enableTrigger": 13,
+    "exitAllComputers": 13,
+    "explosion": 11,
+    "explosion2": 1,
+    "fadeoutMusic": 2,
+    "fireToggle": 9,
+    "fragmentGPUProgramParams": 287,
+    "fragmentGPUProgramTime": 5,
+    "freezeBod": 212,
+    "gameText": 213,
+    "gameText2": 15,
+    "gameTextColor": 2,
+    "gameTextSize": 1,
+    "gen_Fire": 1,
+    "gen_setCenter": 1,
+    "gen_setNumberX": 1,
+    "gen_setNumberY": 1,
+    "gen_setNumberZ": 1,
+    "gen_setPhysObject": 1,
+    "gen_setSpace": 1,
+    "getFov": 2,
+    "get__register": 82,
+    "godmode": 3,
+    "hideEntity": 25,
+    "lockDoor": 5,
+    "logMessage": 193,
+    "materialEntity": 24,
+    "nod__getpos": 24,
+    "nod__getpos2": 4,
+    "npcEvent": 1161,
+    "openDoor": 111,
+    "playMusic": 148,
+    "playerShake": 22,
+    "player__allowFlash": 12,
+    "player__getdirx": 3,
+    "player__getdiry": 3,
+    "player__getdirz": 3,
+    "player__getdistf": 9,
+    "player__getposx": 3,
+    "player__getposy": 3,
+    "player__getposz": 3,
+    "player__setRegeneration": 1,
+    "player__toggleFlash": 1,
+    "powerComputer": 10,
+    "random_number": 43,
+    "removeCutScene": 1,
+    "resetCameraParent": 6,
+    "resetFarClipDist": 1,
+    "resetFov": 2,
+    "resetNearClipDist": 2,
+    "reverseTrain": 16,
+    "runScript": 25,
+    "setAccDoor": 34,
+    "setAccTrain": 25,
+    "setCameraParent": 15,
+    "setCompositorEnabled": 327,
+    "setFarClipDist": 1,
+    "setFov": 7,
+    "setFullCameraParent": 5,
+    "setMPRegVolume": 25,
+    "setMusicVolume": 31,
+    "setNPCManagerStep": 2,
+    "setNearClipDist": 2,
+    "setRotSpeed": 7,
+    "setSkyBox": 5,
+    "setSpeedTrain": 10,
+    "setTimeK": 6,
+    "set__register": 66,
+    "shockCutScene": 2,
+    "showEntity": 12,
+    "shutdown": 21,
+    "startCredits": 3,
+    "startCutScene": 34,
+    "startEvent": 2,
+    "startTrain": 109,
+    "stopMusic": 76,
+    "stopTrain": 7,
+    "teleport": 27,
+    "teleport_rel": 2,
+    "toString": 469,
+    "toggleDoor": 316,
+    "toggleEmitter": 358,
+    "toggleEntity": 855,
+    "toggleLight": 97,
+    "toggleNightvision": 1,
+    "toggleParticleSystem": 87,
+    "toggleTimer": 1,
+    "unfreezeBod": 136,
+    "unlockDoor": 4
+  },
+  "inventory_sha256": "8bab86590fd2ad00ffb7c462864500f569689ba5cbd83dcac6d0a961073ae661"
+}

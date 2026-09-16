@@ -45,9 +45,12 @@ These project-listed files are intentionally outside the future game runtime:
 | `tinystr.cpp` | 1 | Malformed, unterminated commented copy of TinyXML's non-STL string implementation. The selected `TIXML_USE_STL` path neither needs nor links it. |
 
 No other translation unit has been labelled an obsolete demo/tool. Of the 93
-project-listed units not compiled by `run3_legacy`, 88 are deferred runtime
-work, one is the separately recorded historical entrypoint, and four are the
-reviewed exclusions above; no file is silently discarded.
+project-listed units not compiled by `run3_legacy`, 48 remain deferred runtime
+work, one is the separately recorded historical entrypoint, four are the
+reviewed exclusions above, 37 are retired Newton implementations, and three
+are retired audio implementations (`SoundManager.cpp`, `Run3SoundRuntime.cpp`,
+and `MusicPlayer.cpp`). Retired sources remain historical behavior evidence;
+none is silently discarded or linked.
 
 ## Feature gates and null backends
 
@@ -60,12 +63,13 @@ All legacy feature switches default to `OFF`:
 | `RUN3_LEGACY_ENABLE_CEGUI` | CEGUI/Ogre GUI renderer |
 | `RUN3_LEGACY_ENABLE_HYDRAX` | Hydrax |
 | `RUN3_LEGACY_ENABLE_SKYX` | SkyX |
-| `RUN3_LEGACY_ENABLE_LEGACY_AUDIO` | Audiere/ALUT/OpenAL-era runtime |
 | `RUN3_LEGACY_ENABLE_DIRECTSHOW` | DirectShow video path |
 | `RUN3_LEGACY_ENABLE_SERIAL` | Retired switch; use `RUN3_ENABLE_OPTIONAL_DEVICES` |
 | `RUN3_LEGACY_ENABLE_NAMED_PIPES` | Retired switch; use `RUN3_ENABLE_OPTIONAL_DEVICES` |
 
-`run3::legacy::requireFeature` is the temporary null-backend boundary. For a
+The Newton and legacy-audio feature gates were removed after Steps 6C and 7
+provided their Run3-owned replacements. `run3::legacy::requireFeature` is the
+temporary null-backend boundary for the remaining rows. For a
 disabled feature it writes the subsystem name to standard error and throws
 `FeatureUnavailable`; it never reports fake success. Enabling a switch during
 Step 3 fails configuration because no reproducible implementation has yet
@@ -74,18 +78,19 @@ sources, and validation before removing that gate.
 
 ## Deferred backlog counts
 
-After the Step 4 batches, 88 runtime translation units remain deferred. The
+After the Step 7 retirement batches, 48 runtime translation units remain
+deferred. The
 following current lexical counts overlap because the monolithic files often
 mix several subsystems:
 
 | Direct blocker | Deferred translation units |
 |---|---:|
-| Newton/OgreNewt | 43 |
+| Newton/OgreNewt | 0 live; historical consumers remain unbuilt |
 | OIS | 0 |
 | Lua | 22 |
 | Serial | 2 |
 | SkyX | 3 |
-| Audiere/ALUT/OpenAL | 2 |
+| Audiere/ALUT/OpenAL | 0 live; 3 implementations retired |
 | Named pipes | 1 |
 | CEGUI | 1 |
 | Hydrax | 1 |

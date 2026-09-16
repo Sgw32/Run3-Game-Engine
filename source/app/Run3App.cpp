@@ -1,5 +1,6 @@
 #include <run3/app/Run3App.hpp>
 
+#include <run3/audio/Audio.hpp>
 #include <run3/core/Log.hpp>
 #include <run3/content/AssetValidation.hpp>
 #include <run3/content/OgreAssetValidation.hpp>
@@ -179,6 +180,12 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
   Run3AppOptions options;
   options.paths = std::move(paths);
   options.renderer = configuration.valueOr("renderer", defaultRenderer);
+  options.audioBackend = lower(configuration.valueOr("audio-backend", "auto"));
+  if (options.audioBackend != "auto" && options.audioBackend != "miniaudio" &&
+      options.audioBackend != "null") {
+    throw std::runtime_error(
+        "audio-backend must be auto, miniaudio, or null");
+  }
   options.frameLimit = frames;
   options.explicitContentRoot = contentRoot.has_value();
   options.validateContent = validateContent;
@@ -210,6 +217,7 @@ void printRun3AppUsage() {
       << "       [--map tlwcao|tlwhome02] [--map-quality low|medium|high]\n"
       << "       [--resource-profile FILE] [--player-height-cm N]\n"
       << "       [--fullscreen|--windowed] [--noclip] [--physics-debug]\n"
+      << "       [--audio-backend auto|miniaudio|null]\n"
       << "       [--render-hz 30|60|144]\n"
       << "Precedence: command line > user config > content defaults.\n"
       << "Relative paths are resolved from the executable directory.\n";
@@ -285,6 +293,18 @@ int Run3App::run() {
         cubeNode_->yaw(Ogre::Degree(
             30.0F * static_cast<float>(frame.elapsed.count())));
       }
+      if (audioEngine_ != nullptr && cameraNode_ != nullptr) {
+        const Ogre::Vector3 position = cameraNode_->getPosition();
+        const Ogre::Quaternion orientation = cameraNode_->getOrientation();
+        const Ogre::Vector3 forward = orientation * Ogre::Vector3::NEGATIVE_UNIT_Z;
+        const Ogre::Vector3 up = orientation * Ogre::Vector3::UNIT_Y;
+        audio::ListenerTransform listener;
+        listener.position = {position.x, position.y, position.z};
+        listener.forward = {forward.x, forward.y, forward.z};
+        listener.up = {up.x, up.y, up.z};
+        audioEngine_->setListener(listener);
+        audioEngine_->update(static_cast<float>(frame.elapsed.count()));
+      }
       if (!getRoot()->renderOneFrame(
               static_cast<Ogre::Real>(frame.elapsed.count()))) {
         break;
@@ -298,6 +318,7 @@ int Run3App::run() {
     player_.reset();
     staticMap_.reset();
     physicsWorld_.reset();
+    audioEngine_.reset();
     closeApp();
     throw;
   }
@@ -312,6 +333,7 @@ int Run3App::run() {
   player_.reset();
   staticMap_.reset();
   physicsWorld_.reset();
+  audioEngine_.reset();
   closeApp();
   return validationFailed_ ? 2 : 0;
 }
@@ -420,6 +442,21 @@ void Run3App::setup() {
   Ogre::Viewport *viewport = getRenderWindow()->addViewport(camera_);
   viewport->setBackgroundColour(Ogre::ColourValue(0.04F, 0.06F, 0.1F));
   updateAspectRatio();
+
+  const audio::AudioEngineConfig audioConfig{32, false};
+  if (options_.audioBackend == "null") {
+    audioEngine_ = audio::createNullAudioEngine(audioConfig);
+  } else {
+    audioEngine_ = audio::createAudioEngineWithFallback(
+        audioConfig, audio::createMiniaudioEngine,
+        [](const std::string_view message) {
+          Ogre::LogManager::getSingleton().logMessage(std::string(message));
+        });
+  }
+  Ogre::LogManager::getSingleton().logMessage(
+      "Run3 audio backend: " + std::string(audioEngine_->backendName()) +
+      (audioEngine_->hasOutputDevice() ? " (output device ready)"
+                                       : " (no output device)"));
 
   if (!options_.mapName.empty()) {
     physicsWorld_ = std::make_unique<physics::PhysicsWorld>(

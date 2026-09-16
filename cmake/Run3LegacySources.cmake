@@ -205,6 +205,13 @@ set(RUN3_LEGACY_RETIRED_NEWTON_SOURCES
     npc_template.cpp
     Ladder.cpp)
 
+# Step 7 replaced both old audio stacks with run3_audio. These files remain
+# only as historical behavior evidence and are never compiled or linked.
+set(RUN3_LEGACY_RETIRED_AUDIO_SOURCES
+    MusicPlayer.cpp
+    Run3SoundRuntime.cpp
+    SoundManager.cpp)
+
 # This vcproj-listed file contains only an incomplete, unterminated commented
 # copy of TinyXML's string implementation. TIXML_USE_STL does not need it.
 set(RUN3_LEGACY_MALFORMED_UNUSED_SOURCES tinystr.cpp)
@@ -214,6 +221,7 @@ set(_run3_legacy_accounted_sources
     ${RUN3_LEGACY_ENTRYPOINT_SOURCE}
     ${RUN3_LEGACY_OBSOLETE_DEMO_TOOL_SOURCES}
     ${RUN3_LEGACY_RETIRED_NEWTON_SOURCES}
+    ${RUN3_LEGACY_RETIRED_AUDIO_SOURCES}
     ${RUN3_LEGACY_MALFORMED_UNUSED_SOURCES})
 set(RUN3_LEGACY_DEFERRED_SOURCES ${RUN3_LEGACY_VCPROJ_SOURCES})
 list(REMOVE_ITEM RUN3_LEGACY_DEFERRED_SOURCES

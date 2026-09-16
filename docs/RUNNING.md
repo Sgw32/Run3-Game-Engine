@@ -7,8 +7,8 @@ Use `tlwcao` for the quickest check; `tlwhome02` (also accepted as
 physics prototype, not yet the complete game. Step 6C adds live Bullet motion
 for main-scene `<phys>`/`<breakable>` objects and typed/tested physics behavior
 for doors, trains, triggers, pickups, projectiles, NPC collision, ragdolls, and
-AIR3. Step 8 binds those factories to sequence XML/Lua; audio and final
-materials are later steps.
+AIR3. Step 7 provides the live miniaudio/null device layer; Step 8 binds
+sequence XML/Lua events to the new audio API. Final materials are a later step.
 
 Build and test first with [BUILDING.md](BUILDING.md). Run the installed binary,
 because `cmake --install` stages the Ogre plugins, runtime libraries,
@@ -121,6 +121,7 @@ run3_shell [--renderer d3d11|gl3plus] [--frames N]
            [--map tlwcao|tlwhome02] [--map-quality low|medium|high]
            [--resource-profile FILE] [--player-height-cm N]
            [--fullscreen|--windowed] [--noclip] [--physics-debug]
+           [--audio-backend auto|miniaudio|null]
            [--render-hz 30|60|144]
            [--validate-content] [--manifest PATH] [--report PATH]
 ```
@@ -130,6 +131,23 @@ deterministic render schedule for bounded regression runs; omit it for normal
 interactive play. Map quality defaults to `low`, paired with
 `resources_low_low.cfg`. When selecting another quality, explicitly select the
 matching resource profile present in the game root.
+
+Audio defaults to `auto`: Run3 opens the pinned miniaudio backend and falls
+back to the bounded null backend if device initialization fails. Force silent,
+device-independent gameplay with:
+
+```powershell
+& (Join-Path $installRoot 'bin\run3_shell.exe') `
+  --renderer d3d11 --content-root $contentRoot --map tlwcao `
+  --user-dir $userRoot --audio-backend null
+```
+
+Use `--audio-backend miniaudio` to request the real backend explicitly; device
+failure still logs the reason and falls back safely. Persist either choice as
+`audio-backend=miniaudio` or `audio-backend=null` in
+`<user-root>/config/run3.cfg`. The shell updates the listener from the camera,
+but campaign music/effect events remain quiet until Step 8 connects the legacy
+sequence and Lua commands.
 
 The game-facing player defaults to a 180 cm collision capsule with an
 approximately 165 cm eye height. Set another physical height from 120 through
@@ -167,8 +185,9 @@ Configuration uses `key=value` lines and this precedence:
 
 The recognized runtime keys are `renderer`, `frames`, `content-root`,
 `user-root`, `map`, `map-quality`, `resource-profile`, `player-height-cm`,
-`render-hz`, `fullscreen`, `noclip`, and `physics-debug`. Relative paths resolve
-from the executable directory, not the process working directory.
+`render-hz`, `audio-backend`, `fullscreen`, `noclip`, and `physics-debug`.
+Relative paths resolve from the executable directory, not the process working
+directory.
 
 The user root is writable and receives `config/`, `logs/`, `saves/`, and
 `cache/`. The content root stays read-only. Running from a different working

@@ -3,6 +3,7 @@
 #include <run3/app/AppPaths.hpp>
 #include <run3/app/Configuration.hpp>
 #include <run3/app/EngineClock.hpp>
+#include <run3/audio/Audio.hpp>
 #include <run3/input/Input.hpp>
 #include <run3/input/OgreBitesInputAdapter.hpp>
 #include <run3/gameplay/PlayerController.hpp>
@@ -27,6 +28,7 @@ namespace run3 {
 struct Run3AppOptions {
   AppPaths paths;
   std::string renderer;
+  std::string audioBackend{"auto"};
   std::uint64_t frameLimit{};
   bool explicitContentRoot{};
   bool validateContent{};
@@ -78,6 +80,7 @@ private:
   std::unique_ptr<physics::PhysicsWorld> physicsWorld_;
   std::unique_ptr<gameplay::StaticMap> staticMap_;
   std::unique_ptr<gameplay::PlayerController> player_;
+  std::unique_ptr<audio::IAudioEngine> audioEngine_;
   double yawRadians_{};
   double pitchRadians_{};
   bool physicsDebug_{};

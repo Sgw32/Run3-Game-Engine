@@ -9,6 +9,7 @@
     "bullet3",
     "catch2",
     "lua",
+    "miniaudio",
     "nlohmann-json",
     {
       "name": "ogre",
@@ -30,6 +31,10 @@
     {
       "name": "lua",
       "version": "5.4.8"
+    },
+    {
+      "name": "miniaudio",
+      "version": "0.11.25"
     },
     {
       "name": "ogre",

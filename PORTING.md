@@ -17,7 +17,7 @@ Progress checklist (mark a step only when its exit criteria pass):
 - [x] 6A — Bullet backend tests
 - [x] 6B — static world and player
 - [ ] 6C — remaining physics and AIR3
-- [ ] 7 — unified audio
+- [x] 7 — unified audio
 - [ ] 8 — XML and Lua
 - [ ] 9 — UI and visual portability
 - [ ] 10 — complete campaign pass
@@ -172,7 +172,7 @@ The exact system packages depend on the Ogre render systems enabled. Ogre's auth
 
 Version rule: record an exact `builtin-baseline` in `vcpkg.json`, record any non-vcpkg source tag and SHA-256, and update dependencies in dedicated PRs after CI/play tests. Never put “latest” into a build script.
 
-Expected direct vcpkg ports by the end of the migration are `ogre` (classic), `bullet3`, `catch2`, `lua`, `sol2`, and `tinyxml2`; confirm names/features at the selected baseline instead of copying an untested manifest from this document. SDL normally arrives through OgreBites. Follow miniaudio's upstream recommendation by compiling its pinned `miniaudio.c`/`.h` in a private backend target and include its license and source hash. AIR3 remains source built from the pinned submodule. CMake must consume imported targets, not manually construct include or library paths.
+Expected direct vcpkg ports by the end of the migration are `ogre` (classic), `bullet3`, `catch2`, `lua`, `sol2`, `tinyxml2`, and `miniaudio`; confirm names/features at the selected baseline instead of copying an untested manifest from this document. SDL normally arrives through OgreBites. Follow miniaudio's upstream recommendation by compiling its pinned implementation in one private backend target and include its license and source hash. AIR3 remains source built from the pinned submodule. CMake must consume imported targets, not manually construct include or library paths.
 
 ## 6. Execution rules for every step
 
@@ -385,14 +385,14 @@ Exit criteria:
 - Representative chapter, NPC, trigger, music, subtitle, and map-change scripts behave like baseline.
 - Malformed XML/Lua reports file, location, and cause without crashing.
 
-### Step 9 — Menus/HUD, shaders, sky/water, and intro-video fallback
+### Step 9A — Menus/HUD, shader compatibility, sky/water, and intro-video fallback
 
 This is the visual-parity milestone. Correctness beats exact legacy effects.
 
 Paste into Codex:
 
 ```text
-Read PORTING.md and do only Step 9. Remove direct CEGUI use from main.cpp by separating menu state/actions from presentation, then implement the required main/new-game/chapter/options/quit UI with the chosen Run3/OgreBites UI adapter. Preserve HUD, subtitles, console, and buttonGUI through Ogre Overlay while removing OIS types. Build a shader/material compatibility matrix and eliminate required Cg/ps_2_0/vs_2_0 programs: use Ogre RTSS for ordinary materials and maintained GLSL/HLSL implementations only for effects that materially affect gameplay. Make shader compile errors test failures for the required set. Replace Hydrax/SkyX with simple portable sky/water adapters first; port richer effects only behind optional backends. Make intro video skippable and disabled by default, removing DirectShow/WMV from the portable runtime. Validate UI scaling at 16:9, 16:10, 4:3, and high DPI. Verify D3D11 and GL3+, update status, and stop.
+Read PORTING.md and do only Step 9A. Remove direct CEGUI use from main.cpp by separating menu state/actions from presentation, then implement the required main/new-game/chapter/options/quit UI with the chosen Run3/OgreBites UI adapter. Preserve HUD, subtitles, console, and buttonGUI through Ogre Overlay while removing OIS types. Build a shader/material compatibility matrix and eliminate required Cg/ps_2_0/vs_2_0 programs: use Ogre RTSS for ordinary materials and maintained GLSL/HLSL implementations only for effects that materially affect gameplay. Make shader compile errors test failures for the required set. Replace Hydrax/SkyX with simple portable sky/water adapters first; port richer effects only behind optional backends. Make intro video skippable and disabled by default, removing DirectShow/WMV from the portable runtime. Validate UI scaling at 16:9, 16:10, 4:3, and high DPI. Verify D3D11 and GL3+, update status, and stop before Step 9B lighting work.
 ```
 
 Exit criteria:
@@ -400,6 +400,47 @@ Exit criteria:
 - A player can start/continue/quit the game and change supported settings without CEGUI.
 - Required scenes have a visible fallback material rather than disappearing when a fancy shader is unavailable.
 - Required material/shader set produces zero compiler errors on D3D11 and GL3+.
+
+### Step 9B — Modern lighting, dynamic shadows, and material pipelines
+
+Do this only after Step 9A has removed required Cg and shader-model-2 programs. Preserve Run3's scene and gameplay concepts: maps continue to author normal Ogre directional, point (omni), and spot lights, including their colours, transforms, attenuation, cones, and shadow flags. Pipeline selection changes how those lights and materials are rendered; it must not change scripts, triggers, collision, or gameplay.
+
+The current content does not have one universal legacy light count. `approachHighDetail.material` contains `once_per_light` passes capped at 2, 3, or 8 lights and a separate fixed three-light parallax material; `run3PhongSpheremap.material` also defines fixed two- and four-light forward variants. First inventory which variants and shadow modes are actually referenced by campaign materials/maps and record the result in `docs/porting/LIGHTING.md`; do not guess a single value from a shader filename or treat every historical definition as live.
+
+Implement the work in these reviewable slices:
+
+1. Define one Run3-owned material description/adapter for opaque, cutout, transparent, emissive, and unlit surfaces. It must preserve legacy diffuse/specular/shininess inputs and add optional normal, specular or metal-roughness, and AO texture slots with documented colour-space, tangent, channel-packing, and fallback rules. Missing optional maps must degrade predictably rather than making a surface white, black, or invisible.
+2. Define a shared light/shadow contract and capability matrix. All three light types and arbitrary light colours must work through the common scene representation. Provide dynamic-shadow support with explicit per-pipeline budgets, stable caster selection, bias/filter/range settings, and quality presets; never silently discard an unsupported light or shadow. Keep transparent/cutout depth-write, depth-test, culling, and shadow-caster behavior explicit.
+3. Add four selectable pipelines using the exact stable keys below. Do not revive the old Cg programs to obtain visual parity:
+   - `legacy-forward`: reproduce the used Run3 per-pixel diffuse/specular look and the verified two-/three-/four-light material behavior using maintained RTSS, GLSL, or HLSL shaders.
+   - `deferred`: adapt Ogre's deferred-shading design to Run3's material semantics, with a documented G-buffer, light volumes for directional/point/spot lights, coloured dynamic lights, dynamic shadows, and a forward path for transparent and other unsuitable materials. Treat Ogre's sample as a starting point, not production-ready drop-in code.
+   - `pbr`: provide the modern high-quality path with a linear HDR workflow, Cook-Torrance metal-roughness lighting, image-based lighting, normal maps, material AO, calibrated exposure/tone mapping, and filtered texture shadows. Use PSSM (Parallel Split Shadow Maps—probably the "PMSM" term intended in the request) for the main directional light over large scenes; PSSM is a shadow technique, not a lighting model. Retain legacy specular/gloss inputs through an explicit, tested mapping instead of bulk-changing source art.
+   - `fast-forward`: provide a low-overhead but good-looking RTSS/forward path with bounded nearest-light selection, a small shader-permutation set, distance/importance shadow selection, lower-cost filtering, and use of baked lightmaps/material AO where present. It must still render all three light types and coloured lights; quality limits belong in the capability matrix.
+4. Select with config keys `render.lighting_pipeline = legacy-forward|deferred|pbr|fast-forward` and `render.shadow_quality = off|low|medium|high|ultra`, overridden by `--lighting-pipeline` and `--shadow-quality` according to Step 4 precedence. Validate values at startup, log the requested and effective pipeline, and use a documented deterministic fallback only when the renderer lacks a required capability. The settings UI may expose the same keys after the command/config contract is tested.
+5. Add a separate, redistributable `LightingLab` demo level that does not require The Long Way assets. Show neutral reference objects and representative game-scale geometry under moving and static directional, point, and spot lights of different colours. Include diffuse-only, normal-mapped, specular/gloss, metal/roughness/AO, emissive, alpha-cutout, and transparent materials; a large near-to-far span for PSSM; shadow-casting animated/static objects; fixed camera bookmarks; labels; and identical scene inputs for all four pipelines. Provide deterministic screenshot paths plus CPU/GPU time, draw-call, light-count, shadow-map, and shader-permutation reporting so quality and speed can be compared rather than judged from unrelated scenes.
+6. Add an opt-in `The Long Way: Next Gen Remaster` content variant. Never edit or overwrite the author's originals. Copy only `Games/The Long Way/TheLongWay/run3/core` and `Games/The Long Way/TheLongWay/run3/maps` into a deterministic Git-ignored derived-content directory, record source/output hashes and every transformation, and resolve unchanged assets from the original read-only content root. Select the copy by a stable config key such as `content.variant = original|nextgen`, overridden by `--content-variant`; also allow `--content-overlay <path>` for an explicit developer copy. Modify lighting/material bindings only in the copied variant. DotScene changes may tune light type, colour, direction, cone, attenuation, range, intensity convention, and shadow flags, but must preserve node/entity names, transforms unrelated to lighting, scripts, spawns, and gameplay metadata. Validate XML, references, and Linux path case after every generated or hand-reviewed change; use small reviewed batches rather than mass-editing every map.
+7. Establish a fixed exposure/lighting-unit convention and tune `tlwcao` first, then representative indoor and large outdoor locations including `tlwhome02`. Capture matched-camera original/nextgen and four-pipeline comparisons. Add image-regression tolerances for the lab, shader/material compile tests, map smoke tests, light-limit/fallback tests, resize/fullscreen tests, and map unload/reload lifetime tests on D3D11 and GL3+. Record visual differences, unsupported combinations, performance budgets/results, and remaining content exceptions in `docs/porting/LIGHTING.md` and status.
+
+Ogre 14 references for this step:
+
+- [Runtime Shader Generation](https://ogrecave.github.io/ogre/api/14/rtss.html) documents per-pixel lighting, normal maps, Cook-Torrance metal-roughness, packed AO, image-based lighting, G-buffer output, light counts, and integrated shadow mapping.
+- [RTShaderSystem API](https://ogrecave.github.io/ogre/api/14/group___r_t_shader.html) identifies the supported RTSS stages, including PSSM shadow reception.
+- [Deferred Shading](https://ogrecave.github.io/ogre/api/14/deferred.html) documents Ogre's G-buffer/light-volume sample, its forward handling of transparent objects, and the adaptations still required for a real project.
+- [Shadows](https://ogrecave.github.io/ogre/api/14/_shadows.html) and [Shadow Mapping in Ogre](https://ogrecave.github.io/ogre/api/14/_shadow_mapping_ogre.html) describe texture-shadow integration and PSSM setup.
+
+Paste into Codex:
+
+```text
+Read PORTING.md and do only Step 9B. Preserve the existing Ogre light/DotScene/gameplay concepts while introducing a Run3-owned material adapter and four switchable rendering pipelines: legacy-forward, deferred, pbr, and fast-forward. First inventory actual legacy material and map use; the repository has once-per-light passes capped at 2, 3, or 8, fixed two-/four-light variants, and a fixed three-light parallax material, so do not assume one global count or port unused definitions. Support directional, point/omni, and spot lights, arbitrary colours, dynamic lighting/shadows, and diffuse, normal, specular or metal-roughness, and AO maps with explicit fallback and colour-space rules. Use modern maintained GLSL/HLSL or Ogre 14 RTSS, never Ogre-next or restored Cg. For pbr use Cook-Torrance metal-roughness, IBL, linear HDR/exposure/tone mapping, and PSSM for the large-scene directional light; treat PSSM as a shadow technique. For deferred adapt and extend Ogre's sample and retain a forward transparent path. Make render.lighting_pipeline and render.shadow_quality configurable with --lighting-pipeline and --shadow-quality overrides. Add an asset-independent LightingLab level with deterministic comparisons and performance reporting. Add an opt-in, hashed, Git-ignored The Long Way Next Gen Remaster derived-content copy of only run3/core and run3/maps, selectable by content.variant/--content-variant or --content-overlay; never modify originals, and change only lighting/material data in copied DotScenes. Tune tlwcao first and then representative indoor/outdoor scenes including tlwhome02. Test the lab, shader/material compilation, fallback behavior, map loading/unloading, fullscreen/resize, and matched screenshots on D3D11 and GL3+. Document the capability matrix, conventions, measurements, differences, and exceptions in docs/porting/LIGHTING.md, update status, and stop before Step 10.
+```
+
+Exit criteria:
+
+- The same LightingLab scene and selected representative game scenes run under all four stable pipeline keys on D3D11 and GL3+, with no required shader/material compiler errors and no silent fallback.
+- The common authoring path preserves directional, point/omni, and spot lights, colours, normal/specular/AO inputs, and dynamic shadows; documented quality limits meet their measured budgets.
+- The `pbr` path demonstrates Cook-Torrance/IBL and stable directional PSSM across the lab's depth range, while `fast-forward` meets its recorded performance target on the agreed reference hardware.
+- Original The Long Way files remain byte-identical; the Next Gen Remaster copy is reproducible from its hashes/transform manifest and can be selected by key or explicit path.
+- Matched screenshots and measurements show that `tlwcao`, `tlwhome02`, and the chosen indoor/outdoor scenes improve without gameplay, scene identity, or map metadata changes.
 
 ### Step 10 — The Long Way campaign completion pass
 
@@ -500,4 +541,4 @@ Likely candidates found during the audit, ordered by expected value rather than 
 - **An obsolete component blocks Linux:** put it behind a Run3 interface with a null/simple backend. Do not contaminate cross-platform gameplay with `#ifdef _WIN32`.
 - **A step creates an enormous diff:** split by subsystem or mechanical transformation and keep tests green between commits.
 
-The safest delivery rhythm is one numbered step per PR, with Steps 6A/6B/6C and Step 8 already split into smaller reviewable commits. A playable vertical slice should remain available throughout the project.
+The safest delivery rhythm is one numbered step per PR, with Steps 6A/6B/6C, Step 8, and Steps 9A/9B split into smaller reviewable commits. A playable vertical slice should remain available throughout the project.

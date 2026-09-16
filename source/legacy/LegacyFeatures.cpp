@@ -19,8 +19,6 @@ const char* featureName(const Feature feature) noexcept {
         return "Hydrax";
     case Feature::skyx:
         return "SkyX";
-    case Feature::legacyAudio:
-        return "Audiere/ALUT";
     case Feature::directShow:
         return "DirectShow";
     case Feature::serial:
@@ -41,8 +39,6 @@ bool featureAvailable(const Feature feature) noexcept {
         return RUN3_LEGACY_ENABLE_HYDRAX != 0;
     case Feature::skyx:
         return RUN3_LEGACY_ENABLE_SKYX != 0;
-    case Feature::legacyAudio:
-        return RUN3_LEGACY_ENABLE_LEGACY_AUDIO != 0;
     case Feature::directShow:
         return RUN3_LEGACY_ENABLE_DIRECTSHOW != 0;
     case Feature::serial:

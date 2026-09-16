@@ -24,7 +24,6 @@ option(RUN3_LEGACY_ENABLE_OIS "Enable OIS compatibility" OFF)
 option(RUN3_LEGACY_ENABLE_CEGUI "Enable CEGUI compatibility" OFF)
 option(RUN3_LEGACY_ENABLE_HYDRAX "Enable Hydrax compatibility" OFF)
 option(RUN3_LEGACY_ENABLE_SKYX "Enable SkyX compatibility" OFF)
-option(RUN3_LEGACY_ENABLE_LEGACY_AUDIO "Enable Audiere/ALUT compatibility" OFF)
 option(RUN3_LEGACY_ENABLE_DIRECTSHOW "Enable DirectShow compatibility" OFF)
 option(RUN3_LEGACY_ENABLE_SERIAL "Enable legacy serial devices" OFF)
 option(RUN3_LEGACY_ENABLE_NAMED_PIPES "Enable legacy named pipes" OFF)
@@ -40,6 +39,8 @@ find_package(Bullet 3.25 EXACT CONFIG REQUIRED)
 find_package(Lua 5.4 EXACT REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(tinyxml2 CONFIG REQUIRED)
+find_package(Threads REQUIRED)
+find_path(MINIAUDIO_INCLUDE_DIR miniaudio.h REQUIRED)
 
 set(_run3_required_ogre_targets
     OgreMain
@@ -81,6 +82,34 @@ target_include_directories(
     run3_core PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 target_link_libraries(run3_core PRIVATE run3::warnings)
 
+add_library(run3_audio STATIC
+            source/audio/Audio.cpp
+            source/audio/MusicPlayer.cpp
+            source/audio/NullAudioBackend.cpp
+            source/audio/SoundRuntime.cpp)
+add_library(run3::audio ALIAS run3_audio)
+target_compile_features(run3_audio PUBLIC cxx_std_17)
+target_include_directories(
+    run3_audio PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(run3_audio PRIVATE run3::warnings)
+
+# miniaudio.h remains private to this implementation target. Its implementation
+# macro exists in exactly one translation unit; no gameplay/public header sees
+# a ma_* type.
+add_library(run3_audio_miniaudio STATIC
+            source/audio/MiniaudioBackend.cpp
+            source/audio/MiniaudioImplementation.cpp)
+add_library(run3::audio_miniaudio ALIAS run3_audio_miniaudio)
+target_compile_features(run3_audio_miniaudio PUBLIC cxx_std_17)
+target_include_directories(run3_audio_miniaudio
+                           PRIVATE "${MINIAUDIO_INCLUDE_DIR}")
+target_link_libraries(run3_audio_miniaudio
+                      PUBLIC run3::audio
+                      PRIVATE run3::warnings Threads::Threads ${CMAKE_DL_LIBS})
+set_source_files_properties(
+    source/audio/MiniaudioImplementation.cpp
+    PROPERTIES COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/W0>;$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-w>")
+
 add_library(run3_sanitizers INTERFACE)
 add_library(run3::sanitizers ALIAS run3_sanitizers)
 if(RUN3_ENABLE_SANITIZERS)
@@ -96,6 +125,8 @@ if(RUN3_ENABLE_SANITIZERS)
                 "no sanitizer flags were added")
     endif()
 endif()
+target_link_libraries(run3_audio PRIVATE run3::sanitizers)
+target_link_libraries(run3_audio_miniaudio PRIVATE run3::sanitizers)
 
 add_library(run3_physics STATIC
             source/physics/Physics.cpp
@@ -173,7 +204,7 @@ target_include_directories(
 target_link_libraries(
     run3_ogre_app
     PUBLIC run3::core run3::asset_validation OgreMain OgreBites OgreOverlay
-           OgreRTShaderSystem run3::gameplay
+           OgreRTShaderSystem run3::gameplay run3::audio_miniaudio
     PRIVATE run3::warnings)
 
 if(RUN3_BUILD_LEGACY)
@@ -190,7 +221,6 @@ if(RUN3_BUILD_LEGACY)
         RUN3_LEGACY_ENABLE_CEGUI
         RUN3_LEGACY_ENABLE_HYDRAX
         RUN3_LEGACY_ENABLE_SKYX
-        RUN3_LEGACY_ENABLE_LEGACY_AUDIO
         RUN3_LEGACY_ENABLE_DIRECTSHOW)
     foreach(_feature IN LISTS _run3_unimplemented_legacy_features)
         if(${_feature})
@@ -215,7 +245,6 @@ if(RUN3_BUILD_LEGACY)
                RUN3_LEGACY_ENABLE_CEGUI=0
                RUN3_LEGACY_ENABLE_HYDRAX=0
                RUN3_LEGACY_ENABLE_SKYX=0
-               RUN3_LEGACY_ENABLE_LEGACY_AUDIO=0
                RUN3_LEGACY_ENABLE_DIRECTSHOW=0
                RUN3_LEGACY_ENABLE_SERIAL=0
                RUN3_LEGACY_ENABLE_NAMED_PIPES=0
@@ -269,6 +298,7 @@ include(CTest)
 
 if(RUN3_BUILD_TESTS)
     find_package(Catch2 3 CONFIG REQUIRED)
+    find_package(Python3 3.10 COMPONENTS Interpreter REQUIRED)
 
     add_executable(run3_build_probe_tests tests/build_probe_tests.cpp)
     target_link_libraries(
@@ -287,6 +317,34 @@ if(RUN3_BUILD_TESTS)
     catch_discover_tests(run3_runtime_tests
                          TEST_PREFIX "run3_runtime."
                          PROPERTIES LABELS "runtime")
+
+    add_executable(run3_audio_tests tests/audio_tests.cpp)
+    target_compile_features(run3_audio_tests PRIVATE cxx_std_17)
+    target_compile_definitions(
+        run3_audio_tests
+        PRIVATE RUN3_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(
+        run3_audio_tests
+        PRIVATE run3::warnings run3::sanitizers run3::audio_miniaudio
+                Catch2::Catch2WithMain)
+    catch_discover_tests(run3_audio_tests
+                         TEST_PREFIX "run3_audio."
+                         PROPERTIES LABELS "audio;step7")
+    add_test(
+        NAME run3_audio.legacy-dependency-boundary
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DRUN3_SOURCE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckAudioBoundary.cmake")
+    set_tests_properties(run3_audio.legacy-dependency-boundary
+                         PROPERTIES LABELS "audio;step7")
+    add_test(
+        NAME run3_audio.conversion-inventory
+        COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_audio_conversion.py"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tools/convert_audio.py")
+    set_tests_properties(run3_audio.conversion-inventory
+                         PROPERTIES LABELS "audio;step7")
 
     add_executable(run3_asset_validation_tests
                    tests/asset_validation_tests.cpp)
@@ -422,6 +480,22 @@ if(RUN3_BUILD_TESTS)
                        TIMEOUT 60)
 
         add_test(
+            NAME run3_shell.null-audio-smoke
+            COMMAND
+                "${CMAKE_COMMAND}"
+                "-DRUN3_PROGRAM=${_run3_test_install}/bin/run3_shell${CMAKE_EXECUTABLE_SUFFIX}"
+                "-DRUN3_RENDERER=${_run3_smoke_renderer}"
+                "-DRUN3_WORKING_DIR=${CMAKE_BINARY_DIR}/test-null-audio-run-cwd"
+                "-DRUN3_USER_DIR=${CMAKE_BINARY_DIR}/test-null-audio-user"
+                "-DRUN3_AUDIO_BACKEND=null"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunShellSmoke.cmake")
+        set_tests_properties(
+            run3_shell.null-audio-smoke
+            PROPERTIES FIXTURES_REQUIRED run3_shell_installed
+                       TIMEOUT 60
+                       LABELS "audio;step7")
+
+        add_test(
             NAME run3_asset_check.fixture
             COMMAND
                 "${CMAKE_COMMAND}"
@@ -524,3 +598,4 @@ message(STATUS "Run3 optional devices: ${RUN3_ENABLE_OPTIONAL_DEVICES}")
 message(STATUS "Run3 sanitizers: ${RUN3_ENABLE_SANITIZERS}")
 message(STATUS "Run3 Ogre: ${OGRE_VERSION} (${OGRE_DIR})")
 message(STATUS "Run3 Bullet: ${BULLET_VERSION_STRING} (${BULLET_ROOT_DIR})")
+message(STATUS "Run3 miniaudio: 0.11.25 (${MINIAUDIO_INCLUDE_DIR})")

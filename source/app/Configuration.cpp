@@ -38,6 +38,7 @@ fs::path cliPath(const std::string &value, const fs::path &executableDir) {
       " [--map tlwcao|tlwhome02] [--map-quality low|medium|high]"
       " [--resource-profile FILE] [--player-height-cm N]"
       " [--fullscreen|--windowed] [--noclip] [--physics-debug]"
+      " [--audio-backend auto|miniaudio|null]"
       " [--render-hz 30|60|144]");
 }
 
@@ -169,6 +170,8 @@ CommandLine parseCommandLine(const std::vector<std::string> &arguments,
       result.values["player-height-cm"] = value;
     } else if (argument == "--render-hz") {
       result.values["render-hz"] = value;
+    } else if (argument == "--audio-backend") {
+      result.values["audio-backend"] = value;
     } else {
       argumentError("Unknown argument: " + argument);
     }

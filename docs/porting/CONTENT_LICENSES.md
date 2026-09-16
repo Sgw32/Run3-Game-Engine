@@ -6,9 +6,10 @@ legal advice.
 
 Current porting disposition (2026-09-05): by owner direction, detailed
 ownership/provenance work is deferred to the build-prototype stage and is not
-a Step 2 gate. Until that work resumes, content-related evaluation is limited
-to the authorized `media/` subtree below; the renderer shell remains
-content-independent.
+a Step 2 gate. Content-related evaluation defaults to the authorized `media/`
+subtree below; Step 7 adds the narrowly recorded, local-only audio conversion
+exception in the log at the end of this document. The renderer shell and
+default build remain content-independent.
 
 ## Owner declaration
 
@@ -94,4 +95,4 @@ asset. Empty means the default remains content-independent.
 
 | Relative asset | Purpose | Why a synthetic fixture is insufficient | Consumer/test | Redistribution | Reviewer/date |
 |---|---|---|---|---|---|
-| `<none yet>` |  |  |  |  |  |
+| `run3/sounds/{cmib.xm,ELYSIUM.MOD,mrgspnv2.xm,mv_pheno.xm,near_lab.ogg}` | Step 7 decoder/conversion compatibility and author listening review | Synthetic audio cannot demonstrate compatibility or perceptual parity for the campaign's actively referenced tracker/OGG sources | `tools/convert_audio.py`; optional `run3_audio_tests` decode check | None; ignored derived files stay local and references remain unchanged pending rights/listening review | Codex / 2026-09-16; local evaluation authorized by the Step 7 instruction |

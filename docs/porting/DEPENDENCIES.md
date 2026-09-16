@@ -14,8 +14,8 @@ AIR3 submodule), not ABI analysis. Regenerate them with
 | Newton and OgreNewt | Not recorded | 97 / 679 | `newton.lib`, `OgreNewt_Main.lib`; replace behind Bullet adapter |
 | CEGUI | Not recorded | 6 / 473 | `CEGUIBase` and `OgreGUIRenderer`; replace menu layer, retain only temporary compatibility where required |
 | Lua and luabind | Lua 5.0 path in project; luabind version unknown | 26 / 972 | `lua.lib`, `lualib.lib`; later isolate and move to Lua 5.4/sol2 |
-| OpenAL and ALUT | OpenAL 1.1 SDK path | 4 / 100 | `OpenAL32.lib`, `alut.lib`; replace with unified audio backend |
-| Audiere | 1.9.4 in project path | 2 / 15 | Release links `audiere.lib`; replace with unified audio backend |
+| OpenAL and ALUT | OpenAL 1.1 SDK path | 4 / 100 | Historical `OpenAL32.lib`/`alut.lib` path; Step 7 replaced the live build with `run3::audio` and retains these sources only as migration evidence |
+| Audiere | 1.9.4 in project path | 2 / 15 | Historical Release music path; Step 7 replaced it with the streaming `run3::audio` music facade |
 | TinyXML | Bundled 2.5.3 constants in `tinyxml.h` | 17 / 1,663 | Bundled sources; replace behind parser tests with TinyXML2 |
 | Hydrax | 0.5.1 in project path | 2 / 39 | Release-only library; make water implementation optional |
 | SkyX | 0.1 in project path | 3 / 9 | Release-only library; make sky implementation optional |
@@ -40,9 +40,9 @@ compile failures, so the dependency lives primarily in plugins and content.
 - Release-only project entries: `audiere.lib`, `Hydrax.lib`, `SkyX.lib`,
   `strmiids.lib`, `comctl32.lib`, and `comsupp.lib`.
 
-These names describe the old link contract only. None is a dependency of the
-modern root CMake skeleton yet, and the untracked `OgreSDK/` and `Run3Dep/`
-directories are not valid reproducible dependency sources.
+These names describe the old link contract only. None is linked by the modern
+root build, and the untracked `OgreSDK/` and `Run3Dep/` directories are not
+valid reproducible dependency sources.
 
 ## Machine-specific path inventory
 
@@ -80,6 +80,7 @@ The committed manifest uses vcpkg baseline
 | Ogre classic | 14.5.2 | Renderer shell, asset parsing, and conversion tools |
 | Lua | 5.4.8 | Syntax-only content validation |
 | TinyXML2 | 11.0.0 | Content/fixture XML validation |
+| miniaudio | 0.11.25 | Private implementation of `run3::audio`; exact manifest override; Unlicense or MIT-0 |
 | nlohmann-json | 3.12.0 port revision 2 | Machine-readable asset report |
 | Catch2 | 3.16.0 | Unit and integration tests |
 
@@ -89,6 +90,15 @@ remain confined to `source/physics/BulletPhysicsBackend.cpp`. The legacy
 `newton.lib` and `OgreNewt_Main.lib` inputs remain disabled and are not searched
 or staged. See [PHYSICS_BEHAVIOR.md](PHYSICS_BEHAVIOR.md) for the operation
 inventory and removal plan.
+
+The miniaudio header is private to `run3_audio_miniaudio`, and its
+implementation macro is compiled in exactly one translation unit. Public and
+gameplay headers expose only Run3 value types and RAII handles. A repository
+CTest rejects old OpenAL/ALUT/Audiere headers, link names, and the retired
+audio feature switch in the live target graph. The baseline port verifies the
+0.11.25 GitHub archive with SHA-512
+`8cdfe5cd66dd84628430a24026b307c21158b4776492eec234c2ce3cf0da3ae26fe8162f3ed285502f6002fdf252ccb660f7c216e044e3c306b75b0997700b45`.
+See [AUDIO.md](AUDIO.md).
 
 ## Update template
 

@@ -15,9 +15,6 @@
 #ifndef RUN3_LEGACY_ENABLE_SKYX
 #define RUN3_LEGACY_ENABLE_SKYX 0
 #endif
-#ifndef RUN3_LEGACY_ENABLE_LEGACY_AUDIO
-#define RUN3_LEGACY_ENABLE_LEGACY_AUDIO 0
-#endif
 #ifndef RUN3_LEGACY_ENABLE_DIRECTSHOW
 #define RUN3_LEGACY_ENABLE_DIRECTSHOW 0
 #endif
@@ -35,7 +32,6 @@ enum class Feature {
     cegui,
     hydrax,
     skyx,
-    legacyAudio,
     directShow,
     serial,
     namedPipes,

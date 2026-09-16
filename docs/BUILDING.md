@@ -3,7 +3,8 @@
 The root build compiles the Step 1 probe, the controlled legacy compatibility
 library, `run3_shell`, the Step 5 `run3_asset_check`, the Step 6A
 `run3_physics` Bullet/null backend, and the Step 6B `run3_gameplay` static-map
-and player layer. The shell uses `Run3App` and an
+and player layer. Step 7 adds the Run3-owned audio API with null and pinned
+miniaudio backends. The shell uses `Run3App` and an
 application-owned loop; it does not inspect local `OgreSDK/` or `Run3Dep/`
 directories. Ogre classic 14.5.2 and its official conversion tools are restored solely from the pinned vcpkg
 manifest; see
@@ -16,6 +17,7 @@ manifest; see
 - Ninja
 - A C++17 compiler and platform OpenGL development libraries
 - vcpkg checked out at the manifest's `builtin-baseline`
+- FFmpeg (developer-only and optional) to create derived FLAC evaluation files
 
 The repository pins vcpkg commit
 `04a9d8e5212d01ee1dd9478eadd9caade4f8b0d4`. Dependency downloads and builds
@@ -58,7 +60,7 @@ Replace `debug` with `release` for the Release build.
 To compile selected targets after configuration:
 
 ```powershell
-cmake --build --preset windows-msvc-x64-debug --target run3_shell run3_asset_check run3_legacy run3_runtime_tests run3_physics_tests run3_player_tests
+cmake --build --preset windows-msvc-x64-debug --target run3_shell run3_asset_check run3_legacy run3_runtime_tests run3_audio_tests run3_physics_tests run3_player_tests
 ```
 
 The build-tree executables are placed in
@@ -214,7 +216,7 @@ The committed presets use these defaults:
   other platforms it remains a no-op backend.
 - `RUN3_BUILD_LEGACY=ON` builds the reviewed Step 3 compatibility subset.
 - `RUN3_ENABLE_SANITIZERS=OFF` can be enabled with GCC or Clang to instrument
-  first-party physics code and its tests with AddressSanitizer and
+  first-party physics/audio code and its tests with AddressSanitizer and
   UndefinedBehaviorSanitizer. Standard presets deliberately remain unchanged.
 
 The non-device `RUN3_LEGACY_ENABLE_*` switches remain `OFF`. Turning one on
@@ -233,6 +235,55 @@ cmake --preset linux-ninja-debug -DRUN3_BUILD_TOOLS=OFF
 Build trees and manifest-installed packages are placed below `build/` and are
 ignored by Git. Put personal preset overrides in `CMakeUserPresets.json`, which
 is also ignored.
+
+## Audio verification and offline conversion
+
+The regular workflows build both audio backends and run the audio contract,
+decoder, lifetime, error-path, and installed null-audio shell tests. To rebuild
+and run only the Step 7 tests:
+
+```text
+cmake --build --preset <preset> --target run3_audio_tests
+ctest --preset <preset> -R "^run3_audio\." --output-on-failure
+```
+
+The converter inventories only OGG/XM/MOD/IT paths actively referenced by the
+attached content. This read-only pass needs no FFmpeg:
+
+```text
+python tools/convert_audio.py \
+  --content-root "Games/The Long Way/TheLongWay" \
+  --output-root converted-content/audio-flac \
+  --list-only
+```
+
+After installing FFmpeg, omit `--list-only` to create FLAC files and a hashed
+manifest below the Git-ignored output directory:
+
+```text
+python tools/convert_audio.py \
+  --content-root "Games/The Long Way/TheLongWay" \
+  --output-root converted-content/audio-flac \
+  --ffmpeg ffmpeg
+```
+
+The script retains originals, copies the content-license metadata, and never
+edits game references. Listen to every converted file against its original,
+check start/end, loops, duration, channels, and audible defects, then record
+approval before changing a content reference. See
+[AUDIO.md](porting/AUDIO.md) for the inventory and acceptance checklist.
+
+To run the audio suite under GCC/Clang sanitizers:
+
+```bash
+cmake --preset linux-ninja-debug -B build/linux-ninja-sanitizers \
+  -DRUN3_ENABLE_SANITIZERS=ON -DRUN3_BUILD_LEGACY=OFF \
+  -DRUN3_BUILD_TOOLS=OFF
+cmake --build build/linux-ninja-sanitizers --target run3_audio_tests
+ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1 \
+  ctest --test-dir build/linux-ninja-sanitizers \
+  -R '^run3_audio\.' --output-on-failure
+```
 
 ## Physics-only verification
 

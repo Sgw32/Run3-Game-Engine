@@ -4,11 +4,16 @@ if(NOT DEFINED RUN3_PROGRAM OR NOT DEFINED RUN3_RENDERER OR
 endif()
 
 file(MAKE_DIRECTORY "${RUN3_WORKING_DIR}" "${RUN3_USER_DIR}")
+set(_run3_audio_arguments)
+if(DEFINED RUN3_AUDIO_BACKEND AND NOT RUN3_AUDIO_BACKEND STREQUAL "")
+    list(APPEND _run3_audio_arguments --audio-backend "${RUN3_AUDIO_BACKEND}")
+endif()
 execute_process(
     COMMAND "${RUN3_PROGRAM}"
             --renderer "${RUN3_RENDERER}"
             --frames 5
             --user-dir "${RUN3_USER_DIR}"
+            ${_run3_audio_arguments}
     WORKING_DIRECTORY "${RUN3_WORKING_DIR}"
     RESULT_VARIABLE _run3_result
     OUTPUT_VARIABLE _run3_stdout
@@ -31,4 +36,8 @@ if(NOT _run3_log_text MATCHES "Run3 shell pinned Ogre version: 14\\.5\\.2")
 endif()
 if(NOT _run3_log_text MATCHES "Run3 shell selected render system:")
     message(FATAL_ERROR "run3_shell log does not identify its render system")
+endif()
+if(DEFINED RUN3_AUDIO_BACKEND AND RUN3_AUDIO_BACKEND STREQUAL "null" AND
+   NOT _run3_log_text MATCHES "Run3 audio backend: null")
+    message(FATAL_ERROR "run3_shell did not select the requested null audio backend")
 endif()

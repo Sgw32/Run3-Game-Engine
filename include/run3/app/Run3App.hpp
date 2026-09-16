@@ -4,6 +4,7 @@
 #include <run3/app/Configuration.hpp>
 #include <run3/app/EngineClock.hpp>
 #include <run3/audio/Audio.hpp>
+#include <run3/audio/MapAudio.hpp>
 #include <run3/input/Input.hpp>
 #include <run3/input/OgreBitesInputAdapter.hpp>
 #include <run3/gameplay/PlayerController.hpp>
@@ -66,6 +67,7 @@ public:
 
 private:
   void updateAspectRatio();
+  void setGameplayMouseCapture(bool enabled);
   void handleInput(const std::vector<InputEvent> &events);
   void requestQuit();
 
@@ -81,9 +83,11 @@ private:
   std::unique_ptr<gameplay::StaticMap> staticMap_;
   std::unique_ptr<gameplay::PlayerController> player_;
   std::unique_ptr<audio::IAudioEngine> audioEngine_;
+  std::unique_ptr<audio::MapAudioRuntime> mapAudio_;
   double yawRadians_{};
   double pitchRadians_{};
   bool physicsDebug_{};
+  bool gameplayMouseCapture_{};
   std::uint64_t renderedFrames_{};
   std::uint64_t simulatedSteps_{};
   bool quitRequested_{};

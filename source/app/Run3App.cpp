@@ -1,6 +1,7 @@
 #include <run3/app/Run3App.hpp>
 
 #include <run3/audio/Audio.hpp>
+#include <run3/audio/MapAudio.hpp>
 #include <run3/core/Log.hpp>
 #include <run3/content/AssetValidation.hpp>
 #include <run3/content/OgreAssetValidation.hpp>
@@ -300,9 +301,31 @@ int Run3App::run() {
         const Ogre::Vector3 up = orientation * Ogre::Vector3::UNIT_Y;
         audio::ListenerTransform listener;
         listener.position = {position.x, position.y, position.z};
+        if (player_) {
+          const physics::Vec3 velocity = player_->state().velocity;
+          listener.velocity = {static_cast<float>(velocity.x),
+                               static_cast<float>(velocity.y),
+                               static_cast<float>(velocity.z)};
+        }
         listener.forward = {forward.x, forward.y, forward.z};
         listener.up = {up.x, up.y, up.z};
         audioEngine_->setListener(listener);
+        if (mapAudio_) {
+          std::optional<audio::FootstepState> footstep;
+          if (player_) {
+            const gameplay::PlayerState state = player_->state();
+            footstep = audio::FootstepState{
+                {static_cast<float>(state.position.x),
+                 static_cast<float>(state.position.y),
+                 static_cast<float>(state.position.z)},
+                {static_cast<float>(state.velocity.x),
+                 static_cast<float>(state.velocity.y),
+                 static_cast<float>(state.velocity.z)},
+                state.grounded, state.noclip};
+          }
+          mapAudio_->update(static_cast<float>(frame.elapsed.count()),
+                            footstep ? &*footstep : nullptr);
+        }
         audioEngine_->update(static_cast<float>(frame.elapsed.count()));
       }
       if (!getRoot()->renderOneFrame(
@@ -315,6 +338,10 @@ int Run3App::run() {
       }
     }
   } catch (...) {
+    if (gameplayMouseCapture_) {
+      setGameplayMouseCapture(false);
+    }
+    mapAudio_.reset();
     player_.reset();
     staticMap_.reset();
     physicsWorld_.reset();
@@ -330,6 +357,10 @@ int Run3App::run() {
         std::to_string(finalState.position.y) + "," +
         std::to_string(finalState.position.z));
   }
+  if (gameplayMouseCapture_) {
+    setGameplayMouseCapture(false);
+  }
+  mapAudio_.reset();
   player_.reset();
   staticMap_.reset();
   physicsWorld_.reset();
@@ -481,6 +512,36 @@ void Run3App::setup() {
     staticMap_->setDebugDraw(physicsDebug_);
     camera_->setNearClipDistance(5.0F);
     camera_->setFarClipDistance(100000.0F);
+
+    try {
+      audio::MapAudioLoadResult loaded = audio::loadLegacyMapAudio(
+          options_.paths.contentRoot(), options_.mapName, options_.mapQuality);
+      for (const std::string &warning : loaded.warnings) {
+        Ogre::LogManager::getSingleton().logMessage("Map audio: " + warning);
+      }
+      mapAudio_ = std::make_unique<audio::MapAudioRuntime>(*audioEngine_);
+      const audio::MapAudioStartResult started =
+          mapAudio_->start(std::move(loaded.definition));
+      Ogre::LogManager::getSingleton().logMessage(
+          "Map audio: ambient=" + std::to_string(started.ambientStarted) +
+          " failed=" + std::to_string(started.ambientFailed) +
+          " script-controlled-deferred=" +
+          std::to_string(loaded.scriptControlledSounds) + " music=" +
+          (started.musicStarted ? "started" : "not started"));
+      if (started.ambientFailed != 0 ||
+          (!started.musicStarted && !audioEngine_->lastError().empty())) {
+        Ogre::LogManager::getSingleton().logMessage(
+            "Map audio backend detail: " + audioEngine_->lastError());
+      }
+    } catch (const std::exception &error) {
+      Ogre::LogManager::getSingleton().logMessage(
+          "Map audio disabled: " + std::string(error.what()));
+    }
+  }
+
+  gameplayMouseCapture_ = player_ != nullptr && options_.frameLimit == 0;
+  if (gameplayMouseCapture_) {
+    setGameplayMouseCapture(true);
   }
 
   Ogre::LogManager::getSingleton().logMessage(
@@ -522,10 +583,23 @@ bool Run3App::windowClosing(Ogre::RenderWindow *) {
 void Run3App::windowClosed(Ogre::RenderWindow *) { requestQuit(); }
 
 void Run3App::windowFocusChange(Ogre::RenderWindow *window) {
+  if (gameplayMouseCapture_) {
+    setWindowGrab(window->isActive());
+  }
   InputEvent event;
   event.type = window->isActive() ? InputEventType::FocusGained
                                   : InputEventType::FocusLost;
   input_.push(std::move(event));
+}
+
+void Run3App::setGameplayMouseCapture(const bool enabled) {
+  if (getRenderWindow() == nullptr) {
+    return;
+  }
+  setWindowGrab(enabled);
+  if (!enabled) {
+    gameplayMouseCapture_ = false;
+  }
 }
 
 void Run3App::updateAspectRatio() {

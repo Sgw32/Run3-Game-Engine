@@ -1,4 +1,5 @@
 #include <run3/audio/Audio.hpp>
+#include <run3/audio/MapAudio.hpp>
 #include <run3/audio/MusicPlayer.hpp>
 #include <run3/audio/SoundRuntime.hpp>
 
@@ -195,6 +196,60 @@ TEST_CASE("map-scoped sound runtime releases every voice on clear") {
   CHECK(runtime.activeCount() == 1);
   runtime.clear();
   CHECK(engine->stats().activeVoices == 0);
+}
+
+TEST_CASE("legacy map audio fixture starts static ambience music and footsteps") {
+  const fs::path root = fs::path(RUN3_TEST_SOURCE_DIR) / "tests" / "fixtures" /
+                        "audio_map";
+  MapAudioLoadResult loaded =
+      loadLegacyMapAudio(root, "audio_test", "low");
+  REQUIRE(loaded.definition.ambientSounds.size() == 2);
+  CHECK(loaded.scriptControlledSounds == 1);
+  CHECK(loaded.definition.ambientSounds[0].position.x == -10.0F);
+  CHECK(loaded.definition.ambientSounds[1].position.x == 10.0F);
+  CHECK(loaded.definition.musicFile.filename() == "background.wav");
+  CHECK(loaded.definition.musicLoop);
+  CHECK(loaded.definition.musicGain == Catch::Approx(0.4F));
+
+  for (int index = 1; index <= 4; ++index) {
+    loaded.definition.footsteps.push_back(
+        root / ("step" + std::to_string(index) + ".wav"));
+  }
+  auto engine = createNullAudioEngine({16, false});
+  MapAudioRuntime runtime(*engine);
+  const MapAudioStartResult started =
+      runtime.start(std::move(loaded.definition));
+  CHECK(started.ambientStarted == 2);
+  CHECK(started.ambientFailed == 0);
+  CHECK(started.musicStarted);
+  CHECK(engine->stats().activeVoices == 3);
+
+  const FootstepState walking{{0.0F, 0.0F, 0.0F},
+                              {300.0F, 0.0F, 0.0F}, true, false};
+  runtime.update(0.49F, &walking);
+  CHECK(runtime.footstepCount() == 1);
+  CHECK(engine->stats().activeVoices == 4);
+
+  const FootstepState noclip{{}, {500.0F, 0.0F, 0.0F}, false, true};
+  runtime.update(1.0F, &noclip);
+  CHECK(runtime.footstepCount() == 1);
+  runtime.clear();
+  CHECK(engine->stats().activeVoices == 0);
+}
+
+TEST_CASE("attached tlwcao exposes authored spawn ambience music and footsteps") {
+  const fs::path root = fs::path(RUN3_TEST_SOURCE_DIR) / "Games" /
+                        "The Long Way" / "TheLongWay";
+  if (!fs::is_regular_file(root / "run3/maps/low/tlwcao/scene.cfg")) {
+    SUCCEED("optional The Long Way content is not attached");
+    return;
+  }
+  const MapAudioLoadResult loaded = loadLegacyMapAudio(root, "tlwcao", "low");
+  CHECK(loaded.definition.ambientSounds.size() >= 8);
+  CHECK(loaded.scriptControlledSounds >= 8);
+  CHECK(loaded.definition.musicFile.filename() == "machining.mp3");
+  CHECK(loaded.definition.footsteps.size() == 4);
+  CHECK(loaded.warnings.empty());
 }
 
 TEST_CASE("music player streams, loops, transitions, fades, and changes pitch") {

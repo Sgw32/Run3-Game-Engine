@@ -1,4 +1,4 @@
-# Running the Step 6C first-person shell
+# Running the Run3 first-person shell
 
 `run3_shell` can now load the static geometry and collision for The Long Way's
 `tlwcao` and `tlwhome02` maps and place the new capsule player at the map spawn.
@@ -7,8 +7,10 @@ Use `tlwcao` for the quickest check; `tlwhome02` (also accepted as
 physics prototype, not yet the complete game. Step 6C adds live Bullet motion
 for main-scene `<phys>`/`<breakable>` objects and typed/tested physics behavior
 for doors, trains, triggers, pickups, projectiles, NPC collision, ragdolls, and
-AIR3. Step 7 provides the live miniaudio/null device layer; Step 8 binds
-sequence XML/Lua events to the new audio API. Final materials are a later step.
+AIR3. Step 7 provides the live miniaudio/null device layer plus the first
+`tlwcao` audio compatibility slice: always-active 3D ambience, startup music,
+and concrete footsteps. Step 8 will bind the remaining named/event-controlled
+sequence and Lua sounds. Final materials are a later step.
 
 Build and test first with [BUILDING.md](BUILDING.md). Run the installed binary,
 because `cmake --install` stages the Ogre plugins, runtime libraries,
@@ -99,6 +101,12 @@ available with GL3+.
 - `F3`: toggle collision-section bounds
 - Escape or window close: quit cleanly
 
+For a playable map, the mouse is captured in SDL relative mode and the OS
+cursor is hidden. Relative motion allows unlimited yaw in windowed and
+fullscreen modes. Alt-Tab/focus loss releases the pointer; focusing the game
+window captures it again. Clean exit also restores it. Bounded `--frames`
+smoke runs deliberately do not capture the pointer.
+
 Noclip can be enabled before the map opens by adding `--noclip` to either map
 command. In noclip, `W/A/S/D` move horizontally, Space moves up, and Ctrl moves
 down. Press `N` to return to collision/gravity at the current location. Add
@@ -145,9 +153,50 @@ device-independent gameplay with:
 Use `--audio-backend miniaudio` to request the real backend explicitly; device
 failure still logs the reason and falls back safely. Persist either choice as
 `audio-backend=miniaudio` or `audio-backend=null` in
-`<user-root>/config/run3.cfg`. The shell updates the listener from the camera,
-but campaign music/effect events remain quiet until Step 8 connects the legacy
-sequence and Lua commands.
+`<user-root>/config/run3.cfg`. The shell updates the listener position,
+velocity, and orientation from the player camera.
+
+## Audible `tlwcao` test
+
+Use the normal `tlwcao` command above and add
+`--audio-backend miniaudio`. At the initial spawn you should hear spatial
+`indoor2.wav` ambience and `machining.mp3` background music. Walk with `W/A/S/D`
+for at least half a second to hear the four concrete samples alternate. Run and
+walk have different cadences. Footsteps stop while airborne or in noclip mode.
+Move away from the spawn to verify that authored `distance`/`maxDistance`
+attenuation changes the ambient mix.
+
+The log file is `<user-root>/logs/ogre.log`. A successful startup contains a
+line similar to:
+
+```text
+Map audio: ambient=9 failed=0 script-controlled-deferred=9 music=started
+```
+
+The deferred sources have `objname` and are controlled by chapter Lua or
+sequence events (alarms, radios, and similar sounds). They are intentionally
+not all started during map load; Step 8 will activate them through their real
+events.
+
+The small repository-only fixture in `tests/fixtures/audio_map` checks two 3D
+sources, one deferred source, startup music, multiplier coordinates, footstep
+cadence, noclip suppression, and map cleanup without redistributing game audio.
+Run it and the attached-content inventory test with:
+
+```powershell
+ctest --test-dir build/windows-msvc-x64-debug -C Debug `
+  -R "^run3_audio\.(legacy map audio fixture|attached tlwcao)" `
+  --output-on-failure
+```
+
+```bash
+ctest --test-dir build/linux-ninja-debug \
+  -R '^run3_audio\.(legacy map audio fixture|attached tlwcao)' \
+  --output-on-failure
+```
+
+The fixture tests behavior through the deterministic null backend; use the
+interactive `tlwcao` launch for the listening and 3D-position check.
 
 The game-facing player defaults to a 180 cm collision capsule with an
 approximately 165 cm eye height. Set another physical height from 120 through

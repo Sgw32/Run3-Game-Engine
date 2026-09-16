@@ -1,0 +1,7 @@
+<scene formatVersion="1.0" multiplier="2">
+  <sounds>
+    <ambient name="left.wav" loop="true" x="-5" y="0" z="0" distance="2" maxDistance="40" />
+    <ambient name="right.wav" loop="true" x="5" y="0" z="0" distance="3" maxDistance="50" />
+    <ambient objname="script_alarm" name="alarm.wav" loop="true" x="0" y="0" z="0" distance="1" maxDistance="100" />
+  </sounds>
+</scene>

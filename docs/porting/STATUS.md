@@ -15,7 +15,46 @@ Last updated: 2026-09-16
 | 6A — Bullet physics backend and tests | Completed | Pinned Bullet 3.25#3 and null backends pass the same unit/fixture contract on MSVC and GCC. |
 | 6B — static world and player | Completed | The Run3-owned capsule player and static mesh map path run `tlwcao` and `tlwhome02`; deterministic fixtures and real-map 30/60/144 schedules pass. |
 | 6C — dynamic physics, contacts, constraints, ragdolls, AIR3 | Completed | Typed dynamic/contact behavior, evidenced constraints, RAII ragdolls, and query-injected AIR3 pass on MSVC/GCC; Newton is absent from the live build. |
-| 7 — unified audio | Completed | Run3-owned RAII audio, null and pinned miniaudio 0.11.25 backends, safe device fallback, hashed offline FLAC conversion, and cross-platform decoder/lifetime tests pass. |
+| 7 — unified audio | Completed | Run3-owned RAII audio, null and pinned miniaudio 0.11.25 backends, safe device fallback, a live `tlwcao` ambience/music/footstep slice, hashed offline FLAC conversion, and cross-platform tests pass. |
+
+## 2026-09-16 — Step 7 playable-audio and mouse follow-up
+
+Completed:
+
+- Added `MapAudioRuntime` and a tolerant read-only parser for legacy map audio
+  declarations. `tlwcao` now starts its nine always-active spatial ambient
+  sources, streams `machining.mp3`, and alternates its four concrete footsteps
+  while the grounded player moves.
+- Named Lua/sequence-controlled sources are reported but deferred, preventing
+  alarms and radios from starting before their events. This keeps the Step 8
+  scripting boundary explicit.
+- Added a text-only miniature audio-map fixture plus deterministic tests for
+  spatial parsing, scene scaling, named-source deferral, startup music,
+  footstep cadence, noclip suppression, and complete map cleanup. An optional
+  content test checks the real attached `tlwcao` references.
+- Playable map windows now enable OgreBites/SDL relative mouse mode and window
+  grab, hiding the cursor and allowing unlimited yaw in windowed or fullscreen
+  mode. Focus loss releases the pointer, focus gain recaptures it, and shutdown
+  restores it. Automated bounded runs do not capture the pointer.
+
+Verification:
+
+| Configuration | Result |
+|---|---|
+| Windows MSVC x64 Debug | Shell/audio targets built; 12/12 focused audio tests passed |
+| Windows MSVC x64 Release | Shell/audio targets built; 12/12 focused audio tests passed |
+| Linux Ninja Debug (GCC 13.3) | Shell/audio targets built; 12/12 focused audio tests passed |
+| Installed Windows Debug/D3D11 `tlwcao` | Real device ready; `ambient=9 failed=0`, nine scripted sources deferred, MP3 music started; 10-frame run exited cleanly |
+
+The complete Windows Debug suite also passed 64/64 tests. The first invocation
+was not launched from the Visual Studio developer environment, so CMake's
+install dependency scan could not find `objdump`; rerunning the four affected
+install/smoke tests from `VsDevCmd.bat` passed 4/4.
+
+The listening test and expected log line are documented in
+[RUNNING.md](../RUNNING.md#audible-tlwcao-test). Cursor capture requires a
+manual interactive check because bounded smoke runs intentionally leave the
+desktop pointer alone.
 
 ## 2026-09-16 — Step 7
 

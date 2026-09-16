@@ -29,6 +29,33 @@ The pinned vcpkg port verifies the upstream archive with SHA-512
 If construction throws, `createAudioEngineWithFallback` logs the reason and
 returns the null backend, so audio failure cannot stop gameplay.
 
+## Playable map bridge
+
+`MapAudioRuntime` is the first live bridge from authored map data to the new
+backend. It reads the scene selected by `scene.cfg`, accepts the legacy quoted
+and unquoted attribute syntax, applies the scene multiplier, and starts
+unnamed `<ambient>` entries as spatial effects with authored loop and distance
+values. It also reads the active literal `playMusic`/`setMusicVolume` calls in
+the chapter startup file without executing Lua. In `tlwcao`, this starts nine
+ambient sources and streams `run3/sounds/machining.mp3`.
+
+Named `objname` ambient sources are event-controlled. They are counted and
+logged but deliberately deferred instead of starting alarms, radios, and
+scripted effects prematurely. Full Lua/sequence control remains Step 8.
+
+The player bridge alternates the four authored `concrete1.wav` through
+`concrete4.wav` samples while the capsule is grounded and moving. Walking and
+running use separate cadences, and airborne/noclip movement is silent. Surface
+trigger selection remains Step 8; `concrete` is the documented compatibility
+default for the currently playable `tlwcao` slice.
+
+`tests/fixtures/audio_map` is a text-only miniature map. It validates spatial
+source parsing, coordinate multiplier handling, named-source deferral, startup
+music, footstep cadence/noclip behavior, and unload cleanup through the null
+backend. An optional attached-content test verifies the real `tlwcao` files
+and references. Listening instructions are in
+[RUNNING.md](../RUNNING.md#audible-tlwcao-test).
+
 The pinned miniaudio resource-manager initialization-failure path has an
 upstream use-after-free, reproduced with a missing buffered file. The adapter
 preflights each filesystem source with `ma_decoder_init_file`; missing or

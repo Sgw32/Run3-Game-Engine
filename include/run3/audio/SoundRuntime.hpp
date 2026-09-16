@@ -19,7 +19,8 @@ public:
   [[nodiscard]] bool emit3D(const std::filesystem::path &file,
                             float lifetimeSeconds, Vec3 position,
                             float minDistance, float maxDistance,
-                            bool loop = false, Bus bus = Bus::effects);
+                            bool loop = false, Bus bus = Bus::effects,
+                            float gain = 1.0F);
   void update(float seconds);
   void clear() noexcept;
   [[nodiscard]] std::size_t activeCount() const noexcept {

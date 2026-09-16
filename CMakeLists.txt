@@ -84,6 +84,7 @@ target_link_libraries(run3_core PRIVATE run3::warnings)
 
 add_library(run3_audio STATIC
             source/audio/Audio.cpp
+            source/audio/MapAudio.cpp
             source/audio/MusicPlayer.cpp
             source/audio/NullAudioBackend.cpp
             source/audio/SoundRuntime.cpp)

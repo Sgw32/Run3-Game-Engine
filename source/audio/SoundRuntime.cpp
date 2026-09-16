@@ -25,7 +25,7 @@ bool SoundRuntime::emit(const std::filesystem::path &file,
 bool SoundRuntime::emit3D(const std::filesystem::path &file,
                           const float lifetimeSeconds, const Vec3 position,
                           const float minDistance, const float maxDistance,
-                          const bool loop, const Bus bus) {
+                          const bool loop, const Bus bus, const float gain) {
   if (lifetimeSeconds <= 0.0F || file.empty()) {
     return false;
   }
@@ -37,6 +37,7 @@ bool SoundRuntime::emit3D(const std::filesystem::path &file,
   options.position = position;
   options.minDistance = minDistance;
   options.maxDistance = maxDistance;
+  options.gain = gain;
   SoundHandle handle = engine_.play(options);
   if (!handle.valid()) {
     return false;

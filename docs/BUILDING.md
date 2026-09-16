@@ -162,6 +162,8 @@ available.
   a persisted fullscreen setting)
 - `--noclip` to start with collision and gravity disabled
 - `--physics-debug` to show collision-section bounds at startup
+- `--audio-backend auto|miniaudio|null` to select real audio, safe fallback,
+  or deterministic silence
 - `--render-hz 30|60|144` for deterministic bounded validation runs
 
 Relative `--user-dir` and `--content-root` values resolve from the executable's
@@ -179,8 +181,9 @@ from `<content-root>/config/run3.cfg`, then user settings from
 `<user-root>/config/run3.cfg`; command-line values win over both. Supported
 Step 6B keys are `renderer`, `frames`, `content-root`, `user-root`, `map`,
 `map-quality`, `resource-profile`, `player-height-cm`, `render-hz`,
-`fullscreen`, `noclip`, and `physics-debug`. Relative configured roots and CLI
-paths are anchored at the executable directory. Persist height as
+`audio-backend`, `fullscreen`, `noclip`, and `physics-debug`. Relative
+configured roots and CLI paths are anchored at the executable directory.
+Persist height as
 `player-height-cm=180` and fullscreen mode as `fullscreen=true` in
 `<user-root>/config/run3.cfg`, or override it with the matching CLI option.
 
@@ -197,6 +200,11 @@ copying it into an installation. This opens the smaller map in noclip mode:
 Use `--map tlwhome02` for the much larger map. Complete Windows/Linux install,
 launch, controls, noclip, and current visual limitations are in
 [RUNNING.md](RUNNING.md).
+
+The installed `tlwcao` shell now starts its static 3D ambience, startup music,
+and concrete footsteps. Exact audible checks, expected log output, and the
+repository-only audio fixture command are in
+[RUNNING.md](RUNNING.md#audible-tlwcao-test).
 
 For Step 5 validation and the guarded Ogre conversion commands, see
 [CONTENT_VALIDATION.md](porting/CONTENT_VALIDATION.md).

@@ -18,8 +18,13 @@ Progress checklist (mark a step only when its exit criteria pass):
 - [x] 6B — static world and player
 - [x] 6C — remaining physics and AIR3
 - [x] 7 — unified audio
-- [x] 8 — XML and Lua
-- [ ] 9 — UI and visual portability
+- [x] 8A — XML and Lua compatibility substrate
+- [ ] 8B — gameplay scene schema, entity inventory, and ownership
+- [ ] 8C — sequence runtime and core interactive entities
+- [ ] 8D — legacy NPCs, AI nodes, and character events
+- [ ] 8E — cutscenes, computers, and remaining authored entities
+- [ ] 9A — UI and visual portability
+- [ ] 9B — modern lighting and material pipelines
 - [ ] 10 — complete campaign pass
 - [ ] 11 — modularity and code-quality ratchet
 - [ ] 12 — Windows/Linux CI and packages
@@ -104,6 +109,8 @@ Rules:
 - `Run3App` owns services using RAII. Replace `global::getSingleton()` one subsystem at a time with an injected `EngineServices`/`GameContext`; do not introduce a new service locator.
 - Configuration and content paths are supplied through `AppPaths`; the process working directory must not matter.
 - Backends have null/test implementations so unit tests and content validation do not need a window, sound device, or GPU.
+- XML parsers produce side-effect-free map/sequence definitions. A map-scoped entity registry resolves authored names to typed handles before runtime updates begin; gameplay code must not retain raw XML nodes or unvalidated string pointers.
+- `SequenceRuntime` owns scheduling and dispatch but depends only on Run3 input, physics-query, audio, scripting, rendering/presentation, and map-transition interfaces. It is updated explicitly by `Run3App`, never as an Ogre frame-listener singleton.
 
 ## 4. Definition of done
 
@@ -369,21 +376,116 @@ Exit criteria:
 - Audio device failure never prevents the game from running.
 - Long map transitions do not leak sources or decoded buffers.
 
-### Step 8 — Modernize XML and Lua without breaking content
+### Step 8A — Modernize XML and Lua without breaking content
 
 Do XML and Lua in separate commits even though they share this milestone.
 
 Paste into Codex:
 
 ```text
-Read PORTING.md and do only Step 8. First capture golden parser outputs for representative .scene, sequence, save, facial-animation, config-adjacent XML, including malformed input. Replace bundled TinyXML 1 with TinyXML2 behind Run3 parser functions; preserve schema semantics and improve contextual errors. Then inventory every Lua 5.0 C API call, luabind registration, and global function exposed to the 955 scripts. Create ScriptEngine plus a binding compatibility test that loads/parse-checks every script and snapshots the exported API names/signatures. Move to pinned Lua 5.4 and sol2 in small binding groups, adding explicit compatibility shims only where content uses removed behavior. Sandbox file/OS access to approved content/user roots, add traceback and instruction-budget protection, and never catch and discard script errors. Remove vendored Lua 5.0/luabind only after full-content script checks and representative sequences pass. Verify and stop.
+Read PORTING.md and do only Step 8A. First capture golden parser outputs for representative .scene, sequence, save, facial-animation, config-adjacent XML, including malformed input. Replace bundled TinyXML 1 with TinyXML2 behind Run3 parser functions; preserve schema semantics and improve contextual errors. Then inventory every Lua 5.0 C API call, luabind registration, and global function exposed to the 955 scripts. Create ScriptEngine plus a binding compatibility test that loads/parse-checks every script and snapshots the exported API names/signatures. Move to pinned Lua 5.4 and sol2 in small binding groups, adding explicit compatibility shims only where content uses removed behavior. Sandbox file/OS access to approved content/user roots, add traceback and instruction-budget protection, and never catch and discard script errors. Remove vendored Lua 5.0/luabind only after full-content script checks and representative sequences pass. Verify and stop.
 ```
 
 Exit criteria:
 
 - All shipped Lua files compile/load or are explicitly documented as intentionally unused/broken.
-- Representative chapter, NPC, trigger, music, subtitle, and map-change scripts behave like baseline.
+- Exported API names/signatures and representative parser outputs are snapshotted; binding those calls to live entities and proving gameplay behavior belongs to Steps 8B-8E.
 - Malformed XML/Lua reports file, location, and cause without crashing.
+
+#### Audited gameplay-loading gap after Step 8A
+
+The current port is expected to render maps without their authored gameplay. `StaticMap` recognizes a useful render/static-physics subset of DotScene tags and can create the Step 6C physics shells, while `ScriptEngine` validates and catalogs legacy globals. It does **not** yet replace the orchestration performed by legacy `DotSceneLoader` and `Sequence`:
+
+- `scene.cfg` names both a scene and an external `Sequence` file, but the active map path does not load that sequence; legacy DotScenes may also contain `<integratedSequence>`.
+- Legacy `Sequence::SetSceneSeq` separates `<adents>` declarations from `<events>` bindings and constructs triggers, pickups, computers, events, flares, timers, dark zones, ladders, fires, NPCs/groups, buttons, cutscenes, sequence scripts, trains, pendulums, fuzzy objects, doors, rotators, startup Lua, and on-exit Lua. There is no modern map-scoped equivalent coordinating these objects.
+- Legacy `DotSceneLoader` also handles AI nodes, sounds/environment, lights/cameras, particles/fire, zones/portals, player/world settings, and special scene objects. The modern loader must classify these as gameplay, presentation, or obsolete rather than silently skipping them.
+- The Step 6C dynamic-physics layer supplies bodies, contacts, constraints, queries, and typed object kinds. It does not parse entity XML, run entity state machines, dispatch authored actions, animate presentation, or connect Lua names to live instances.
+- Step 8A's compatibility dispatcher proves that script call shapes can be recognized; it is not a gameplay dispatcher. Steps 8B-8E must replace no-op handling with typed service/entity commands and make unresolved required targets fatal in validation and clearly visible at runtime.
+
+The following read-only census of the author's `low` content variant establishes the first acceptance targets. Counts are declarations inside `<adents>`; event-handler counts are listed separately, so nested actions are not mistaken for entities.
+
+| Authored item | `tlwcao/tlwcaos.xml` | `tlwhome02/tlwhome2s.xml` |
+|---|---:|---:|
+| NPC | 19 | 28 |
+| Door | 29 | 50 |
+| Button | 21 | 11 |
+| Trigger | 20 | 23 |
+| Train | 2 | 14 |
+| Rotator | 2 | 40 |
+| Timer | 33 | 3 |
+| Computer | 4 | 5 |
+| Cutscene | 1 | 3 |
+| Ladder | 2 | 0 |
+| Dark zone | 1 | 2 |
+| Trigger/cutscene event bindings | 10 / 1 | 19 / 2 |
+
+Across sequence files referenced by all `low/*/scene.cfg` files, the most common declarations are doors (171), rotators (166), NPCs (154: 146 neutral and 8 enemy), triggers (91), trains (80), timers (70), pendulums (68), buttons (48), computers (31), and cutscenes (23). This is planning evidence, not a permanent hard-coded manifest: Step 8B must generate a reviewed compatibility census from the selected content variant and detect schema/count drift.
+
+### Step 8B — Gameplay scene schema, entity inventory, and ownership
+
+This is the ingestion and lifetime foundation. Do not implement NPC AI or imitate the monolithic legacy `Sequence` singleton in this step.
+
+Paste into Codex:
+
+```text
+Read PORTING.md and do only Step 8B. Audit docs/ENTITIES.md, docs/NPCS.md, legacy DotSceneLoader/Sequence, every Sequence value referenced by scene.cfg, integratedSequence blocks, and the selected The Long Way content variant. Produce docs/porting/ENTITY_COMPATIBILITY.md with every DotScene and Sequence tag/attribute, declaration and event counts per map, implementing owner, status (required/supported/deferred/unused/retired), and evidence; do not infer liveness merely because a legacy class exists. Replace ad-hoc gameplay XML scanning with TinyXML2-backed, side-effect-free MapDefinition and SequenceDefinition parsers that preserve legacy defaults, transforms, ordering, duplicate-name behavior, external Sequence paths, integratedSequence, adents, events, AI nodes, and source locations. Resolve paths through AppPaths and preserve source content byte-for-byte. Add typed EntityId/EntityHandle, a map-scoped EntityRegistry, explicit deferred-reference resolution, duplicate/missing-target diagnostics, deterministic construction/destruction order, and adapters from definitions to the existing render/static-map and Step 6C physics layers. Unknown required tags or attributes must not be silently ignored. Add miniature fixtures and full-content inventory tests for tlwcao and tlwhome02, including malformed XML, case-sensitive paths, duplicates, unresolved names, unload/reload, and expected declaration counts. No gameplay behavior beyond construction/ownership in this step. Verify, update status, and stop.
+```
+
+Exit criteria:
+
+- `scene.cfg` external sequences and DotScene `<integratedSequence>` data produce one deterministic definition model with documented merge/order rules; parsing never mutates Ogre, physics, audio, or script state.
+- The generated `tlwcao`/`tlwhome02` declaration counts match the reviewed census above or the documented content version explains the difference. Every encountered tag has an owner and status; nothing required disappears silently.
+- Named references are resolved to generation-checked handles before use, and duplicate/unresolved targets report map, file, element, name, and source location.
+- Repeated map load/unload destroys all registry entries and their presentation/physics handles without stale references.
+
+### Step 8C — Sequence runtime and core interactive entities
+
+This step makes the environment interactive. Work in vertical slices and keep legacy XML and Lua names stable; do not port NPC behavior, cinematic cameras, or computer UI yet.
+
+Paste into Codex:
+
+```text
+Read PORTING.md and do only Step 8C. Replace the legacy Sequence frame-listener/singleton with a map-owned SequenceRuntime updated explicitly from Run3App's fixed gameplay tick. Consume the Step 8B definitions and registry; implement a deterministic scheduler, queued actions, one-shot/repeating semantics, delayed event bindings, startup lua and onexit lifecycle, safe map-change cancellation, and contextual errors. Connect ScriptEngine's compatibility dispatcher to typed GameCommands and Run3 service/query interfaces instead of no-op callbacks or raw global pointers; validate command targets and never catch/discard script failures. Implement fixture-first vertical slices for timers/events, triggers (enter/leave/multiple/switch), use raycasts, buttons, translating doors, rotators, pendulums, trains/platform parenting, ladders, pickups if live, dark-zone state, and the audio/animation/script hooks those objects actually use. Reuse Step 6B/6C physics and Step 7 audio; do not create a second collision or sound system. Preserve authored names, transforms, timings, default values, useInteract behavior, parent relationships, and callback order, documenting intentional differences. Add deterministic replay, save-state round-trip where these entities are persistent, map-unload during queued actions, and tlwcao/tlwhome02 integration tests. Verify at 30/60/144 render FPS over the same fixed ticks, update the compatibility matrix/status, and stop before NPCs, cinematic playback, and computers.
+```
+
+Exit criteria:
+
+- Fixture doors/buttons/triggers/timers/trains/ladders complete their authored state transitions and callbacks deterministically; missing command targets fail with context rather than becoming no-ops.
+- Representative `tlwcao` and `tlwhome02` doors, buttons, triggers, elevators/trains, rotators/pendulums, and ladders can be seen and used in first person, with correct collision, sound, parenting, and scripts.
+- Rendering FPS does not alter fixed-tick action order or final recorded entity state, and unload/reload leaves no callbacks, handles, audio voices, or physics objects from the previous map.
+
+### Step 8D — Legacy NPCs, AI nodes, and character events
+
+The active low campaign census contains 146 `npc_neutral` and 8 `npc_enemy` declarations. Implement neutral characters first, then enemies; only implement friend/aerial or experimental classes when the compatibility census proves live content needs them.
+
+Paste into Codex:
+
+```text
+Read PORTING.md and do only Step 8D. Port the legacy NPC system as a map-owned NpcSystem consuming Step 8B NPC definitions, AI nodes, typed entity handles, AIR3 navigation/query interfaces, Run3 physics, animation, audio, and ScriptEngine commands. Do not revive NPCManager/global singletons or expose Ogre/Bullet implementation types in the public behavior API. First implement npc_neutral end to end, then npc_enemy and only content-proven friend/aerial variants. Preserve authored spawn transforms, class, mesh/material, scale/yShift, movement speed and stopping distance, animation defaults, head/look behavior, render distance, health/damage/headshot data where live, use/goal/reach/death scripts, sounds, attachments/flashlights, parent/train motion, teleport, and ragdoll transition. Map numeric legacy NPC events to a documented typed command enum covering SPAWN, RUNTO/GOTO, STOP, SETANIM, ALERT, FEAR, CRAZY, FACIAL_ACTIVITY, TELEPORT, KILL, and any content-proven class-specific commands; reject invalid commands visibly. Implement npcgroup/broadcast only if the inventory or scripts use it. Add deterministic fixtures for navigation, blocked paths, reach callbacks, facing/look, animation changes, damage/death/ragdoll, entity destruction, and map unload. Validate all 19 tlwcao and 28 tlwhome02 NPC declarations, including referenced Lua targets, then update the matrix/status and stop before cutscene and computer presentation.
+```
+
+Exit criteria:
+
+- Every required NPC declaration constructs the correct typed class or produces a contextual hard failure; required campaign NPCs are never invisible placeholders.
+- A neutral-NPC fixture and a content-proven enemy fixture complete deterministic movement/event/script scenarios, including navigation failure and destruction paths.
+- `tlwcao` and `tlwhome02` instantiate all inventoried NPCs with animation and collision; representative story interactions reach their expected script callbacks, and unloading either map releases AI, physics, audio, render, and ragdoll state.
+
+### Step 8E — Cutscenes, computers, and remaining authored entities
+
+This closes the authored-gameplay matrix before visual polish. It must distinguish gameplay state from presentation: visual-only rendering improvements may be assigned to Step 9A/9B, but their controlling entity/action cannot be silently dropped.
+
+Paste into Codex:
+
+```text
+Read PORTING.md and do only Step 8E. Complete the remaining required rows in docs/porting/ENTITY_COMPATIBILITY.md in content-use order. Implement cutscene definitions/events with deterministic camera tracks/keyframes, look targets, timing/wait semantics, player input/movement freeze, HUD/subtitle/audio/script hooks, skip, interruption, map-unload cancellation, and guaranteed restoration of camera/player state. Implement computers as typed interactive entities with focus capture/release, backend-neutral keyboard input, display/material presentation through a small interface, init/use/near/shutdown scripts, audio, and safe exit; do not reintroduce OIS or CEGUI dependencies. Then handle content-proven dark zones, sequence scripts, event relays, startup/onexit actions, flares/fire/effect controllers, pickups, NPC groups, fuzzy/experimental objects, and DotScene gameplay tags not owned elsewhere. For every legacy tag choose and document one disposition: implemented and tested, delegated to a named Step 9 presentation adapter with functional gameplay control now, or explicitly unused/retired with campaign evidence. Add stable serialization for persistent sequence/entity/NPC state and representative save/load and map-transition tests. Build fixture sequences for a skippable cutscene and an interactive computer, then validate all tlwcao/tlwhome02 computers and cutscenes plus at least one real chapter transition. Never bulk-edit The Long Way content to hide loader/runtime defects. Verify, update status, and stop before Step 9A.
+```
+
+Exit criteria:
+
+- Fixture and representative-map cutscenes play, trigger actions at the authored times, skip/cancel safely, and always restore the player, input mode, camera, HUD, and audio state.
+- All four `tlwcao` and five `tlwhome02` computers construct and can be entered/exited; content-proven scripts receive input and update their display without leaking platform/UI types into gameplay.
+- Every DotScene/Sequence tag encountered in the selected campaign has a reviewed disposition and an automated validation result. No required entity, event, or action is silently ignored.
+- Entity/NPC/sequence persistent state survives a save/load fixture and a representative chapter transition, while transient handles are rebuilt safely and old-map callbacks cannot fire.
 
 ### Step 9A — Menus/HUD, shader compatibility, sky/water, and intro-video fallback
 
@@ -444,12 +546,12 @@ Exit criteria:
 
 ### Step 10 — The Long Way campaign completion pass
 
-Maintain `docs/porting/TLW_COMPATIBILITY.md` as a matrix with rows for every map and columns for load, visuals, collision, spawn, scripts, interactions, NPCs, audio, transition, save/load, D3D11, and GL3+.
+Maintain `docs/porting/TLW_COMPATIBILITY.md` as a matrix with rows for every map and columns for load, entity census, sequence events, interactions, NPCs, cutscenes, computers, visuals, collision, spawn, scripts, audio, transition, save/load, D3D11, and GL3+.
 
 Paste into Codex:
 
 ```text
-Read PORTING.md and do only Step 10. Create/update the full The Long Way compatibility matrix and an executable smoke manifest. Add --map, --frames, fixed seed, deterministic input replay, structured log, screenshot, and clean-exit support without adding cheats to normal gameplay. Exercise every campaign map in story order on full content, first with null audio and then real audio; fail on crash, missing required resource, fatal shader/script error, invalid spawn, or leaked per-map resources. Fix issues in the smallest responsible subsystem and add a fixture/regression test for each fixed class of bug. Perform and document a complete human play-through covering progression and save/load. Do not mark a map green based only on loading its first frame. Update status and stop when the matrix and open issues are honest.
+Read PORTING.md and do only Step 10 after Steps 8B-8E and 9A-9B meet their exit criteria. Create/update the full The Long Way compatibility matrix and an executable smoke manifest. Add --map, --frames, fixed seed, deterministic input replay, structured log, screenshot, and clean-exit support without adding cheats to normal gameplay. Exercise every campaign map in story order on full content, first with null audio and then real audio; fail on crash, entity-count drift, an ignored required entity/action, missing required resource, fatal shader/script error, invalid spawn, progression failure, or leaked per-map resources. Fix issues in the smallest responsible subsystem and add a fixture/regression test for each fixed class of bug. Perform and document a complete human play-through covering sequences, entity interactions, NPCs, cutscenes, computers, transitions, and save/load. Do not mark a map green based only on loading its first frame. Update status and stop when the matrix and open issues are honest.
 ```
 
 Exit criteria:
@@ -541,4 +643,4 @@ Likely candidates found during the audit, ordered by expected value rather than 
 - **An obsolete component blocks Linux:** put it behind a Run3 interface with a null/simple backend. Do not contaminate cross-platform gameplay with `#ifdef _WIN32`.
 - **A step creates an enormous diff:** split by subsystem or mechanical transformation and keep tests green between commits.
 
-The safest delivery rhythm is one numbered step per PR, with Steps 6A/6B/6C, Step 8, and Steps 9A/9B split into smaller reviewable commits. A playable vertical slice should remain available throughout the project.
+The safest delivery rhythm is one numbered step per PR, with Steps 6A/6B/6C, Steps 8A/8B/8C/8D/8E, and Steps 9A/9B split into smaller reviewable commits. A playable vertical slice should remain available throughout the project.

@@ -2,6 +2,7 @@
 #include <run3/content/MapDefinition.hpp>
 #include <run3/content/XmlParser.hpp>
 #include <run3/gameplay/EntityRegistry.hpp>
+#include <run3/gameplay/MapRuntimeAdapter.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
@@ -100,6 +101,46 @@ TEST_CASE("Step 8B registry preserves duplicates and invalidates stale handles",
        location, 3});
   CHECK(reused.id == first.id);
   CHECK(reused.generation != first.generation);
+}
+
+TEST_CASE("Step 8B runtime ignores renderables outside exact scene nodes",
+          "[step8b][entities][regression]") {
+  run3::content::MapDefinition definition;
+  definition.scene.tag = "scene";
+
+  run3::content::AuthoredElement nodes;
+  nodes.tag = "nodes";
+  run3::content::AuthoredElement disabled;
+  disabled.tag = "nodev";
+  run3::content::AuthoredElement disabledPhysics;
+  disabledPhysics.tag = "phys";
+  disabledPhysics.attributes.emplace_back("meshFile", "disabled.mesh");
+  disabled.children.push_back(std::move(disabledPhysics));
+  run3::content::AuthoredElement disabledNestedNode;
+  disabledNestedNode.tag = "node";
+  run3::content::AuthoredElement disabledNestedPhysics;
+  disabledNestedPhysics.tag = "phys";
+  disabledNestedPhysics.attributes.emplace_back("meshFile",
+                                                "disabled-nested.mesh");
+  disabledNestedNode.children.push_back(std::move(disabledNestedPhysics));
+  disabled.children.push_back(std::move(disabledNestedNode));
+
+  run3::content::AuthoredElement active;
+  active.tag = "node";
+  run3::content::AuthoredElement activeEntity;
+  activeEntity.tag = "entity";
+  activeEntity.attributes.emplace_back("meshFile", "active.mesh");
+  active.children.push_back(std::move(activeEntity));
+
+  nodes.children.push_back(std::move(disabled));
+  nodes.children.push_back(std::move(active));
+  definition.scene.children.push_back(std::move(nodes));
+
+  const auto renderables = run3::gameplay::activeMapRenderables(definition);
+  REQUIRE(renderables.size() == 1);
+  CHECK(renderables[0]->tag == "entity");
+  REQUIRE(renderables[0]->attribute("meshFile") != nullptr);
+  CHECK(*renderables[0]->attribute("meshFile") == "active.mesh");
 }
 
 TEST_CASE("Step 8B deferred references resolve after construction",

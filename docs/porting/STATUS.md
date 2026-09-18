@@ -19,6 +19,24 @@ Last updated: 2026-09-18
 | 8 — XML and Lua | Completed | Golden schema adapters, pinned TinyXML2/Lua 5.4/sol2, a sandboxed `ScriptEngine`, 202-name API snapshot, and the 955-script compatibility gate pass with three explicitly broken legacy files. |
 | 8B — gameplay scene schema, entity inventory, and ownership | Completed | Side-effect-free map/sequence definitions, exact-case AppPaths resolution, generation-safe map ownership, deferred name resolution, definition-driven StaticMap loading, and all 18 attached low-variant map/sequence inventories pass on MSVC/GCC. |
 
+## 2026-09-18 — Static-map root regression repair
+
+The Step 8B runtime adapter was corrected after an interactive regression test:
+
+- Cause: renderables below authored inactive `<nodev>` branches were admitted
+  into the runtime scene. A root-level `<phys>` was consequently attached to
+  `Run3Step6BMapRoot`; dynamic-body synchronization then moved and rotated the
+  complete rendered world while its static collision was left behind.
+- Fix: active map renderables are selected by one tested adapter that requires
+  an exact active `<node>` and rejects complete `<nodev>` subtrees. StaticMap
+  also refuses to construct or synchronize a dynamic binding on its map root
+  as a local safety invariant.
+- Verification: all 17 Step 6B player and Step 8B entity tests pass. A 300-step
+  D3D11 `tlwcao` run restored the known-good `368` visual / `166` collision
+  inventory, retained the player at map elevation, and produced live weapon
+  ray hits. `tlwhome02` also loaded and advanced through Bullet without a
+  root-level binding. No game content was modified.
+
 ## 2026-09-18 — Step 8B
 
 Completed:
@@ -44,10 +62,11 @@ Completed:
   `low/*/scene.cfg` Sequence references, per-map declaration/event counts,
   implementing owner, status, evidence, disabled tag variants, and legacy
   defaults. The author content stayed byte-identical.
-- Added six fixture/content tests covering external plus integrated ordering,
+- Added seven fixture/content tests covering external plus integrated ordering,
   source locations, expected `tlwcao`/`tlwhome02` counts, all low-variant maps,
   malformed XML, exact case, unknown required tags, duplicates, missing
-  references, bindings, deterministic reverse cleanup, and handle reuse.
+  references, inactive-node runtime filtering, bindings, deterministic reverse
+  cleanup, and handle reuse.
 
 Verification:
 

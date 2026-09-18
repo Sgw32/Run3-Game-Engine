@@ -4,6 +4,7 @@
 #include <run3/core/Log.hpp>
 #include <run3/gameplay/EntityRegistry.hpp>
 #include <run3/gameplay/LegacyMaterialCatalog.hpp>
+#include <run3/gameplay/MapRuntimeAdapter.hpp>
 
 #include <OgreAxisAlignedBox.h>
 #include <OgreEntity.h>
@@ -35,6 +36,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 namespace run3::gameplay {
@@ -210,6 +212,10 @@ public:
     }
     definition_ = content::loadMapDefinition(*options.paths, options.mapName,
                                              options.quality);
+    for (const content::AuthoredElement *element :
+         activeMapRenderables(*definition_)) {
+      activeRenderables_.insert(element);
+    }
     const std::string &map = definition_->mapName;
     const RegistryPopulationResult population =
         populateEntityRegistry(*definition_, registry_, false);
@@ -335,10 +341,10 @@ public:
       return;
     }
 
-    if (element.tag == "entity" || element.tag == "nocollide" ||
-        element.tag == "phys" || element.tag == "breakable" ||
-        element.tag == "pblock" || element.tag == "blockbox") {
-      processRenderable(element, parent, parentName);
+    if (isMapRenderableTag(element.tag)) {
+      if (activeRenderables_.count(&element) != 0) {
+        processRenderable(element, parent, parentName);
+      }
       return;
     }
     for (const content::AuthoredElement &child : element.children) {
@@ -349,6 +355,16 @@ public:
 
   void processRenderable(const content::AuthoredElement &element,
                          Ogre::SceneNode *node, const std::string &nodeName) {
+    // A dynamic body bound here would make syncDynamicTransforms move the
+    // complete map.  activeMapRenderables() should make this unreachable, but
+    // keep the invariant local to the unsafe operation as a second defence.
+    if (node == rootNode_) {
+      Ogre::LogManager::getSingleton().logMessage(
+          "Step 8B ignored root-level renderable at " +
+          element.source.file.generic_string() + ":" +
+          std::to_string(element.source.line));
+      return;
+    }
     const auto values = attributes(element);
     const auto meshIt = values.find("meshFile");
     if (meshIt == values.end() || meshIt->second.empty()) {
@@ -596,6 +612,7 @@ public:
   void unload() noexcept {
     bodies_.clear();
     registry_.clear();
+    activeRenderables_.clear();
     definition_.reset();
     ladders_.clear();
     debugNodes_.clear();
@@ -623,7 +640,8 @@ public:
 
   void syncDynamicTransforms() {
     for (auto &binding : bodies_) {
-      if (binding.node == nullptr || !binding.body.valid()) {
+      if (binding.node == nullptr || binding.node == rootNode_ ||
+          !binding.body.valid()) {
         continue;
       }
       const physics::Transform transform =
@@ -663,6 +681,7 @@ public:
   std::unordered_map<std::string, Ogre::MaterialPtr> compatibleMaterials_;
   std::set<std::string> unresolvedMaterials_;
   std::optional<content::MapDefinition> definition_;
+  std::unordered_set<const content::AuthoredElement *> activeRenderables_;
   EntityRegistry registry_;
   std::uint64_t sequence_{};
   physics::Vec3 spawn_{};

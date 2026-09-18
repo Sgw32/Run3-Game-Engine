@@ -163,7 +163,8 @@ target_include_directories(
 target_link_libraries(run3_xml PUBLIC run3::core
                      PRIVATE run3::warnings tinyxml2::tinyxml2)
 
-add_library(run3_entities STATIC source/gameplay/EntityRegistry.cpp)
+add_library(run3_entities STATIC source/gameplay/EntityRegistry.cpp
+                                 source/gameplay/MapRuntimeAdapter.cpp)
 add_library(run3::entities ALIAS run3_entities)
 target_compile_features(run3_entities PUBLIC cxx_std_17)
 target_include_directories(

@@ -19,7 +19,7 @@ Progress checklist (mark a step only when its exit criteria pass):
 - [x] 6C — remaining physics and AIR3
 - [x] 7 — unified audio
 - [x] 8A — XML and Lua compatibility substrate
-- [ ] 8B — gameplay scene schema, entity inventory, and ownership
+- [x] 8B — gameplay scene schema, entity inventory, and ownership
 - [ ] 8C — sequence runtime and core interactive entities
 - [ ] 8D — legacy NPCs, AI nodes, and character events
 - [ ] 8E — cutscenes, computers, and remaining authored entities
@@ -422,6 +422,9 @@ The following read-only census of the author's `low` content variant establishes
 Across sequence files referenced by all `low/*/scene.cfg` files, the most common declarations are doors (171), rotators (166), NPCs (154: 146 neutral and 8 enemy), triggers (91), trains (80), timers (70), pendulums (68), buttons (48), computers (31), and cutscenes (23). This is planning evidence, not a permanent hard-coded manifest: Step 8B must generate a reviewed compatibility census from the selected content variant and detect schema/count drift.
 
 ### Step 8B — Gameplay scene schema, entity inventory, and ownership
+
+Status: **Completed 2026-09-18.** See
+`docs/porting/ENTITY_COMPATIBILITY.md` and `docs/porting/STATUS.md`.
 
 This is the ingestion and lifetime foundation. Do not implement NPC AI or imitate the monolithic legacy `Sequence` singleton in this step.
 

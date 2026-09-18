@@ -1,5 +1,6 @@
 #pragma once
 
+#include <run3/app/AppPaths.hpp>
 #include <run3/physics/Physics.hpp>
 
 #include <filesystem>
@@ -22,7 +23,7 @@ struct AxisAlignedVolume {
 };
 
 struct StaticMapOptions {
-  std::filesystem::path contentRoot;
+  const AppPaths *paths{};
   std::string mapName;
   std::string quality{"low"};
   std::string resourceProfile{"resources_low_low.cfg"};

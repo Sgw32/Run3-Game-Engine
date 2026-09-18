@@ -495,7 +495,7 @@ void Run3App::setup() {
     staticMap_ = std::make_unique<gameplay::StaticMap>(*sceneManager_,
                                                        *physicsWorld_);
     const gameplay::StaticMapStats mapStats = staticMap_->load(
-        {options_.paths.contentRoot(), options_.mapName, options_.mapQuality,
+        {&options_.paths, options_.mapName, options_.mapQuality,
          options_.resourceProfile});
     static_cast<void>(mapStats);
     gameplay::PlayerConfig playerConfig;

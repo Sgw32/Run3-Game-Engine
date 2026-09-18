@@ -1,0 +1,5 @@
+<scene>
+  <nodes>
+    <mysteryRequired name="must_not_disappear" required="true"/>
+  </nodes>
+</scene>

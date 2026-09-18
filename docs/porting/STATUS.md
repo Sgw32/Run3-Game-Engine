@@ -1,6 +1,6 @@
 # Run3 porting status
 
-Last updated: 2026-09-16
+Last updated: 2026-09-18
 
 ## Milestones
 
@@ -17,6 +17,50 @@ Last updated: 2026-09-16
 | 6C — dynamic physics, contacts, constraints, ragdolls, AIR3 | Completed | Typed dynamic/contact behavior, evidenced constraints, RAII ragdolls, and query-injected AIR3 pass on MSVC/GCC; Newton is absent from the live build. |
 | 7 — unified audio | Completed | Run3-owned RAII audio, null and pinned miniaudio 0.11.25 backends, safe device fallback, a live `tlwcao` ambience/music/footstep slice, hashed offline FLAC conversion, and cross-platform tests pass. |
 | 8 — XML and Lua | Completed | Golden schema adapters, pinned TinyXML2/Lua 5.4/sol2, a sandboxed `ScriptEngine`, 202-name API snapshot, and the 955-script compatibility gate pass with three explicitly broken legacy files. |
+| 8B — gameplay scene schema, entity inventory, and ownership | Completed | Side-effect-free map/sequence definitions, exact-case AppPaths resolution, generation-safe map ownership, deferred name resolution, definition-driven StaticMap loading, and all 18 attached low-variant map/sequence inventories pass on MSVC/GCC. |
+
+## 2026-09-18 — Step 8B
+
+Completed:
+
+- Replaced live `StaticMap` regex scanning with the TinyXML2-backed
+  `MapDefinition` tree. Parsing preserves configuration entries, external and
+  integrated sequence ordering, every XML element/attribute, mixed transform
+  representations, source order, and file/line locations without constructing
+  runtime objects or changing content.
+- Added exact-case, root-confined resolution through `AppPaths`. Missing paths,
+  Linux-visible case mismatches, malformed XML, duplicate config keys, and
+  preserved unknown tags have contextual diagnostics.
+- Added generation-checked `EntityId`/`EntityHandle` values and a map-scoped
+  `EntityRegistry`. It preserves duplicate declarations and first-authored
+  lookup with diagnostics, resolves required event targets after construction,
+  exposes presentation/physics bindings, destroys in reverse order, and
+  invalidates stale handles on unload/reload.
+- Adapted the existing Ogre/static-map and Step 6C body construction to the
+  parsed definition tree. No entity state machine or gameplay behavior was
+  added; that remains Steps 8C-8E.
+- Added the read-only `run3_entity_inventory` tool and a reviewed compatibility
+  matrix for every observed DotScene/Sequence tag and attribute, all 18
+  `low/*/scene.cfg` Sequence references, per-map declaration/event counts,
+  implementing owner, status, evidence, disabled tag variants, and legacy
+  defaults. The author content stayed byte-identical.
+- Added six fixture/content tests covering external plus integrated ordering,
+  source locations, expected `tlwcao`/`tlwhome02` counts, all low-variant maps,
+  malformed XML, exact case, unknown required tags, duplicates, missing
+  references, bindings, deterministic reverse cleanup, and handle reuse.
+
+Verification:
+
+| Configuration | Scope | Result |
+|---|---|---|
+| `windows-msvc-x64-debug` | Full build and CTest suite | Build passed; 81/81 tests passed (the install/smoke tail was rerun inside the required VS developer environment) |
+| `windows-msvc-x64-release` | Full build; Step 8B tests | Build passed; 6/6 Step 8B tests passed |
+| `linux-ninja-debug` | Step 8B, shell, and inventory targets | Build passed; 6/6 Step 8B tests passed under Ubuntu/WSL GCC |
+| `linux-ninja-release` | Step 8B, shell, and inventory targets | Build passed; 6/6 Step 8B tests passed under Ubuntu/WSL GCC |
+| Windows D3D11 Debug | Real-map bounded smoke | `tlwcao` and `tlwhome02` loaded from the definition adapter, rendered two frames, and shut down cleanly with null audio |
+
+Detailed schema, counts, ownership, and deferred/unused/retired decisions are
+in [ENTITY_COMPATIBILITY.md](ENTITY_COMPATIBILITY.md).
 
 ## 2026-09-16 — Step 8
 

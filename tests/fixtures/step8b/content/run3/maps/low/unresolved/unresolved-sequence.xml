@@ -1,0 +1,8 @@
+<sequence>
+  <adents>
+    <trigger name="known" sw="true"/>
+  </adents>
+  <events>
+    <trigger name="missing" sec="0"/>
+  </events>
+</sequence>

@@ -154,6 +154,22 @@ target_include_directories(
     run3_air3 PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 target_link_libraries(run3_air3 PUBLIC run3::physics PRIVATE run3::warnings)
 
+add_library(run3_xml STATIC source/content/XmlParser.cpp
+                            source/content/MapDefinition.cpp)
+add_library(run3::xml ALIAS run3_xml)
+target_compile_features(run3_xml PUBLIC cxx_std_17)
+target_include_directories(
+    run3_xml PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(run3_xml PUBLIC run3::core
+                     PRIVATE run3::warnings tinyxml2::tinyxml2)
+
+add_library(run3_entities STATIC source/gameplay/EntityRegistry.cpp)
+add_library(run3::entities ALIAS run3_entities)
+target_compile_features(run3_entities PUBLIC cxx_std_17)
+target_include_directories(
+    run3_entities PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(run3_entities PUBLIC run3::xml PRIVATE run3::warnings)
+
 add_library(run3_gameplay STATIC
             source/gameplay/DynamicPhysicsScene.cpp
             source/gameplay/LegacyMaterialCatalog.cpp
@@ -163,15 +179,8 @@ add_library(run3::gameplay ALIAS run3_gameplay)
 target_compile_features(run3_gameplay PUBLIC cxx_std_17)
 target_include_directories(
     run3_gameplay PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
-target_link_libraries(run3_gameplay PUBLIC run3::physics
+target_link_libraries(run3_gameplay PUBLIC run3::physics run3::entities
                       PRIVATE run3::warnings OgreMain OgreRTShaderSystem)
-
-add_library(run3_xml STATIC source/content/XmlParser.cpp)
-add_library(run3::xml ALIAS run3_xml)
-target_compile_features(run3_xml PUBLIC cxx_std_17)
-target_include_directories(
-    run3_xml PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
-target_link_libraries(run3_xml PRIVATE run3::warnings tinyxml2::tinyxml2)
 
 # sol2 and the Lua C API are implementation details of this target. Game and
 # content code depend only on the Run3-owned ScriptEngine interface.
@@ -312,6 +321,11 @@ endif()
 if(RUN3_BUILD_TOOLS)
     add_executable(run3_build_probe source/build_probe_main.cpp)
     target_link_libraries(run3_build_probe PRIVATE run3::build_info)
+
+    add_executable(run3_entity_inventory source/entity_inventory_main.cpp)
+    target_compile_features(run3_entity_inventory PRIVATE cxx_std_17)
+    target_link_libraries(run3_entity_inventory
+                          PRIVATE run3::warnings run3::entities)
 endif()
 
 # Keep CMake's conventional BUILD_TESTING cache entry synchronized with the
@@ -395,6 +409,18 @@ if(RUN3_BUILD_TESTS)
     catch_discover_tests(run3_step8_tests
                          TEST_PREFIX "run3_step8."
                          PROPERTIES LABELS "step8;xml;lua")
+
+    add_executable(run3_step8b_tests tests/step8b_entity_tests.cpp)
+    target_compile_features(run3_step8b_tests PRIVATE cxx_std_17)
+    target_compile_definitions(
+        run3_step8b_tests
+        PRIVATE RUN3_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(
+        run3_step8b_tests
+        PRIVATE run3::warnings run3::entities Catch2::Catch2WithMain)
+    catch_discover_tests(run3_step8b_tests
+                         TEST_PREFIX "run3_step8b."
+                         PROPERTIES LABELS "step8b;entities;xml")
     add_test(
         NAME run3_step8.legacy-boundary
         COMMAND

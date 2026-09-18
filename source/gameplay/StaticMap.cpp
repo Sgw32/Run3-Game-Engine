@@ -1,6 +1,8 @@
 #include <run3/gameplay/StaticMap.hpp>
 
+#include <run3/content/MapDefinition.hpp>
 #include <run3/core/Log.hpp>
+#include <run3/gameplay/EntityRegistry.hpp>
 #include <run3/gameplay/LegacyMaterialCatalog.hpp>
 
 #include <OgreAxisAlignedBox.h>
@@ -29,7 +31,6 @@
 #include <cctype>
 #include <fstream>
 #include <optional>
-#include <regex>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -59,15 +60,6 @@ private:
   bool previous_{};
 };
 
-std::string readText(const fs::path &path) {
-  std::ifstream stream(path, std::ios::binary);
-  if (!stream) {
-    throw std::runtime_error("cannot read map file: " + path.string());
-  }
-  return {std::istreambuf_iterator<char>(stream),
-          std::istreambuf_iterator<char>()};
-}
-
 std::string trim(std::string value) {
   const auto first = value.find_first_not_of(" \t\r\n");
   if (first == std::string::npos) {
@@ -76,14 +68,11 @@ std::string trim(std::string value) {
   return value.substr(first, value.find_last_not_of(" \t\r\n") - first + 1);
 }
 
-std::unordered_map<std::string, std::string> attributes(std::string_view text) {
-  static const std::regex expression(
-      R"ATTR(([A-Za-z_][A-Za-z0-9_]*)\s*=\s*["']([^"']*)["'])ATTR");
+std::unordered_map<std::string, std::string>
+attributes(const content::AuthoredElement &element) {
   std::unordered_map<std::string, std::string> result;
-  const std::string copy(text);
-  for (std::sregex_iterator it(copy.begin(), copy.end(), expression), end;
-       it != end; ++it) {
-    result[(*it)[1].str()] = (*it)[2].str();
+  for (const auto &[name, value] : element.attributes) {
+    result[name] = value;
   }
   return result;
 }
@@ -137,18 +126,6 @@ std::string lower(std::string value) {
   std::transform(value.begin(), value.end(), value.begin(),
                  [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
   return value;
-}
-
-std::string normalizedMapName(std::string name) {
-  name = lower(std::move(name));
-  if (name == "tlwhome2") {
-    return "tlwhome02";
-  }
-  if (name != "tlwhome02" && name != "tlwcao") {
-    throw std::invalid_argument(
-        "Run3 supports --map tlwhome02 (alias tlwhome2) or --map tlwcao");
-  }
-  return name;
 }
 
 struct MeshGeometry {
@@ -228,30 +205,27 @@ public:
   StaticMapStats load(const StaticMapOptions &options) {
     unload();
     OgreConsoleSilencer silenceBulkLoad;
-    const std::string map = normalizedMapName(options.mapName);
-    const fs::path mapDirectory =
-        options.contentRoot / "run3" / "maps" / options.quality / map;
-    const fs::path sceneConfig = mapDirectory / "scene.cfg";
-    std::ifstream config(sceneConfig);
-    if (!config) {
-      throw std::runtime_error("missing map scene.cfg: " + sceneConfig.string());
+    if (options.paths == nullptr) {
+      throw std::invalid_argument("StaticMapOptions.paths is required");
     }
-    std::string sceneFile;
-    std::string line;
-    while (std::getline(config, line)) {
-      line = trim(line);
-      if (line.rfind("Scene=", 0) == 0) {
-        sceneFile = trim(line.substr(6));
-        break;
-      }
+    definition_ = content::loadMapDefinition(*options.paths, options.mapName,
+                                             options.quality);
+    const std::string &map = definition_->mapName;
+    const RegistryPopulationResult population =
+        populateEntityRegistry(*definition_, registry_, false);
+    for (const content::DefinitionIssue &issue : definition_->issues) {
+      Ogre::LogManager::getSingleton().logMessage(
+          issue.source.file.generic_string() + ":" +
+          std::to_string(issue.source.line) + ": " + issue.message);
     }
-    if (sceneFile.empty()) {
-      throw std::runtime_error("scene.cfg has no Scene entry: " +
-                               sceneConfig.string());
+    for (const content::DefinitionIssue &issue : population.issues) {
+      Ogre::LogManager::getSingleton().logMessage(
+          issue.source.file.generic_string() + ":" +
+          std::to_string(issue.source.line) + ": " + issue.message);
     }
 
-    registerResources(options.contentRoot, options.resourceProfile);
-    materialCatalog_.scan(options.contentRoot);
+    registerResources(options.paths->contentRoot(), options.resourceProfile);
+    materialCatalog_.scan(options.paths->contentRoot());
     class CompatibilityListener final : public Ogre::MeshSerializerListener {
     public:
       explicit CompatibilityListener(Impl &owner) : owner_(&owner) {}
@@ -274,212 +248,14 @@ public:
       Ogre::MeshSerializerListener *listener{};
       ~ListenerRestore() { manager->setListener(listener); }
     } restoreListener{&meshManager, previousListener};
-    const std::string xml = readText(mapDirectory / sceneFile);
     rootNode_ = sceneManager_->getRootSceneNode()->createChildSceneNode(
         "Run3Step6BMapRoot");
-
-    static const std::regex tagExpression(
-        R"TAG(<\s*(/?)\s*([A-Za-z_][A-Za-z0-9_]*)\b([^>]*)>)TAG");
-    std::vector<Ogre::SceneNode *> nodes{rootNode_};
-    std::vector<std::string> nodeNames{"Run3Step6BMapRoot"};
-    double sceneMultiplier = 1.0;
+    const double sceneMultiplier =
+        number(attributes(definition_->scene), "multiplier", 1.0);
     bool firstPlayer = true;
-    std::size_t sequence = 0;
-    Ogre::Entity *activeEntity{};
-    std::string activeEntityTag;
-
-    for (std::sregex_iterator it(xml.begin(), xml.end(), tagExpression), end;
-         it != end; ++it) {
-      const bool closing = !(*it)[1].str().empty();
-      const std::string tag = lower((*it)[2].str());
-      const std::string rawAttributes = (*it)[3].str();
-      const auto values = attributes(rawAttributes);
-      const bool selfClosing = rawAttributes.find('/') != std::string::npos &&
-                               rawAttributes.find_last_not_of(" \t\r\n") !=
-                                   std::string::npos &&
-                               rawAttributes[rawAttributes.find_last_not_of(
-                                   " \t\r\n")] == '/';
-      if (closing) {
-        if (activeEntity != nullptr && tag == activeEntityTag) {
-          activeEntity = nullptr;
-          activeEntityTag.clear();
-        }
-        if (tag == "node" && nodes.size() > 1) {
-          nodes.pop_back();
-          nodeNames.pop_back();
-        }
-        continue;
-      }
-      if (tag == "scene") {
-        sceneMultiplier = number(values, "multiplier", 1.0);
-      } else if (tag == "player" && firstPlayer) {
-        spawn_ = vector(values);
-        spawn_.x *= sceneMultiplier;
-        spawn_.y *= sceneMultiplier;
-        spawn_.z *= sceneMultiplier;
-        firstPlayer = false;
-      } else if (tag == "node") {
-        const auto nameIt = values.find("name");
-        const std::string nodeName =
-            nameIt == values.end() ? "Run3MapNode" : nameIt->second;
-        Ogre::SceneNode *node = nodes.back()->createChildSceneNode(
-            "Run3Step6B/" + std::to_string(sequence++) + "/" + nodeName);
-        nodes.push_back(node);
-        nodeNames.push_back(nodeName);
-        if (selfClosing) {
-          nodes.pop_back();
-          nodeNames.pop_back();
-        }
-      } else if (tag == "position" && nodes.size() > 1) {
-        physics::Vec3 position = vector(values);
-        position.x *= sceneMultiplier;
-        position.y *= sceneMultiplier;
-        position.z *= sceneMultiplier;
-        nodes.back()->setPosition(toOgre(position));
-      } else if (tag == "rotation" && nodes.size() > 1) {
-        nodes.back()->setOrientation(toOgre(quaternion(values)));
-      } else if (tag == "scale" && nodes.size() > 1) {
-        physics::Vec3 scale = vector(values, {1.0, 1.0, 1.0});
-        nodes.back()->setScale(toOgre(physics::Vec3{
-            scale.x * sceneMultiplier, scale.y * sceneMultiplier,
-            scale.z * sceneMultiplier}));
-      } else if ((tag == "entity" || tag == "nocollide" || tag == "phys" ||
-                  tag == "breakable" || tag == "pblock" ||
-                  tag == "blockbox") &&
-                 nodes.size() > 1) {
-        const auto meshIt = values.find("meshFile");
-        if (meshIt == values.end() || meshIt->second.empty()) {
-          ++stats_.skippedSections;
-          continue;
-        }
-        try {
-          const std::string entityName =
-              "Run3Step6BEntity/" + std::to_string(sequence++);
-          Ogre::Entity *entity = sceneManager_->createEntity(
-              entityName, meshIt->second, resourceGroup_);
-          const auto entityMaterial = values.find("materialFile");
-          if (entityMaterial != values.end()) {
-            for (unsigned subIndex = 0;
-                 subIndex < entity->getNumSubEntities(); ++subIndex) {
-              assignCompatibleMaterial(entity->getSubEntity(subIndex),
-                                       entityMaterial->second);
-            }
-          }
-          nodes.back()->attachObject(entity);
-          if (tag == "pblock" || tag == "blockbox") {
-            entity->setVisible(false);
-          }
-          entities_.push_back(entity);
-          activeEntity = entity;
-          activeEntityTag = tag;
-          if (selfClosing) {
-            activeEntity = nullptr;
-            activeEntityTag.clear();
-          }
-          debugNodes_.push_back(nodes.back());
-          ++stats_.visualSections;
-          if (tag != "nocollide") {
-            nodes.back()->_update(true, true);
-            const Ogre::Vector3 derivedScale = nodes.back()->_getDerivedScale();
-            const Ogre::MeshPtr mesh = entity->getMesh();
-            const bool dynamic = tag == "phys" || tag == "breakable";
-            if (dynamic) {
-              const Ogre::AxisAlignedBox bounds = entity->getBoundingBox();
-              Ogre::Vector3 half = bounds.getHalfSize();
-              half.x = std::abs(half.x * derivedScale.x);
-              half.y = std::abs(half.y * derivedScale.y);
-              half.z = std::abs(half.z * derivedScale.z);
-              constexpr Ogre::Real minimumHalfExtent = 0.01F;
-              half.makeCeil(Ogre::Vector3(minimumHalfExtent));
-              const Ogre::Quaternion orientation =
-                  nodes.back()->_getDerivedOrientation();
-              const Ogre::Vector3 localCenter = bounds.getCenter() * derivedScale;
-              physics::BodyDesc body(physics::Shape::box(fromOgre(half)));
-              body.motion = physics::BodyMotion::Dynamic;
-              body.massKg = number(values, "mass", tag == "breakable" ? 40.0 : 10.0);
-              if (body.massKg <= 0.0) {
-                body.massKg = 10.0;
-              }
-              body.group = physics::CollisionGroup::Dynamic;
-              body.mask = physics::collisionMask(physics::CollisionGroup::All);
-              body.transform.position = fromOgre(
-                  nodes.back()->_getDerivedPosition() + orientation * localCenter);
-              body.transform.rotation = fromOgre(orientation);
-              body.metadata.entityId = sequence;
-              body.metadata.type = tag == "breakable"
-                                       ? physics::BodyType::Breakable
-                                       : physics::BodyType::PhysicalObject;
-              BodyBinding binding;
-              binding.node = nodes.back();
-              binding.localCenter = localCenter;
-              binding.body = world_->createBody(body);
-              bodies_.push_back(std::move(binding));
-              ++stats_.collisionSections;
-            } else {
-              MeshGeometry geometry = extractMesh(mesh, derivedScale);
-              if (geometry.indices.empty()) {
-                ++stats_.skippedSections;
-                continue;
-              }
-              physics::BodyDesc body(physics::Shape::triangleMesh(
-                  std::move(geometry.vertices), std::move(geometry.indices)));
-              body.motion = physics::BodyMotion::Static;
-              body.group = physics::CollisionGroup::World;
-              body.mask =
-                  physics::collisionMask(physics::CollisionGroup::Player) |
-                  physics::collisionMask(physics::CollisionGroup::Dynamic) |
-                  physics::collisionMask(physics::CollisionGroup::Npc) |
-                  physics::collisionMask(physics::CollisionGroup::Projectile);
-              body.transform.position =
-                  fromOgre(nodes.back()->_getDerivedPosition());
-              body.transform.rotation =
-                  fromOgre(nodes.back()->_getDerivedOrientation());
-              body.metadata.entityId = sequence;
-              body.metadata.type = physics::BodyType::World;
-              const std::size_t triangleCount =
-                  entity->getMesh()->getNumSubMeshes();
-              static_cast<void>(triangleCount);
-              BodyBinding binding;
-              binding.body = world_->createBody(body);
-              bodies_.push_back(std::move(binding));
-              stats_.triangles += body.shape.indices().size() / 3;
-              ++stats_.collisionSections;
-            }
-          }
-
-          if (lower(nodeNames.back()).find("ladder") != std::string::npos) {
-            const Ogre::AxisAlignedBox bounds = entity->getWorldBoundingBox(true);
-            if (!bounds.isNull() && !bounds.isInfinite()) {
-              ladders_.push_back({fromOgre(bounds.getMinimum()),
-                                  fromOgre(bounds.getMaximum()),
-                                  nodeNames.back()});
-            }
-          }
-        } catch (const Ogre::Exception &error) {
-          ++stats_.skippedSections;
-          Ogre::LogManager::getSingleton().logMessage(
-              "Step 6C skipped '" + meshIt->second + "': " +
-              error.getDescription());
-        }
-      } else if ((tag == "subentity" || tag == "subnocollide") &&
-                 activeEntity != nullptr) {
-        const auto material = values.find("materialName");
-        const auto index = values.find("index");
-        if (material != values.end() && index != values.end()) {
-          try {
-            const auto subIndex =
-                static_cast<unsigned>(std::stoul(index->second));
-            if (subIndex < activeEntity->getNumSubEntities()) {
-              assignCompatibleMaterial(activeEntity->getSubEntity(subIndex),
-                                       material->second);
-            }
-          } catch (const std::exception &) {
-            Ogre::LogManager::getSingleton().logMessage(
-                "Step 6C ignored invalid subentity index: " + index->second);
-          }
-        }
-      }
-    }
+    sequence_ = 0;
+    processSceneElement(definition_->scene, rootNode_, "Run3Step6BMapRoot",
+                        sceneMultiplier, firstPlayer);
     Ogre::LogManager::getSingleton().logMessage(
         "Step 6C map " + map + ": visuals=" +
         std::to_string(stats_.visualSections) + " collision=" +
@@ -490,6 +266,228 @@ public:
         " unresolved-materials=" +
         std::to_string(unresolvedMaterials_.size()));
     return stats_;
+  }
+
+  std::optional<EntityHandle>
+  registryHandleFor(const content::AuthoredElement &element) const {
+    const std::string *name = element.attribute("name");
+    if (name == nullptr) {
+      return std::nullopt;
+    }
+    for (const EntityHandle handle : registry_.findAll(*name)) {
+      const EntityRecord &record = registry_.get(handle);
+      if (record.descriptor.authoredOrder == element.order &&
+          record.descriptor.source.file == element.source.file) {
+        return handle;
+      }
+    }
+    return std::nullopt;
+  }
+
+  void processSceneElement(const content::AuthoredElement &element,
+                           Ogre::SceneNode *parent,
+                           const std::string &parentName,
+                           const double sceneMultiplier, bool &firstPlayer) {
+    if (element.tag == "integratedSequence") {
+      return;
+    }
+    const auto values = attributes(element);
+    if (element.tag == "player" && firstPlayer) {
+      spawn_ = vector(values);
+      spawn_.x *= sceneMultiplier;
+      spawn_.y *= sceneMultiplier;
+      spawn_.z *= sceneMultiplier;
+      firstPlayer = false;
+      return;
+    }
+    if (element.tag == "node") {
+      const auto name = values.find("name");
+      const std::string nodeName =
+          name == values.end() ? "Run3MapNode" : name->second;
+      Ogre::SceneNode *node = parent->createChildSceneNode(
+          "Run3Step8B/" + std::to_string(sequence_++) + "/" + nodeName);
+      if (const content::AuthoredElement *position =
+              element.firstChild("position")) {
+        physics::Vec3 value = vector(attributes(*position));
+        value.x *= sceneMultiplier;
+        value.y *= sceneMultiplier;
+        value.z *= sceneMultiplier;
+        node->setPosition(toOgre(value));
+      }
+      if (const content::AuthoredElement *rotation =
+              element.firstChild("rotation")) {
+        node->setOrientation(toOgre(quaternion(attributes(*rotation))));
+      }
+      if (const content::AuthoredElement *scale = element.firstChild("scale")) {
+        const physics::Vec3 value =
+            vector(attributes(*scale), {1.0, 1.0, 1.0});
+        node->setScale(toOgre(physics::Vec3{value.x * sceneMultiplier,
+                                           value.y * sceneMultiplier,
+                                           value.z * sceneMultiplier}));
+      }
+      for (const content::AuthoredElement &child : element.children) {
+        if (child.tag != "position" && child.tag != "rotation" &&
+            child.tag != "scale") {
+          processSceneElement(child, node, nodeName, sceneMultiplier,
+                              firstPlayer);
+        }
+      }
+      return;
+    }
+
+    if (element.tag == "entity" || element.tag == "nocollide" ||
+        element.tag == "phys" || element.tag == "breakable" ||
+        element.tag == "pblock" || element.tag == "blockbox") {
+      processRenderable(element, parent, parentName);
+      return;
+    }
+    for (const content::AuthoredElement &child : element.children) {
+      processSceneElement(child, parent, parentName, sceneMultiplier,
+                          firstPlayer);
+    }
+  }
+
+  void processRenderable(const content::AuthoredElement &element,
+                         Ogre::SceneNode *node, const std::string &nodeName) {
+    const auto values = attributes(element);
+    const auto meshIt = values.find("meshFile");
+    if (meshIt == values.end() || meshIt->second.empty()) {
+      ++stats_.skippedSections;
+      return;
+    }
+    const std::string &tag = element.tag;
+    try {
+      const std::uint64_t objectKey = sequence_++;
+      Ogre::Entity *entity = sceneManager_->createEntity(
+          "Run3Step8BEntity/" + std::to_string(objectKey), meshIt->second,
+          resourceGroup_);
+      const auto entityMaterial = values.find("materialFile");
+      if (entityMaterial != values.end()) {
+        for (unsigned subIndex = 0; subIndex < entity->getNumSubEntities();
+             ++subIndex) {
+          assignCompatibleMaterial(entity->getSubEntity(subIndex),
+                                   entityMaterial->second);
+        }
+      }
+      for (const content::AuthoredElement &child : element.children) {
+        if (child.tag != "subentity" && child.tag != "subnocollide") {
+          continue;
+        }
+        const auto childValues = attributes(child);
+        const auto material = childValues.find("materialName");
+        const auto index = childValues.find("index");
+        if (material == childValues.end() || index == childValues.end()) {
+          continue;
+        }
+        try {
+          const auto subIndex = static_cast<unsigned>(std::stoul(index->second));
+          if (subIndex < entity->getNumSubEntities()) {
+            assignCompatibleMaterial(entity->getSubEntity(subIndex),
+                                     material->second);
+          }
+        } catch (const std::exception &) {
+          Ogre::LogManager::getSingleton().logMessage(
+              "Step 8B ignored invalid subentity index at " +
+              child.source.file.generic_string() + ":" +
+              std::to_string(child.source.line));
+        }
+      }
+      node->attachObject(entity);
+      if (tag == "pblock" || tag == "blockbox") {
+        entity->setVisible(false);
+      }
+      entities_.push_back(entity);
+      debugNodes_.push_back(node);
+      ++stats_.visualSections;
+      if (const auto handle = registryHandleFor(element)) {
+        registry_.bindPresentation(*handle, objectKey);
+      }
+
+      if (tag != "nocollide") {
+        node->_update(true, true);
+        const Ogre::Vector3 derivedScale = node->_getDerivedScale();
+        const Ogre::MeshPtr mesh = entity->getMesh();
+        const bool dynamic = tag == "phys" || tag == "breakable";
+        if (dynamic) {
+          const Ogre::AxisAlignedBox bounds = entity->getBoundingBox();
+          Ogre::Vector3 half = bounds.getHalfSize();
+          half.x = std::abs(half.x * derivedScale.x);
+          half.y = std::abs(half.y * derivedScale.y);
+          half.z = std::abs(half.z * derivedScale.z);
+          constexpr Ogre::Real minimumHalfExtent = 0.01F;
+          half.makeCeil(Ogre::Vector3(minimumHalfExtent));
+          const Ogre::Quaternion orientation = node->_getDerivedOrientation();
+          const Ogre::Vector3 localCenter = bounds.getCenter() * derivedScale;
+          physics::BodyDesc body(physics::Shape::box(fromOgre(half)));
+          body.motion = physics::BodyMotion::Dynamic;
+          body.massKg =
+              number(values, "mass", tag == "breakable" ? 40.0 : 10.0);
+          if (body.massKg <= 0.0) {
+            body.massKg = 10.0;
+          }
+          body.group = physics::CollisionGroup::Dynamic;
+          body.mask = physics::collisionMask(physics::CollisionGroup::All);
+          body.transform.position = fromOgre(node->_getDerivedPosition() +
+                                             orientation * localCenter);
+          body.transform.rotation = fromOgre(orientation);
+          body.metadata.entityId = objectKey;
+          body.metadata.type = tag == "breakable"
+                                   ? physics::BodyType::Breakable
+                                   : physics::BodyType::PhysicalObject;
+          BodyBinding binding;
+          binding.node = node;
+          binding.localCenter = localCenter;
+          binding.body = world_->createBody(body);
+          if (const auto handle = registryHandleFor(element)) {
+            registry_.bindPhysics(*handle, binding.body.id());
+          }
+          bodies_.push_back(std::move(binding));
+          ++stats_.collisionSections;
+        } else {
+          MeshGeometry geometry = extractMesh(mesh, derivedScale);
+          if (geometry.indices.empty()) {
+            ++stats_.skippedSections;
+            return;
+          }
+          physics::BodyDesc body(physics::Shape::triangleMesh(
+              std::move(geometry.vertices), std::move(geometry.indices)));
+          body.motion = physics::BodyMotion::Static;
+          body.group = physics::CollisionGroup::World;
+          body.mask = physics::collisionMask(physics::CollisionGroup::Player) |
+                      physics::collisionMask(physics::CollisionGroup::Dynamic) |
+                      physics::collisionMask(physics::CollisionGroup::Npc) |
+                      physics::collisionMask(
+                          physics::CollisionGroup::Projectile);
+          body.transform.position = fromOgre(node->_getDerivedPosition());
+          body.transform.rotation = fromOgre(node->_getDerivedOrientation());
+          body.metadata.entityId = objectKey;
+          body.metadata.type = physics::BodyType::World;
+          BodyBinding binding;
+          binding.body = world_->createBody(body);
+          if (const auto handle = registryHandleFor(element)) {
+            registry_.bindPhysics(*handle, binding.body.id());
+          }
+          bodies_.push_back(std::move(binding));
+          stats_.triangles += body.shape.indices().size() / 3;
+          ++stats_.collisionSections;
+        }
+      }
+
+      if (lower(nodeName).find("ladder") != std::string::npos) {
+        const Ogre::AxisAlignedBox bounds = entity->getWorldBoundingBox(true);
+        if (!bounds.isNull() && !bounds.isInfinite()) {
+          ladders_.push_back({fromOgre(bounds.getMinimum()),
+                              fromOgre(bounds.getMaximum()), nodeName});
+        }
+      }
+    } catch (const Ogre::Exception &error) {
+      ++stats_.skippedSections;
+      Ogre::LogManager::getSingleton().logMessage(
+          "Step 8B skipped '" + meshIt->second + "' at " +
+          element.source.file.generic_string() + ":" +
+          std::to_string(element.source.line) + ": " +
+          error.getDescription());
+    }
   }
 
   Ogre::MaterialPtr compatibleMaterial(const std::string &legacyName) {
@@ -597,6 +595,8 @@ public:
 
   void unload() noexcept {
     bodies_.clear();
+    registry_.clear();
+    definition_.reset();
     ladders_.clear();
     debugNodes_.clear();
     if (sceneManager_ != nullptr) {
@@ -662,6 +662,9 @@ public:
   LegacyMaterialCatalog materialCatalog_;
   std::unordered_map<std::string, Ogre::MaterialPtr> compatibleMaterials_;
   std::set<std::string> unresolvedMaterials_;
+  std::optional<content::MapDefinition> definition_;
+  EntityRegistry registry_;
+  std::uint64_t sequence_{};
   physics::Vec3 spawn_{};
   StaticMapStats stats_;
   const Ogre::String resourceGroup_{"Run3Step6BContent"};

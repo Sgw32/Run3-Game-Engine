@@ -1,0 +1,16 @@
+<sequence>
+  <adents>
+    <door name="main_door" mesh="door.mesh" distance="100" speed="10" useInteract="true"/>
+    <trigger name="door_trigger" sw="true" multiple="false">
+      <position x="0" y="0" z="0"/>
+      <scale x="10" y="10" z="10"/>
+    </trigger>
+    <button buttonName="door_button" meshName="button.mesh" luaScript="run3/lua/button.lua"/>
+    <npc name="guard" className="npc_neutral" meshFile="guard.mesh"/>
+  </adents>
+  <events>
+    <trigger name="door_trigger" sec="0">
+      <door name="main_door" event="open"/>
+    </trigger>
+  </events>
+</sequence>

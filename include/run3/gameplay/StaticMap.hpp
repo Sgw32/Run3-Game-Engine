@@ -1,11 +1,15 @@
 #pragma once
 
 #include <run3/app/AppPaths.hpp>
+#include <run3/content/MapDefinition.hpp>
+#include <run3/gameplay/EntityRegistry.hpp>
 #include <run3/physics/Physics.hpp>
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Ogre {
@@ -36,6 +40,11 @@ struct StaticMapStats {
   std::size_t skippedSections{};
 };
 
+struct NamedObjectBounds {
+  physics::Vec3 centre;
+  physics::Vec3 halfExtents;
+};
+
 class StaticMap final {
 public:
   StaticMap(Ogre::SceneManager &sceneManager, physics::PhysicsWorld &world);
@@ -53,6 +62,13 @@ public:
   [[nodiscard]] physics::Vec3 spawnPosition() const noexcept;
   [[nodiscard]] const std::vector<AxisAlignedVolume> &ladderVolumes() const;
   [[nodiscard]] const StaticMapStats &stats() const noexcept;
+  [[nodiscard]] const content::MapDefinition &definition() const;
+  [[nodiscard]] EntityRegistry &registry();
+  [[nodiscard]] const EntityRegistry &registry() const;
+  [[nodiscard]] bool setNamedObjectVisible(std::string_view name,
+                                           std::optional<bool> visible);
+  [[nodiscard]] std::optional<NamedObjectBounds>
+  namedObjectBounds(std::string_view name) const;
 
 private:
   class Impl;

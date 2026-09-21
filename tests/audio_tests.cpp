@@ -205,6 +205,7 @@ TEST_CASE("legacy map audio fixture starts static ambience music and footsteps")
       loadLegacyMapAudio(root, "audio_test", "low");
   REQUIRE(loaded.definition.ambientSounds.size() == 2);
   CHECK(loaded.scriptControlledSounds == 1);
+  REQUIRE(loaded.definition.namedAmbientSounds.size() == 1);
   CHECK(loaded.definition.ambientSounds[0].position.x == -10.0F);
   CHECK(loaded.definition.ambientSounds[1].position.x == 10.0F);
   CHECK(loaded.definition.musicFile.filename() == "background.wav");
@@ -222,6 +223,10 @@ TEST_CASE("legacy map audio fixture starts static ambience music and footsteps")
   CHECK(started.ambientStarted == 2);
   CHECK(started.ambientFailed == 0);
   CHECK(started.musicStarted);
+  CHECK(engine->stats().activeVoices == 3);
+  CHECK(runtime.setNamedAmbientEnabled("script_alarm", true));
+  CHECK(engine->stats().activeVoices == 4);
+  CHECK(runtime.setNamedAmbientEnabled("script_alarm", false));
   CHECK(engine->stats().activeVoices == 3);
 
   const FootstepState walking{{0.0F, 0.0F, 0.0F},

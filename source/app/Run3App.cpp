@@ -6,6 +6,8 @@
 #include <run3/content/AssetValidation.hpp>
 #include <run3/content/OgreAssetValidation.hpp>
 #include <run3/gameplay/PlayerController.hpp>
+#include <run3/gameplay/OgreSequenceServices.hpp>
+#include <run3/gameplay/SequenceRuntime.hpp>
 #include <run3/gameplay/StaticMap.hpp>
 #include <run3/physics/Physics.hpp>
 
@@ -30,6 +32,7 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <exception>
 #include <iostream>
 #include <optional>
 #include <stdexcept>
@@ -212,10 +215,11 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
 
 void printRun3AppUsage() {
   std::cout
-      << "Usage: run3_shell [--renderer d3d11|gl3plus] [--frames N]"
+      << "Usage: run3_shell [--renderer d3d11|gl3plus]"
+         " [--frames N]"
          " [--user-dir PATH] [--content-root PATH]\n"
       << "       [--validate-content] [--manifest PATH] [--report PATH]\n"
-      << "       [--map tlwcao|tlwhome02] [--map-quality low|medium|high]\n"
+      << "       [--map NAME] [--map-quality low|medium|high]\n"
       << "       [--resource-profile FILE] [--player-height-cm N]\n"
       << "       [--fullscreen|--windowed] [--noclip] [--physics-debug]\n"
       << "       [--audio-backend auto|miniaudio|null]\n"
@@ -228,6 +232,7 @@ Run3App::Run3App(Run3AppOptions options)
     : OgreBites::ApplicationContext("Run3 renderer shell"),
       options_(std::move(options)), inputAdapter_(input_),
       clock_(ClockMode::Fixed) {}
+Run3App::~Run3App() = default;
 
 int Run3App::run() {
   options_.paths.createWritableDirectories();
@@ -270,10 +275,16 @@ int Run3App::run() {
             onLadder = onLadder || volume.contains(player_->state().position);
           }
         }
+        if (sequenceRuntime_) {
+          onLadder = onLadder || sequenceRuntime_->playerOnLadder();
+        }
         player_->setOnLadder(onLadder);
         player_->setCommand(command);
         player_->setYawRadians(yawRadians_);
         for (std::size_t step = 0; step < frame.simulationSteps; ++step) {
+          if (sequenceRuntime_) {
+            sequenceRuntime_->fixedUpdate();
+          }
           static_cast<void>(player_->simulateFixedStep());
           ++simulatedSteps_;
         }
@@ -326,6 +337,10 @@ int Run3App::run() {
           mapAudio_->update(static_cast<float>(frame.elapsed.count()),
                             footstep ? &*footstep : nullptr);
         }
+        if (sequenceServices_) {
+          sequenceServices_->updateAudio(
+              static_cast<float>(frame.elapsed.count()));
+        }
         audioEngine_->update(static_cast<float>(frame.elapsed.count()));
       }
       if (!getRoot()->renderOneFrame(
@@ -341,6 +356,11 @@ int Run3App::run() {
     if (gameplayMouseCapture_) {
       setGameplayMouseCapture(false);
     }
+    if (sequenceRuntime_) {
+      sequenceRuntime_->unload(false);
+    }
+    sequenceRuntime_.reset();
+    sequenceServices_.reset();
     mapAudio_.reset();
     player_.reset();
     staticMap_.reset();
@@ -360,12 +380,25 @@ int Run3App::run() {
   if (gameplayMouseCapture_) {
     setGameplayMouseCapture(false);
   }
+  std::exception_ptr exitFailure;
+  if (sequenceRuntime_) {
+    try {
+      sequenceRuntime_->unload(true);
+    } catch (...) {
+      exitFailure = std::current_exception();
+    }
+  }
+  sequenceRuntime_.reset();
+  sequenceServices_.reset();
   mapAudio_.reset();
   player_.reset();
   staticMap_.reset();
   physicsWorld_.reset();
   audioEngine_.reset();
   closeApp();
+  if (exitFailure) {
+    std::rethrow_exception(exitFailure);
+  }
   return validationFailed_ ? 2 : 0;
 }
 
@@ -537,6 +570,18 @@ void Run3App::setup() {
       Ogre::LogManager::getSingleton().logMessage(
           "Map audio disabled: " + std::string(error.what()));
     }
+
+    sequenceServices_ = std::make_unique<gameplay::OgreSequenceServices>(
+        options_.paths, *sceneManager_, *physicsWorld_, *staticMap_,
+        *player_, *audioEngine_,
+        [this](std::string) { requestQuit(); });
+    if (mapAudio_) {
+      sequenceServices_->attachMapAudio(*mapAudio_);
+    }
+    sequenceRuntime_ = std::make_unique<gameplay::SequenceRuntime>(
+        staticMap_->definition(), staticMap_->registry(), *sequenceServices_);
+    sequenceServices_->attach(*sequenceRuntime_);
+    sequenceRuntime_->start();
   }
 
   gameplayMouseCapture_ = player_ != nullptr && options_.frameLimit == 0;
@@ -635,9 +680,16 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
     } else if (player_ && event.type == InputEventType::KeyPressed &&
                !event.repeated && event.key == Key::E) {
       const auto hit = player_->useRaycast(pitchRadians_);
+      bool handled = false;
+      if (hit && sequenceServices_ && sequenceRuntime_) {
+        const auto handle = sequenceServices_->handleForPhysicsEntity(
+            hit->metadata.entityId);
+        handled = handle && sequenceRuntime_->interact(*handle);
+      }
       Ogre::LogManager::getSingleton().logMessage(
-          hit ? "Use ray hit body " + std::to_string(hit->body)
-              : "Use ray missed");
+          handled ? "Use activated sequence entity"
+          : hit ? "Use ray hit body " + std::to_string(hit->body)
+                : "Use ray missed");
     } else if (player_ && event.type == InputEventType::MousePressed &&
                event.mouseButton == MouseButton::Left) {
       const auto hit = player_->weaponRaycast(pitchRadians_);

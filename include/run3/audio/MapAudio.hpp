@@ -12,6 +12,7 @@
 namespace run3::audio {
 
 struct AmbientSoundDefinition {
+  std::string logicalName;
   std::filesystem::path file;
   Vec3 position{};
   float minDistance{1.0F};
@@ -22,6 +23,7 @@ struct AmbientSoundDefinition {
 
 struct MapAudioDefinition {
   std::vector<AmbientSoundDefinition> ambientSounds;
+  std::vector<AmbientSoundDefinition> namedAmbientSounds;
   std::filesystem::path musicFile;
   bool musicLoop{};
   float musicGain{1.0F};
@@ -64,6 +66,11 @@ public:
   MapAudioRuntime &operator=(const MapAudioRuntime &) = delete;
 
   [[nodiscard]] MapAudioStartResult start(MapAudioDefinition definition);
+  [[nodiscard]] bool setNamedAmbientEnabled(std::string_view name, bool enabled);
+  [[nodiscard]] bool playMusic(const std::filesystem::path &file, bool loop);
+  void stopMusic(float fadeSeconds = 0.0F);
+  void setMusicVolume(float gain);
+  [[nodiscard]] const std::filesystem::path &musicFile() const noexcept;
   void update(float seconds, const FootstepState *player = nullptr);
   void clear() noexcept;
 
@@ -83,6 +90,7 @@ private:
   SoundRuntime oneShots_;
   MapAudioDefinition definition_;
   std::vector<SoundHandle> ambient_;
+  std::vector<SoundHandle> namedAmbient_;
   float footstepTimer_{};
   std::size_t nextFootstep_{};
   std::size_t footstepCount_{};

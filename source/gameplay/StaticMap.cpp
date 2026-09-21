@@ -135,6 +135,83 @@ struct MeshGeometry {
   std::vector<std::uint32_t> indices;
 };
 
+bool vertexDataHasNormals(const Ogre::VertexData *vertexData) {
+  return vertexData != nullptr &&
+         vertexData->vertexDeclaration->findElementBySemantic(
+             Ogre::VES_NORMAL) != nullptr;
+}
+
+const Ogre::VertexData *subEntityVertexData(const Ogre::SubEntity *subEntity) {
+  const Ogre::SubMesh *subMesh = subEntity->getSubMesh();
+  const Ogre::MeshPtr mesh = subEntity->getParent()->getMesh();
+  return subMesh->useSharedVertices ? mesh->sharedVertexData
+                                    : subMesh->vertexData;
+}
+
+bool subEntityHasNormals(const Ogre::SubEntity *subEntity) {
+  return vertexDataHasNormals(subEntityVertexData(subEntity));
+}
+
+bool subEntityHasTextureCoordinates(const Ogre::SubEntity *subEntity) {
+  const Ogre::VertexData *vertices = subEntityVertexData(subEntity);
+  return vertices != nullptr &&
+         vertices->vertexDeclaration->findElementBySemantic(
+             Ogre::VES_TEXTURE_COORDINATES) != nullptr;
+}
+
+std::optional<std::string> unsafeMeshReason(const Ogre::Mesh *mesh) {
+  if (mesh == nullptr || mesh->getNumSubMeshes() == 0) {
+    return "mesh has no submeshes";
+  }
+  for (unsigned subIndex = 0; subIndex < mesh->getNumSubMeshes(); ++subIndex) {
+    const Ogre::SubMesh *subMesh = mesh->getSubMesh(subIndex);
+    const Ogre::VertexData *vertices =
+        subMesh->useSharedVertices ? mesh->sharedVertexData
+                                   : subMesh->vertexData;
+    if (vertices == nullptr || vertices->vertexCount == 0 ||
+        vertices->vertexDeclaration->findElementBySemantic(
+            Ogre::VES_POSITION) == nullptr) {
+      return "submesh " + std::to_string(subIndex) +
+             " has no readable position vertices";
+    }
+    if (subMesh->indexData == nullptr ||
+        !subMesh->indexData->indexBuffer ||
+        subMesh->indexData->indexCount == 0) {
+      return "submesh " + std::to_string(subIndex) +
+             " has no readable indices";
+    }
+    const Ogre::HardwareIndexBufferSharedPtr buffer =
+        subMesh->indexData->indexBuffer;
+    if (subMesh->indexData->indexStart > buffer->getNumIndexes() ||
+        subMesh->indexData->indexCount >
+            buffer->getNumIndexes() - subMesh->indexData->indexStart) {
+      return "submesh " + std::to_string(subIndex) +
+             " index range exceeds its buffer";
+    }
+    const bool use32 = buffer->getType() == Ogre::HardwareIndexBuffer::IT_32BIT;
+    const void *raw = buffer->lock(Ogre::HardwareBuffer::HBL_READ_ONLY);
+    bool outOfRange = false;
+    for (std::size_t index = 0; index < subMesh->indexData->indexCount;
+         ++index) {
+      const std::size_t offset = subMesh->indexData->indexStart + index;
+      const std::uint32_t value =
+          use32 ? static_cast<const std::uint32_t *>(raw)[offset]
+                : static_cast<std::uint32_t>(
+                      static_cast<const std::uint16_t *>(raw)[offset]);
+      if (value >= vertices->vertexCount) {
+        outOfRange = true;
+        break;
+      }
+    }
+    buffer->unlock();
+    if (outOfRange) {
+      return "submesh " + std::to_string(subIndex) +
+             " has an out-of-range index";
+    }
+  }
+  return std::nullopt;
+}
+
 MeshGeometry extractMesh(const Ogre::MeshPtr &mesh, const Ogre::Vector3 &scale) {
   MeshGeometry result;
   for (unsigned subIndex = 0; subIndex < mesh->getNumSubMeshes(); ++subIndex) {
@@ -235,8 +312,11 @@ public:
     class CompatibilityListener final : public Ogre::MeshSerializerListener {
     public:
       explicit CompatibilityListener(Impl &owner) : owner_(&owner) {}
-      void processMaterialName(Ogre::Mesh *, Ogre::String *name) override {
-        if (const Ogre::MaterialPtr material = owner_->compatibleMaterial(*name)) {
+      void processMaterialName(Ogre::Mesh *mesh,
+                               Ogre::String *name) override {
+        static_cast<void>(mesh);
+        if (const Ogre::MaterialPtr material =
+                owner_->compatibleMaterial(*name, false, false, false)) {
           *name = material->getName();
         }
       }
@@ -377,6 +457,24 @@ public:
       Ogre::Entity *entity = sceneManager_->createEntity(
           "Run3Step8BEntity/" + std::to_string(objectKey), meshIt->second,
           resourceGroup_);
+      if (const auto unsafe = unsafeMeshReason(entity->getMesh().get())) {
+        sceneManager_->destroyEntity(entity);
+        ++stats_.skippedSections;
+        Ogre::LogManager::getSingleton().logMessage(
+            "Step 8C skipped unsafe D3D mesh '" + meshIt->second + "': " +
+            *unsafe);
+        return;
+      }
+      for (unsigned subIndex = 0; subIndex < entity->getNumSubEntities();
+           ++subIndex) {
+        Ogre::SubEntity *subEntity = entity->getSubEntity(subIndex);
+        const auto legacy = generatedMaterialSources_.find(
+            subEntity->getMaterialName());
+        if (legacy != generatedMaterialSources_.end()) {
+          const std::string legacyName = legacy->second;
+          assignCompatibleMaterial(subEntity, legacyName);
+        }
+      }
       const auto entityMaterial = values.find("materialFile");
       if (entityMaterial != values.end()) {
         for (unsigned subIndex = 0; subIndex < entity->getNumSubEntities();
@@ -413,6 +511,10 @@ public:
         entity->setVisible(false);
       }
       entities_.push_back(entity);
+      if (const auto authoredName = values.find("name");
+          authoredName != values.end() && !authoredName->second.empty()) {
+        namedEntities_.emplace(authoredName->second, entity);
+      }
       debugNodes_.push_back(node);
       ++stats_.visualSections;
       if (const auto handle = registryHandleFor(element)) {
@@ -506,11 +608,16 @@ public:
     }
   }
 
-  Ogre::MaterialPtr compatibleMaterial(const std::string &legacyName) {
+  Ogre::MaterialPtr compatibleMaterial(const std::string &legacyName,
+                                       const bool lighting = true,
+                                       const bool textured = true,
+                                       const bool logFallback = true) {
     if (legacyName.empty() || legacyName == "BaseWhite") {
       return {};
     }
-    if (const auto cached = compatibleMaterials_.find(legacyName);
+    const std::string cacheKey = legacyName + (lighting ? "#lit" : "#unlit") +
+                                 (textured ? "#textured" : "#solid");
+    if (const auto cached = compatibleMaterials_.find(cacheKey);
         cached != compatibleMaterials_.end()) {
       return cached->second;
     }
@@ -530,13 +637,15 @@ public:
     Ogre::MaterialPtr generated = Ogre::MaterialManager::getSingleton().create(
         generatedName, resourceGroup_);
     Ogre::Pass *pass = generated->getTechnique(0)->getPass(0);
-    pass->setLightingEnabled(true);
+    pass->setLightingEnabled(lighting);
     pass->setAmbient(1.0F, 1.0F, 1.0F);
     pass->setDiffuse(1.0F, 1.0F, 1.0F, 1.0F);
-    Ogre::TextureUnitState *texture =
-        pass->createTextureUnitState(legacy->texture);
-    texture->setTextureFiltering(Ogre::TFO_ANISOTROPIC);
-    texture->setTextureAnisotropy(8);
+    if (textured) {
+      Ogre::TextureUnitState *texture =
+          pass->createTextureUnitState(legacy->texture);
+      texture->setTextureFiltering(Ogre::TFO_ANISOTROPIC);
+      texture->setTextureAnisotropy(8);
+    }
     if (legacy->transparent) {
       pass->setSceneBlending(Ogre::SBT_TRANSPARENT_ALPHA);
       pass->setDepthWriteEnabled(false);
@@ -550,13 +659,26 @@ public:
           *generated, Ogre::MaterialManager::DEFAULT_SCHEME_NAME,
           Ogre::RTShader::ShaderGenerator::DEFAULT_SCHEME_NAME));
     }
-    compatibleMaterials_[legacyName] = generated;
+    if (logFallback && !lighting) {
+      Ogre::LogManager::getSingleton().logMessage(
+          "Step 8C unlit fallback: material '" + legacyName +
+          "' is used by a mesh without vertex normals");
+    }
+    if (logFallback && !textured) {
+      Ogre::LogManager::getSingleton().logMessage(
+          "Step 8C solid fallback: material '" + legacyName +
+          "' is used by a mesh without texture coordinates");
+    }
+    generatedMaterialSources_[generatedName] = legacyName;
+    compatibleMaterials_[cacheKey] = generated;
     return generated;
   }
 
   void assignCompatibleMaterial(Ogre::SubEntity *subEntity,
                                 const std::string &legacyName) {
-    const Ogre::MaterialPtr generated = compatibleMaterial(legacyName);
+    const Ogre::MaterialPtr generated =
+        compatibleMaterial(legacyName, subEntityHasNormals(subEntity),
+                           subEntityHasTextureCoordinates(subEntity));
     if (generated) {
       subEntity->setMaterial(generated);
     } else {
@@ -624,6 +746,7 @@ public:
         }
       }
       entities_.clear();
+      namedEntities_.clear();
       if (rootNode_ != nullptr) {
         try {
           rootNode_->removeAndDestroyAllChildren();
@@ -635,6 +758,7 @@ public:
     }
     stats_ = {};
     compatibleMaterials_.clear();
+    generatedMaterialSources_.clear();
     unresolvedMaterials_.clear();
   }
 
@@ -674,11 +798,13 @@ public:
   physics::PhysicsWorld *world_{};
   Ogre::SceneNode *rootNode_{};
   std::vector<Ogre::Entity *> entities_;
+  std::unordered_map<std::string, Ogre::Entity *> namedEntities_;
   std::vector<Ogre::SceneNode *> debugNodes_;
   std::vector<BodyBinding> bodies_;
   std::vector<AxisAlignedVolume> ladders_;
   LegacyMaterialCatalog materialCatalog_;
   std::unordered_map<std::string, Ogre::MaterialPtr> compatibleMaterials_;
+  std::unordered_map<std::string, std::string> generatedMaterialSources_;
   std::set<std::string> unresolvedMaterials_;
   std::optional<content::MapDefinition> definition_;
   std::unordered_set<const content::AuthoredElement *> activeRenderables_;
@@ -715,6 +841,35 @@ const std::vector<AxisAlignedVolume> &StaticMap::ladderVolumes() const {
 }
 const StaticMapStats &StaticMap::stats() const noexcept {
   return implementation_->stats_;
+}
+const content::MapDefinition &StaticMap::definition() const {
+  if (!implementation_->definition_) {
+    throw std::logic_error("StaticMap has no loaded definition");
+  }
+  return *implementation_->definition_;
+}
+EntityRegistry &StaticMap::registry() { return implementation_->registry_; }
+const EntityRegistry &StaticMap::registry() const {
+  return implementation_->registry_;
+}
+bool StaticMap::setNamedObjectVisible(std::string_view name,
+                                      std::optional<bool> visible) {
+  const auto found = implementation_->namedEntities_.find(std::string(name));
+  if (found == implementation_->namedEntities_.end()) return false;
+  found->second->setVisible(visible.value_or(!found->second->getVisible()));
+  return true;
+}
+
+std::optional<NamedObjectBounds>
+StaticMap::namedObjectBounds(std::string_view name) const {
+  const auto found = implementation_->namedEntities_.find(std::string(name));
+  if (found == implementation_->namedEntities_.end()) return std::nullopt;
+  const Ogre::AxisAlignedBox box = found->second->getWorldBoundingBox(true);
+  if (box.isNull() || box.isInfinite()) return std::nullopt;
+  const Ogre::Vector3 center = box.getCenter();
+  const Ogre::Vector3 half = box.getHalfSize();
+  return NamedObjectBounds{{center.x, center.y, center.z},
+                           {half.x, half.y, half.z}};
 }
 
 } // namespace run3::gameplay

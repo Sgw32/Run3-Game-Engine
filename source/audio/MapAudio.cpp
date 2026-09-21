@@ -183,12 +183,11 @@ MapAudioLoadResult loadLegacyMapAudio(const fs::path &contentRoot,
       continue;
     }
     const auto scriptName = values.find("objname");
-    if (scriptName != values.end() && !scriptName->second.empty()) {
-      ++result.scriptControlledSounds;
-      continue;
-    }
-
     AmbientSoundDefinition sound;
+    if (scriptName != values.end() && !scriptName->second.empty()) {
+      sound.logicalName = scriptName->second;
+      ++result.scriptControlledSounds;
+    }
     sound.file = contentRoot / "run3" / "sounds" / file->second;
     sound.position = {number(values, "x", 0.0F) * multiplier,
                       number(values, "y", 0.0F) * multiplier,
@@ -199,7 +198,11 @@ MapAudioLoadResult loadLegacyMapAudio(const fs::path &contentRoot,
     sound.gain = std::max(0.0F, number(values, "maxGain", 1.0F));
     sound.loop = boolean(values, "loop", true);
     warnIfMissing(result, sound.file);
-    result.definition.ambientSounds.push_back(std::move(sound));
+    if (sound.logicalName.empty()) {
+      result.definition.ambientSounds.push_back(std::move(sound));
+    } else {
+      result.definition.namedAmbientSounds.push_back(std::move(sound));
+    }
   }
 
   readStartupMusic(result, contentRoot, map, quality);
@@ -228,6 +231,7 @@ MapAudioStartResult MapAudioRuntime::start(MapAudioDefinition definition) {
   definition_ = std::move(definition);
   MapAudioStartResult result;
   ambient_.reserve(definition_.ambientSounds.size());
+  namedAmbient_.resize(definition_.namedAmbientSounds.size());
   for (const AmbientSoundDefinition &sound : definition_.ambientSounds) {
     PlayOptions options;
     options.file = sound.file;
@@ -254,6 +258,63 @@ MapAudioStartResult MapAudioRuntime::start(MapAudioDefinition definition) {
   return result;
 }
 
+bool MapAudioRuntime::setNamedAmbientEnabled(std::string_view name,
+                                             bool enabled) {
+  for (std::size_t index = 0; index < definition_.namedAmbientSounds.size(); ++index) {
+    const AmbientSoundDefinition &sound = definition_.namedAmbientSounds[index];
+    if (sound.logicalName != name) continue;
+    if (!enabled) {
+      namedAmbient_[index].reset();
+      return true;
+    }
+    if (!namedAmbient_[index].valid()) {
+      PlayOptions options;
+      options.file = sound.file;
+      options.bus = Bus::effects;
+      options.loop = sound.loop;
+      options.spatial = true;
+      options.gain = sound.gain;
+      options.position = sound.position;
+      options.minDistance = sound.minDistance;
+      options.maxDistance = sound.maxDistance;
+      namedAmbient_[index] = engine_.play(options);
+      if (!namedAmbient_[index].valid()) {
+        throw std::runtime_error("cannot enable ambient '" +
+                                 sound.logicalName + "': " + engine_.lastError());
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+bool MapAudioRuntime::playMusic(const fs::path &file, bool loop) {
+  if (file == definition_.musicFile && music_.active() &&
+      loop == definition_.musicLoop) {
+    return true;
+  }
+  const bool started = music_.play(file, loop, 0.25F);
+  if (started) {
+    definition_.musicFile = file;
+    definition_.musicLoop = loop;
+  }
+  return started;
+}
+
+void MapAudioRuntime::stopMusic(float fadeSeconds) {
+  music_.stop(fadeSeconds);
+  definition_.musicFile.clear();
+}
+
+void MapAudioRuntime::setMusicVolume(float gain) {
+  music_.setVolume(gain);
+  definition_.musicGain = gain;
+}
+
+const fs::path &MapAudioRuntime::musicFile() const noexcept {
+  return definition_.musicFile;
+}
+
 void MapAudioRuntime::update(const float seconds, const FootstepState *player) {
   music_.update(seconds);
   oneShots_.update(seconds);
@@ -268,6 +329,7 @@ void MapAudioRuntime::clear() noexcept {
   oneShots_.clear();
   music_.clear();
   ambient_.clear();
+  namedAmbient_.clear();
   definition_ = {};
   footstepTimer_ = 0.0F;
   nextFootstep_ = 0;

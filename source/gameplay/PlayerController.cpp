@@ -11,7 +11,11 @@ physics::CollisionMask playerWorldMask() {
   return physics::collisionMask(physics::CollisionGroup::World) |
          physics::collisionMask(physics::CollisionGroup::Dynamic) |
          physics::collisionMask(physics::CollisionGroup::Npc) |
-         physics::collisionMask(physics::CollisionGroup::Trigger);
+         physics::collisionMask(physics::CollisionGroup::Trigger) |
+         physics::collisionMask(physics::CollisionGroup::Button) |
+         physics::collisionMask(physics::CollisionGroup::Door) |
+         physics::collisionMask(physics::CollisionGroup::Train) |
+         physics::collisionMask(physics::CollisionGroup::Pickup);
 }
 
 double length2(double x, double z) { return std::sqrt(x * x + z * z); }
@@ -275,6 +279,12 @@ PlayerState PlayerController::state() const {
           crouched_, noclip_, onLadder_};
 }
 
+physics::Vec3 PlayerController::collisionHalfExtents() const noexcept {
+  return {config_.radius,
+          (crouched_ ? config_.crouchingHeight : config_.standingHeight) * 0.5,
+          config_.radius};
+}
+
 physics::Vec3 PlayerController::eyePosition() const {
   physics::Vec3 result = state().position;
   result.y += crouched_ ? config_.crouchingEyeOffset : config_.eyeOffset;
@@ -293,7 +303,10 @@ PlayerController::castForward(double distance, double pitch) const {
   query.from = eyePosition();
   query.to = add(query.from, multiply(viewDirection(pitch), distance));
   query.group = physics::CollisionGroup::Player;
-  query.mask = playerWorldMask();
+  // Invisible trigger volumes participate in player overlap but must not
+  // occlude use/weapon rays aimed at authored buttons and doors.
+  query.mask = playerWorldMask() &
+               ~physics::collisionMask(physics::CollisionGroup::Trigger);
   query.ignoreBody = body_.id();
   return world_->raycastClosest(query);
 }

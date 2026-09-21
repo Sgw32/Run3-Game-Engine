@@ -73,6 +73,8 @@ public:
   void setDoorOpen(PhysicsEntityId entity, bool open);
   void setTrainTransform(PhysicsEntityId entity,
                          const physics::Transform &transform);
+  void setEntityTransform(PhysicsEntityId entity,
+                          const physics::Transform &transform);
   void update(double seconds);
   [[nodiscard]] std::vector<GameplayPhysicsEvent> processContactEvents(
       double projectileDamage = 25.0);

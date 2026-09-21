@@ -1,6 +1,6 @@
 # Run3 porting status
 
-Last updated: 2026-09-18
+Last updated: 2026-09-22
 
 ## Milestones
 
@@ -18,6 +18,64 @@ Last updated: 2026-09-18
 | 7 — unified audio | Completed | Run3-owned RAII audio, null and pinned miniaudio 0.11.25 backends, safe device fallback, a live `tlwcao` ambience/music/footstep slice, hashed offline FLAC conversion, and cross-platform tests pass. |
 | 8 — XML and Lua | Completed | Golden schema adapters, pinned TinyXML2/Lua 5.4/sol2, a sandboxed `ScriptEngine`, 202-name API snapshot, and the 955-script compatibility gate pass with three explicitly broken legacy files. |
 | 8B — gameplay scene schema, entity inventory, and ownership | Completed | Side-effect-free map/sequence definitions, exact-case AppPaths resolution, generation-safe map ownership, deferred name resolution, definition-driven StaticMap loading, and all 18 attached low-variant map/sequence inventories pass on MSVC/GCC. |
+| 8C — fixed-tick Sequence runtime and interactive entities | Partial, verified slice | Typed map-owned runtime and selected interactions pass four Step 8C build/test workflows; full campaign behavior remains deferred as detailed below. |
+
+## 2026-09-22 — Step 8C and station-map crash
+
+Step 8C status: **partial, tested vertical slice**. `SequenceRuntime` is map
+owned, constructed from Step 8B definitions/registry, and updated from the
+fixed gameplay tick. Typed game-service commands connect authored Lua to live
+doors, trains, timers, triggers, visibility, teleport, script chaining, and
+the existing physics and audio layers. The stable tick/order queue supports
+delayed events, one-shot and repeated edges, startup/onexit Lua, contextual
+errors, cancellation on unload, and in-memory snapshot/restore. NPC,
+cinematic, computer, and presentation-only commands log explicit deferrals;
+they do **not** yet execute campaign gameplay. Unknown required targets fail
+visibly; absent optional authored lights follow the legacy `hasLight` check.
+
+The fixture tests cover trigger light restoration, buttons and use rays,
+translating doors, rotators/pendulums, train key points and Bullet ground-probe
+parenting, ladder/pickup classification, dark-zone state, audio hooks, cleanup
+during queued work, script failure, saved timers/actions, and identical state
+after 180 fixed ticks at 30/60/144 rendering FPS. Full-content construction
+tests include `tlwcao`, `tlwhome02`, `tlwstations01`, and `tlwstations03`.
+Campaign-wide interaction and a serialized disk save remain unverified; see
+[SEQUENCE_RUNTIME.md](SEQUENCE_RUNTIME.md) and the dated overlay in
+[ENTITY_COMPATIBILITY.md](ENTITY_COMPATIBILITY.md).
+
+The reported station crash was a D3D11 first-frame access violation when an
+old textured mesh had no UV vertex semantic, **not** the X3205
+`evaluateLight` shader warning. StaticMap checks required mesh semantics and
+indices and selects a safe compatible material for missing UVs/normals. No
+content was modified. MSVC Debug D3D11 two-frame runs of `tlwstations01`,
+`tlwstations03`, and `tlwhome02` exited 0 with clean shutdown. A first
+`tlwcao` run uncovered an unintended initial `lOnClosed` callback: the authored
+script referenced an entity in another map. The runtime now only runs the
+completion callback after a real door transition, covered by a fixture test.
+The corrected installed Debug build also rendered two `tlwcao` D3D11 frames
+and exited 0, preserving its player position. That run logged 21 buttons
+without a matching already-presented scene object (they use authored Sequence
+transforms and meshes), missing authored-light presentations, and deferred
+NPC/UI/presentation callbacks. These are visible compatibility gaps, not a
+claim of fully playable map interactions.
+
+The Windows install/smoke CTest tail passes inside the VS developer
+environment; running `cmake --install` outside it copies the shell but fails
+at `file Could not find objdump` during dependency packaging.
+
+Verification: `windows-msvc-x64-debug` and `linux-ninja-debug` both build the
+shell and Step 8C tests and pass all 10 labeled Step 8C cases. Before the
+closed-door regression case was added, the Windows 92-test Debug suite had
+88 passing cases followed by an install failure outside VS; rerunning the four
+install/smoke cases inside the VS developer environment passed 4/4. The
+final 93-test aggregate was not rerun as one command; the new case passed in
+both Debug/Release focused runs. The
+audio/player focused suite passed 32/32 before the final door fix; no related
+source changed afterward. The `windows-msvc-x64-release` shell/Step 8C
+targets build and the 10/10 Release Step 8C tests pass. The
+`linux-ninja-release` shell/Step 8C targets also build and 10/10 labeled
+tests pass. D3D11 visual smokes were performed on Windows Debug only; a Linux
+graphical session and long campaign replay were not run.
 
 ## 2026-09-18 — Static-map root regression repair
 

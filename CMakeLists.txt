@@ -196,6 +196,14 @@ target_link_libraries(
     run3_scripting
     PRIVATE run3::warnings run3::sanitizers sol2::sol2 ${LUA_LIBRARIES})
 
+add_library(run3_sequence STATIC source/gameplay/SequenceRuntime.cpp)
+add_library(run3::sequence ALIAS run3_sequence)
+target_compile_features(run3_sequence PUBLIC cxx_std_17)
+target_include_directories(
+    run3_sequence PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(run3_sequence PUBLIC run3::entities run3::scripting
+                      PRIVATE run3::warnings run3::sanitizers)
+
 add_library(run3_asset_validation STATIC source/content/AssetValidation.cpp
                                          source/content/Sha256.cpp)
 add_library(run3::asset_validation ALIAS run3_asset_validation)
@@ -228,6 +236,7 @@ target_link_libraries(run3_optional_devices PUBLIC run3::core
 add_library(run3_ogre_app STATIC
             source/app/Run3App.cpp
             source/content/OgreAssetValidation.cpp
+            source/gameplay/OgreSequenceServices.cpp
             source/input/OgreBitesInputAdapter.cpp)
 add_library(run3::ogre_app ALIAS run3_ogre_app)
 target_compile_features(run3_ogre_app PUBLIC cxx_std_17)
@@ -237,7 +246,7 @@ target_include_directories(
 target_link_libraries(
     run3_ogre_app
     PUBLIC run3::core run3::asset_validation OgreMain OgreBites OgreOverlay
-           OgreRTShaderSystem run3::gameplay run3::audio_miniaudio
+           OgreRTShaderSystem run3::gameplay run3::sequence run3::audio_miniaudio
     PRIVATE run3::warnings)
 
 if(RUN3_BUILD_LEGACY)
@@ -422,6 +431,18 @@ if(RUN3_BUILD_TESTS)
     catch_discover_tests(run3_step8b_tests
                          TEST_PREFIX "run3_step8b."
                          PROPERTIES LABELS "step8b;entities;xml")
+
+    add_executable(run3_step8c_tests tests/step8c_sequence_tests.cpp)
+    target_compile_features(run3_step8c_tests PRIVATE cxx_std_17)
+    target_compile_definitions(
+        run3_step8c_tests
+        PRIVATE RUN3_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(
+        run3_step8c_tests
+        PRIVATE run3::warnings run3::sequence Catch2::Catch2WithMain)
+    catch_discover_tests(run3_step8c_tests
+                         TEST_PREFIX "run3_step8c."
+                         PROPERTIES LABELS "step8c;sequence;entities")
     add_test(
         NAME run3_step8.legacy-boundary
         COMMAND

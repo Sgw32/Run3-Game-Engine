@@ -1,5 +1,39 @@
 # Step 8B entity compatibility inventory
 
+## Step 8C runtime overlay (2026-09-22)
+
+This inventory's declaration and attribute counts remain unchanged. The map-owned
+`SequenceRuntime` now constructs and schedules the following exact-tag slices from
+the Step 8B definitions and map registry: 48 `button`, 171 `door`, 10
+`darkzone`, 4 `ladder`, 18 startup `lua`, 5 `onexit`, 68 `pendulum`, 166
+`rot`, 70 `timer`, 80 `train`, and 91 `trigger`. A miniature fixture also
+exercises `pickup` (zero declarations in the selected campaign). `trigger`
+event bindings (65) schedule `lua`, `door`, `player`, `hurt`, `changelevel`,
+and `entc` actions, with `entc` explicitly logged as deferred. The 20
+`cutscene` event bindings and their 112 nested `run` actions remain deferred
+to Step 8E; they are not active SequenceRuntime events. The selected maps still
+have 154 NPC and 31 computer declarations, owned by Steps 8D and 8E.
+
+The Step 8C service creates Ogre presentations and kinematic Bullet bodies,
+while existing Step 6C owns the physics world and Step 7 owns audio. Authored
+buttons with a corresponding scene object use its world-space bounds for a
+ray-query collider, without duplicating that visible mesh. Unsupported nested
+train visual components and non-presented authored lights produce diagnostics.
+An absent optional light does not abort legacy Lua startup; unknown required
+doors, trains, timers, triggers, and event targets produce contextual errors.
+Triggered `lighton`/`lightoff` values are captured and restored on exit where
+those lights exist. `SequenceRuntime` contains no frame listener or singleton.
+
+The corrected `tlwcao` D3D11 startup identified 21 buttons without a
+matching already-presented scene object; they use their Sequence-authored
+mesh/transform fallback and log the case. The map still ran for two frames
+with a stable player spawn. This is a **partial behavioral implementation**,
+not proof that all listed
+attributes are honored. See [SEQUENCE_RUNTIME.md](SEQUENCE_RUNTIME.md) for
+exact semantics, known gaps, and deterministic replay evidence. The table below
+remains the Step 8B baseline; interpret its historical `required/deferred 8C`
+labels together with this dated overlay.
+
 Audit date: 2026-09-18  
 Selected content: author-provided `Games/The Long Way/TheLongWay`, `low` map
 variant. Content was read only; no SDK or game file was copied or changed.

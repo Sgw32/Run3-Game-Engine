@@ -219,6 +219,15 @@ void DynamicPhysicsScene::setTrainTransform(
   implementation_->world->setTransform(record.bodies.front(), transform);
 }
 
+void DynamicPhysicsScene::setEntityTransform(
+    PhysicsEntityId entity, const physics::Transform &transform) {
+  auto &record = implementation_->require(entity);
+  if (record.bodies.empty()) {
+    throw std::invalid_argument("entity has no physics body");
+  }
+  implementation_->world->setTransform(record.bodies.front(), transform);
+}
+
 void DynamicPhysicsScene::update(double seconds) {
   if (!std::isfinite(seconds) || seconds < 0.0) {
     throw std::invalid_argument("dynamic scene update must be non-negative");

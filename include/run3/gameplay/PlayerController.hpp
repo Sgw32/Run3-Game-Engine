@@ -61,6 +61,7 @@ public:
   void applyParentMotion(physics::Vec3 translationPerStep) noexcept;
 
   [[nodiscard]] PlayerState state() const;
+  [[nodiscard]] physics::Vec3 collisionHalfExtents() const noexcept;
   [[nodiscard]] physics::Vec3 eyePosition() const;
   [[nodiscard]] physics::Vec3 viewDirection(double pitchRadians = 0.0) const;
   [[nodiscard]] std::optional<physics::RaycastHit>

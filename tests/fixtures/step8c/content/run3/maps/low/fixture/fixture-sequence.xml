@@ -1,0 +1,49 @@
+<sequence>
+  <adents>
+    <lua script="run3/lua/start.lua"/>
+    <onexit script="run3/lua/exit.lua"/>
+    <timer name="pulse" lua="run3/lua/timer.lua" period="0.05" start="true"/>
+    <trigger name="once" sw="true" multiple="false">
+      <position x="0" y="0" z="0"/>
+      <scale x="2" y="2" z="2"/>
+    </trigger>
+    <trigger name="multiple" sw="true" multiple="true"
+             luaOnEnter="run3/lua/enter.lua" luaOnLeave="run3/lua/leave.lua">
+      <position x="10" y="0" z="0"/>
+      <scale x="2" y="2" z="2"/>
+      <lighton name="fixture-light"/>
+    </trigger>
+    <button buttonName="button" meshName="button.mesh"
+            luaScript="run3/lua/button.lua"/>
+    <door name="door" mesh="door.mesh" x="0" y="0" z="0"
+          distance="6" speed="60" dirX="1" dirY="0" dirZ="0"
+          useInteract="true" openSound="run3/sounds/open.wav"
+          lOnClosed="run3/lua/closed.lua"/>
+    <rot name="rot" mesh="rot.mesh" rotating="true" rotspeed="90"
+         pitch="0" yaw="1" roll="0" useInteract="true"/>
+    <pendulum name="pend" mesh="pend.mesh" rotating="true"
+              rotspeed="2" angle="20" pitch="1" yaw="0" roll="0"/>
+    <train name="train" start="true" speed="60">
+      <position x="0" y="0" z="10"/>
+      <scale x="100" y="10" z="100"/>
+      <keyPoint x="0" y="0" z="10"/>
+      <keyPoint x="6" y="0" z="10"/>
+      <entity meshFile="platform.mesh"/>
+    </train>
+    <ladder name="ladder" meshName="box.mesh">
+      <position x="20" y="0" z="0"/>
+      <scale x="2" y="10" z="2"/>
+    </ladder>
+    <pickup name="pickup" mesh="pickup.mesh" x="30" y="0" z="0"/>
+    <darkzone name="dark" darken="0.25">
+      <position x="40" y="0" z="0"/>
+      <scale x="5" y="5" z="5"/>
+    </darkzone>
+  </adents>
+  <events>
+    <trigger name="once" sec="0.033333333333">
+      <door name="door" event="open"/>
+      <lua script="run3/lua/event.lua" secs="0.016666666667"/>
+    </trigger>
+  </events>
+</sequence>

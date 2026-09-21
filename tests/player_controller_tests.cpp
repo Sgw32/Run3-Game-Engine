@@ -102,6 +102,42 @@ TEST_CASE("static triangle fixture supports and raycasts the player") {
   REQUIRE(floorBody.valid());
 }
 
+TEST_CASE("use ray reaches sequence buttons and doors behind trigger volumes") {
+  PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
+  PlayerController player(world);
+  player.spawn({0, 100, 0});
+  BodyDesc trigger(Shape::box({40, 40, 5}));
+  trigger.motion = BodyMotion::Kinematic;
+  trigger.transform.position = {0, 150, -40};
+  trigger.group = CollisionGroup::Trigger;
+  trigger.mask = run3::physics::collisionMask(CollisionGroup::Player);
+  trigger.trigger = true;
+  const auto triggerHandle = world.createBody(trigger);
+  BodyDesc button(Shape::box({20, 20, 5}));
+  button.motion = BodyMotion::Kinematic;
+  button.transform.position = {0, 150, -80};
+  button.group = CollisionGroup::Button;
+  button.mask = run3::physics::collisionMask(CollisionGroup::Player);
+  button.trigger = true;
+  button.metadata = {321, run3::physics::BodyType::Button, 0};
+  auto buttonHandle = world.createBody(button);
+  BodyDesc door(Shape::box({40, 50, 5}));
+  door.motion = BodyMotion::Kinematic;
+  door.transform.position = {0, 150, -120};
+  door.group = CollisionGroup::Door;
+  door.mask = run3::physics::collisionMask(CollisionGroup::Player);
+  door.metadata = {322, run3::physics::BodyType::Door, 0};
+  const auto doorHandle = world.createBody(door);
+
+  REQUIRE(player.useRaycast().has_value());
+  CHECK(player.useRaycast()->metadata.entityId == 321);
+  buttonHandle.reset();
+  REQUIRE(player.useRaycast().has_value());
+  CHECK(player.useRaycast()->metadata.entityId == 322);
+  CHECK(triggerHandle.valid());
+  CHECK(doorHandle.valid());
+}
+
 TEST_CASE("player walks runs jumps and remains upright") {
   PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
   const auto floor = addFloor(world);

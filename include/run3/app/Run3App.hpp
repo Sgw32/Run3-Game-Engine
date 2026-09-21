@@ -8,6 +8,7 @@
 #include <run3/input/Input.hpp>
 #include <run3/input/OgreBitesInputAdapter.hpp>
 #include <run3/gameplay/PlayerController.hpp>
+#include <run3/gameplay/SequenceRuntime.hpp>
 #include <run3/gameplay/StaticMap.hpp>
 
 #include <OgreApplicationContext.h>
@@ -25,6 +26,10 @@ class SceneNode;
 } // namespace Ogre
 
 namespace run3 {
+
+namespace gameplay {
+class OgreSequenceServices;
+}
 
 struct Run3AppOptions {
   AppPaths paths;
@@ -53,6 +58,7 @@ void printRun3AppUsage();
 class Run3App final : public OgreBites::ApplicationContext {
 public:
   explicit Run3App(Run3AppOptions options);
+  ~Run3App() override;
   int run();
 
   void createRoot() override;
@@ -82,6 +88,8 @@ private:
   std::unique_ptr<physics::PhysicsWorld> physicsWorld_;
   std::unique_ptr<gameplay::StaticMap> staticMap_;
   std::unique_ptr<gameplay::PlayerController> player_;
+  std::unique_ptr<gameplay::OgreSequenceServices> sequenceServices_;
+  std::unique_ptr<gameplay::SequenceRuntime> sequenceRuntime_;
   std::unique_ptr<audio::IAudioEngine> audioEngine_;
   std::unique_ptr<audio::MapAudioRuntime> mapAudio_;
   double yawRadians_{};

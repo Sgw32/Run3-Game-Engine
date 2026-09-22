@@ -6,6 +6,10 @@
        scriptOnDeath="run3/lua/death.lua" cNearScript="run3/lua/use.lua">
     <position x="0" y="0" z="0"/>
     <scale x="1" y="1" z="1"/>
+    <physPosit x="0" y="-8" z="0"/>
+    <physSize x="0.3" y="0.7" z="0.3"/>
+    <axis x="0" y="1" z="0"/>
+    <angle f="15"/>
   </npc>
   <npc name="raider" className="npc_enemy" meshFile="raider.mesh"
        velocity="60" health="20" ragdoll="true">

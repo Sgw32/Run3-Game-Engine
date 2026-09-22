@@ -148,7 +148,7 @@ public:
     ma_sound_set_volume(&slot.sound, options.gain);
     ma_sound_set_pitch(&slot.sound, options.pitch);
     const Vec3 position = fromGameCoordinates(options.position);
-    const Vec3 velocity = fromGameCoordinates(options.velocity);
+    const Vec3 velocity = fromGameVelocity(options.velocity);
     ma_sound_set_position(&slot.sound, position.x, position.y, position.z);
     ma_sound_set_velocity(&slot.sound, velocity.x, velocity.y, velocity.z);
     ma_sound_set_min_distance(&slot.sound, options.minDistance);
@@ -254,7 +254,7 @@ public:
       return false;
     }
     slot->options.velocity = velocity;
-    const Vec3 converted = fromGameCoordinates(velocity);
+    const Vec3 converted = fromGameVelocity(velocity);
     ma_sound_set_velocity(&slot->sound, converted.x, converted.y, converted.z);
     return true;
   }
@@ -360,7 +360,7 @@ public:
   void setListener(const ListenerTransform &listener) override {
     listener_ = listener;
     const Vec3 position = fromGameCoordinates(listener.position);
-    const Vec3 velocity = fromGameCoordinates(listener.velocity);
+    const Vec3 velocity = fromGameVelocity(listener.velocity);
     const Vec3 forward = fromGameCoordinates(listener.forward);
     const Vec3 up = fromGameCoordinates(listener.up);
     ma_engine_listener_set_position(&engine_, 0, position.x, position.y,

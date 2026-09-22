@@ -21,6 +21,11 @@ struct Vec3 {
 // convention in one named boundary instead of scattering axis swaps.
 [[nodiscard]] Vec3 fromGameCoordinates(Vec3 value) noexcept;
 
+// Physics and authored content use centimetre-like game units. miniaudio's
+// Doppler calculation assumes metres/second, so velocity crosses a distinct,
+// centralized unit boundary while positions retain legacy attenuation units.
+[[nodiscard]] Vec3 fromGameVelocity(Vec3 value) noexcept;
+
 struct ListenerTransform {
   Vec3 position{};
   Vec3 velocity{};

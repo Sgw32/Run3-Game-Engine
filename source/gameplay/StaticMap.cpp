@@ -308,7 +308,12 @@ public:
     }
 
     registerResources(options.paths->contentRoot(), options.resourceProfile);
-    materialCatalog_.scan(options.paths->contentRoot());
+    meshLodBias_ = options.meshLodBias;
+    const std::string materialDirectory =
+        options.textureQuality == "medium" ? "med" : options.textureQuality;
+    materialCatalog_.scan(options.paths->contentRoot(),
+                          options.paths->contentRoot() / "run3" / "mats" /
+                              materialDirectory);
     class CompatibilityListener final : public Ogre::MeshSerializerListener {
     public:
       explicit CompatibilityListener(Impl &owner) : owner_(&owner) {}
@@ -457,6 +462,7 @@ public:
       Ogre::Entity *entity = sceneManager_->createEntity(
           "Run3Step8BEntity/" + std::to_string(objectKey), meshIt->second,
           resourceGroup_);
+      entity->setMeshLodBias(static_cast<Ogre::Real>(meshLodBias_));
       if (const auto unsafe = unsafeMeshReason(entity->getMesh().get())) {
         sceneManager_->destroyEntity(entity);
         ++stats_.skippedSections;
@@ -806,6 +812,7 @@ public:
   std::unordered_map<std::string, Ogre::MaterialPtr> compatibleMaterials_;
   std::unordered_map<std::string, std::string> generatedMaterialSources_;
   std::set<std::string> unresolvedMaterials_;
+  double meshLodBias_{1.0};
   std::optional<content::MapDefinition> definition_;
   std::unordered_set<const content::AuthoredElement *> activeRenderables_;
   EntityRegistry registry_;
@@ -896,8 +903,19 @@ void StaticMap::applyCompatibleMaterials(Ogre::Entity &entity,
                                          std::string_view overrideMaterial) {
   for (unsigned index = 0; index < entity.getNumSubEntities(); ++index) {
     Ogre::SubEntity *subEntity = entity.getSubEntity(index);
-    const std::string legacy = overrideMaterial.empty()
+    std::string legacy = overrideMaterial.empty()
         ? subEntity->getMaterialName() : std::string(overrideMaterial);
+    // The mesh serializer listener may already have replaced the legacy name
+    // while the shared mesh was loaded by a static section. Recover its source
+    // name so dynamic instances reuse the same generated textured material
+    // instead of looking up "Run3/CompatTexture/..." as legacy content.
+    if (overrideMaterial.empty()) {
+      const auto generated =
+          implementation_->generatedMaterialSources_.find(legacy);
+      if (generated != implementation_->generatedMaterialSources_.end()) {
+        legacy = generated->second;
+      }
+    }
     implementation_->assignCompatibleMaterial(subEntity, legacy);
   }
 }

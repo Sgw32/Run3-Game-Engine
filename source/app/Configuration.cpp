@@ -35,8 +35,11 @@ fs::path cliPath(const std::string &value, const fs::path &executableDir) {
       "\nUsage: run3_shell [--renderer d3d11|gl3plus] [--frames N]"
       " [--user-dir PATH] [--content-root PATH] [--validate-content]"
       " [--manifest PATH] [--report PATH]"
-      " [--map tlwcao|tlwhome02] [--map-quality low|medium|high]"
-      " [--resource-profile FILE] [--player-height-cm N]"
+      " [--map tlwcao|tlwhome02] [--scene-quality low|medium|high]"
+      " [--texture-quality low|medium|high]"
+      " [--model-quality low|medium|high] [--resource-profile FILE]"
+      " [--player-height-cm N] [--fov DEGREES]"
+      " [--resolution WIDTHxHEIGHT]"
       " [--fullscreen|--windowed] [--noclip] [--physics-debug]"
       " [--audio-backend auto|miniaudio|null]"
       " [--render-hz 30|60|144]");
@@ -162,12 +165,21 @@ CommandLine parseCommandLine(const std::vector<std::string> &arguments,
       result.values["report"] = cliPath(value, executableDir).string();
     } else if (argument == "--map") {
       result.values["map"] = value;
-    } else if (argument == "--map-quality") {
-      result.values["map-quality"] = value;
+    } else if (argument == "--map-quality" ||
+               argument == "--scene-quality") {
+      result.values["scene-quality"] = value;
+    } else if (argument == "--texture-quality") {
+      result.values["texture-quality"] = value;
+    } else if (argument == "--model-quality") {
+      result.values["model-quality"] = value;
     } else if (argument == "--resource-profile") {
       result.values["resource-profile"] = value;
     } else if (argument == "--player-height-cm") {
       result.values["player-height-cm"] = value;
+    } else if (argument == "--fov") {
+      result.values["fov"] = value;
+    } else if (argument == "--resolution") {
+      result.values["resolution"] = value;
     } else if (argument == "--render-hz") {
       result.values["render-hz"] = value;
     } else if (argument == "--audio-backend") {

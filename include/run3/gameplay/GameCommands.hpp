@@ -34,6 +34,12 @@ struct RuntimeEntitySpec {
   physics::Transform transform;
   physics::Vec3 scale{1.0, 1.0, 1.0};
   physics::Vec3 halfExtents{1.0, 1.0, 1.0};
+  // Legacy NPC physPosit is a local visual offset (scaled by the parent),
+  // while physSize scales the collision box independently.
+  physics::Vec3 visualOffset{};
+  physics::Vec3 collisionScale{1.0, 1.0, 1.0};
+  physics::Vec3 visualRotationAxis{0.0, 1.0, 0.0};
+  double visualRotationDegrees{};
   double visualYawDegrees{};
   double renderDistance{10000.0};
   std::string handBone{"Hand"};

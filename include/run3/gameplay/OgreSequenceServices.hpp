@@ -33,7 +33,8 @@ public:
                        physics::PhysicsWorld &physicsWorld,
                        StaticMap &staticMap, PlayerController &player,
                        audio::IAudioEngine &audio,
-                       MapChangeRequest mapChangeRequest = {});
+                       MapChangeRequest mapChangeRequest = {},
+                       double meshLodBias = 1.0);
   ~OgreSequenceServices() override;
   OgreSequenceServices(const OgreSequenceServices &) = delete;
   OgreSequenceServices &operator=(const OgreSequenceServices &) = delete;

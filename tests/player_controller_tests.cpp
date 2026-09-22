@@ -84,6 +84,16 @@ TEST_CASE("legacy materials retain diffuse textures without loading old shaders"
   CHECK_FALSE(catalog.find("Run3/Missing"));
 }
 
+TEST_CASE("selected material quality overrides duplicate catalogue names") {
+  const fs::path root = fs::path(RUN3_TEST_SOURCE_DIR) / "tests" / "fixtures" /
+                        "material_priority";
+  run3::gameplay::LegacyMaterialCatalog catalog;
+  catalog.scan(root, root / "a-preferred");
+  const auto selected = catalog.find("Run3/QualityChoice");
+  REQUIRE(selected);
+  CHECK(selected->texture == "preferred.dds");
+}
+
 TEST_CASE("static triangle fixture supports and raycasts the player") {
   PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
   std::vector<Vec3> vertices{{-500, 0, -500}, {500, 0, 500},

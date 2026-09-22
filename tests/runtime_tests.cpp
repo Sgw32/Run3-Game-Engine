@@ -52,12 +52,19 @@ TEST_CASE("Configuration precedence is CLI then user then content") {
 
   const run3::CommandLine commandLine = run3::parseCommandLine(
       {"run3_shell", "--map", "tlwcao", "--player-height-cm", "180",
-       "--fullscreen", "--noclip"},
+       "--fullscreen", "--noclip", "--fov", "80", "--resolution",
+       "1920x1080", "--texture-quality", "high", "--model-quality",
+       "high", "--scene-quality", "medium"},
       fs::path("bin"));
   CHECK(commandLine.values.at("map") == "tlwcao");
   CHECK(commandLine.values.at("player-height-cm") == "180");
   CHECK(commandLine.values.at("fullscreen") == "true");
   CHECK(commandLine.values.at("noclip") == "true");
+  CHECK(commandLine.values.at("fov") == "80");
+  CHECK(commandLine.values.at("resolution") == "1920x1080");
+  CHECK(commandLine.values.at("texture-quality") == "high");
+  CHECK(commandLine.values.at("model-quality") == "high");
+  CHECK(commandLine.values.at("scene-quality") == "medium");
 
   const run3::CommandLine windowedOverride = run3::parseCommandLine(
       {"run3_shell", "--fullscreen", "--windowed"}, fs::path("bin"));

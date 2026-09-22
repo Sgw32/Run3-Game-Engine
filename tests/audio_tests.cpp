@@ -132,6 +132,13 @@ TEST_CASE("game and Ogre audio coordinates retain the legacy convention") {
   CHECK(converted.z == input.z);
 }
 
+TEST_CASE("Doppler velocity converts centimetre-like game units to metres") {
+  const Vec3 converted = fromGameVelocity({300.0F, -50.0F, 1000.0F});
+  CHECK(converted.x == Catch::Approx(3.0F));
+  CHECK(converted.y == Catch::Approx(-0.5F));
+  CHECK(converted.z == Catch::Approx(10.0F));
+}
+
 TEST_CASE("null backend has bounded generation-safe RAII voices") {
   auto engine = createNullAudioEngine({1, false});
   PlayOptions options;

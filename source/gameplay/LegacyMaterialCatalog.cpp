@@ -190,7 +190,8 @@ struct LegacyMaterialCatalog::Impl {
   }
 };
 
-void LegacyMaterialCatalog::scan(const fs::path &root) {
+void LegacyMaterialCatalog::scan(const fs::path &root,
+                                 const fs::path &preferredRoot) {
   implementation_ = std::make_shared<Impl>();
   std::error_code error;
   if (!fs::exists(root, error)) {
@@ -213,6 +214,29 @@ void LegacyMaterialCatalog::scan(const fs::path &root) {
   std::sort(materialFiles.begin(), materialFiles.end());
   for (const fs::path &path : materialFiles) {
     implementation_->parse(path);
+  }
+  // Resource profiles select one material-quality directory, but the
+  // compatibility catalogue also scans the rest of the content for materials
+  // stored beside models/maps. Reparse the selected directory last so a
+  // duplicate legacy material name deterministically uses the requested
+  // quality instead of filesystem traversal order.
+  if (!preferredRoot.empty() && fs::is_directory(preferredRoot, error)) {
+    std::vector<fs::path> preferredFiles;
+    fs::recursive_directory_iterator preferredIterator(
+        preferredRoot, fs::directory_options::skip_permission_denied, error);
+    while (preferredIterator != end) {
+      if (!error && preferredIterator->is_regular_file(error) &&
+          lower(preferredIterator->path().extension().string()) ==
+              ".material") {
+        preferredFiles.push_back(preferredIterator->path());
+      }
+      preferredIterator.increment(error);
+      if (error) error.clear();
+    }
+    std::sort(preferredFiles.begin(), preferredFiles.end());
+    for (const fs::path &path : preferredFiles) {
+      implementation_->parse(path);
+    }
   }
 }
 

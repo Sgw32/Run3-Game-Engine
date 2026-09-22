@@ -14,6 +14,9 @@ sequence and Lua sounds. Step 8D now constructs map NPCs, routes their Lua
 events, and provides deterministic movement, collision, animation, voice,
 parenting, damage/death, and generic ragdoll slices. NPC head-look/facial pose,
 complete sound/combat parity, and final materials remain later work.
+Legacy `physPosit` visual offsets and `physSize` collision multipliers are
+honoured independently, and sequence-spawned doors, trains, buttons, and NPCs
+use the same textured compatibility-material path as static geometry.
 
 Build and test first with [BUILDING.md](BUILDING.md). Run the installed binary,
 because `cmake --install` stages the Ogre plugins, runtime libraries,
@@ -129,8 +132,12 @@ falls back to white.
 ```text
 run3_shell [--renderer d3d11|gl3plus] [--frames N]
            [--user-dir PATH] [--content-root PATH]
-           [--map tlwcao|tlwhome02] [--map-quality low|medium|high]
+           [--map tlwcao|tlwhome02]
+           [--scene-quality low|medium|high]
+           [--texture-quality low|medium|high]
+           [--model-quality low|medium|high]
            [--resource-profile FILE] [--player-height-cm N]
+           [--fov 35..120] [--resolution WIDTHxHEIGHT]
            [--fullscreen|--windowed] [--noclip] [--physics-debug]
            [--audio-backend auto|miniaudio|null]
            [--render-hz 30|60|144]
@@ -139,9 +146,41 @@ run3_shell [--renderer d3d11|gl3plus] [--frames N]
 
 `--frames N` exits after exactly N rendered frames. `--render-hz` supplies a
 deterministic render schedule for bounded regression runs; omit it for normal
-interactive play. Map quality defaults to `low`, paired with
-`resources_low_low.cfg`. When selecting another quality, explicitly select the
-matching resource profile present in the game root.
+interactive play. `--map-quality` remains a backward-compatible alias for
+`--scene-quality`.
+
+For the best content detail currently available, add:
+
+```text
+--texture-quality high --model-quality high --scene-quality high
+```
+
+The Long Way names its resource profiles
+`resources_<texture>_<scene>.cfg`; `medium` maps to the legacy filename token
+`med`. Run3 now selects that profile automatically. Thus texture `high` plus
+scene `low` selects `resources_high_low.cfg`, while high/high selects
+`resources_high_high.cfg`. `--texture-quality` chooses the material tree and
+`--scene-quality` chooses the authored map tree. The content has one shared
+`run3/models` tree rather than separate low/medium/high mesh files, so
+`--model-quality` controls Ogre mesh LOD bias: high retains detailed mesh LODs
+farther away, medium preserves Ogre's normal behavior, and low switches sooner.
+`--resource-profile FILE` is an expert override and takes precedence over the
+automatically selected profile.
+
+For example, run `tlwcao` at the highest available settings, 1920x1080, and a
+modern wider view with:
+
+```powershell
+& (Join-Path $installRoot 'bin\run3_shell.exe') `
+  --renderer d3d11 --content-root $contentRoot --map tlwcao `
+  --user-dir $userRoot --resolution 1920x1080 --fov 75 `
+  --texture-quality high --model-quality high --scene-quality high
+```
+
+`--fov` is vertical field of view in degrees and accepts 35 through 120; the
+default is 75. `--resolution` uses `WIDTHxHEIGHT`, defaults to 1280x720, and
+must be a mode exposed by the selected renderer/display. Both options work in
+windowed and fullscreen modes.
 
 Audio defaults to `auto`: Run3 opens the pinned miniaudio backend and falls
 back to the bounded null backend if device initialization fails. Force silent,
@@ -229,6 +268,16 @@ fullscreen=true
 
 `--fullscreen` and `--windowed` override that setting for the current run.
 
+FOV, resolution, and quality can be persisted in the same file:
+
+```ini
+fov=75
+resolution=1920x1080
+texture-quality=high
+model-quality=high
+scene-quality=high
+```
+
 Configuration uses `key=value` lines and this precedence:
 
 1. `<content-root>/config/run3.cfg` (lowest)
@@ -236,8 +285,10 @@ Configuration uses `key=value` lines and this precedence:
 3. command-line arguments (highest)
 
 The recognized runtime keys are `renderer`, `frames`, `content-root`,
-`user-root`, `map`, `map-quality`, `resource-profile`, `player-height-cm`,
-`render-hz`, `audio-backend`, `fullscreen`, `noclip`, and `physics-debug`.
+`user-root`, `map`, `scene-quality` (and legacy `map-quality`),
+`texture-quality`, `model-quality`, `resource-profile`, `player-height-cm`,
+`fov`, `resolution`, `render-hz`, `audio-backend`, `fullscreen`, `noclip`, and
+`physics-debug`.
 Relative paths resolve from the executable directory, not the process working
 directory.
 

@@ -16,7 +16,8 @@ struct LegacyMaterialInfo {
 
 class LegacyMaterialCatalog final {
 public:
-  void scan(const std::filesystem::path &root);
+  void scan(const std::filesystem::path &root,
+            const std::filesystem::path &preferredRoot = {});
   [[nodiscard]] std::optional<LegacyMaterialInfo>
   find(const std::string &materialName) const;
   [[nodiscard]] std::size_t size() const noexcept;

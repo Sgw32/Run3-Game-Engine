@@ -32,6 +32,8 @@ struct StaticMapOptions {
   std::string mapName;
   std::string quality{"low"};
   std::string resourceProfile{"resources_low_low.cfg"};
+  std::string textureQuality{"low"};
+  double meshLodBias{1.0};
 };
 
 struct StaticMapStats {

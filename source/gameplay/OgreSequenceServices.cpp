@@ -94,6 +94,7 @@ public:
   struct Presentation {
     RuntimeEntitySpec spec;
     Ogre::SceneNode *node{};
+    Ogre::SceneNode *visualNode{};
     Ogre::Entity *entity{};
     Ogre::Vector3 localCentre{Ogre::Vector3::ZERO};
     std::optional<PhysicsEntityId> physicsEntity;
@@ -102,12 +103,13 @@ public:
   Impl(const AppPaths &appPaths, Ogre::SceneManager &manager,
        physics::PhysicsWorld &world, StaticMap &loadedMap,
        PlayerController &playerController,
-       audio::IAudioEngine &audioEngine, MapChangeRequest changeRequest)
+       audio::IAudioEngine &audioEngine, MapChangeRequest changeRequest,
+       double lodBias)
       : paths(appPaths), sceneManager(&manager), physicsWorld(&world),
         staticMap(&loadedMap),
         player(&playerController),
         audio(&audioEngine), oneShots(audioEngine), dynamicPhysics(world),
-        mapChangeRequest(std::move(changeRequest)),
+        mapChangeRequest(std::move(changeRequest)), meshLodBias(lodBias),
         scripts({paths.contentRoot(), paths.userRoot(), 1'000'000},
                 [this](const scripting::ScriptCall &call) {
                   if (runtime == nullptr) {
@@ -228,30 +230,48 @@ public:
         throw std::runtime_error("entity '" + spec.name + "' mesh '" + spec.mesh +
                                  "': " + error.getDescription());
       }
-      if (spec.kind == RuntimeEntityKind::Npc) {
-        staticMap->applyCompatibleMaterials(*presentation.entity, spec.material);
-      } else if (!spec.material.empty() &&
-          Ogre::MaterialManager::getSingleton().resourceExists(spec.material)) {
-        presentation.entity->setMaterialName(spec.material);
-      }
+      // Sequence-spawned meshes use the same compatibility material path as
+      // static map sections. Legacy materials are not valid RTSS materials on
+      // modern D3D11/GL3+, which previously left doors/trains/buttons white.
+      staticMap->applyCompatibleMaterials(*presentation.entity, spec.material);
+      presentation.entity->setMeshLodBias(
+          static_cast<Ogre::Real>(meshLodBias));
       presentation.entity->setVisible(spec.visible);
       presentation.node = root->createChildSceneNode(
           "Run3Step8CNode/" + std::to_string(spec.handle.id.value));
       presentation.node->setPosition(toOgre(spec.transform.position));
       presentation.node->setOrientation(toOgre(spec.transform.rotation));
       if (spec.kind == RuntimeEntityKind::Npc) {
-        presentation.node->yaw(Ogre::Degree(static_cast<Ogre::Real>(
+        presentation.visualNode = presentation.node->createChildSceneNode(
+            "Run3Step8DVisual/" + std::to_string(spec.handle.id.value));
+        presentation.visualNode->setPosition(toOgre(spec.visualOffset));
+        const Ogre::Vector3 axis = toOgre(spec.visualRotationAxis);
+        if (!axis.isZeroLength() && spec.visualRotationDegrees != 0.0) {
+          presentation.visualNode->rotate(
+              axis.normalisedCopy(),
+              Ogre::Degree(static_cast<Ogre::Real>(
+                  spec.visualRotationDegrees)),
+              Ogre::Node::TS_LOCAL);
+        }
+        presentation.visualNode->yaw(Ogre::Degree(static_cast<Ogre::Real>(
             spec.visualYawDegrees)), Ogre::Node::TS_LOCAL);
         presentation.entity->setRenderingDistance(static_cast<Ogre::Real>(
             spec.renderDistance));
       }
       presentation.node->setScale(toOgre(spec.scale));
-      presentation.node->attachObject(presentation.entity);
+      (presentation.visualNode != nullptr ? presentation.visualNode
+                                          : presentation.node)
+          ->attachObject(presentation.entity);
       const Ogre::Vector3 meshHalf = presentation.entity->getBoundingBox().getHalfSize();
-      if (spec.kind != RuntimeEntityKind::Npc)
+      if (spec.kind == RuntimeEntityKind::Npc) {
+        half = {std::abs(meshHalf.x * spec.scale.x * spec.collisionScale.x),
+                std::abs(meshHalf.y * spec.scale.y * spec.collisionScale.y),
+                std::abs(meshHalf.z * spec.scale.z * spec.collisionScale.z)};
+      } else {
         half = {std::abs(meshHalf.x * spec.scale.x),
                 std::abs(meshHalf.y * spec.scale.y),
                 std::abs(meshHalf.z * spec.scale.z)};
+      }
       presentation.localCentre =
           presentation.entity->getBoundingBox().getCenter() * toOgre(spec.scale);
     }
@@ -272,9 +292,6 @@ public:
     if (presentation.node != nullptr) {
       presentation.node->setPosition(toOgre(command.transform.position));
       presentation.node->setOrientation(toOgre(command.transform.rotation));
-      if (presentation.spec.kind == RuntimeEntityKind::Npc)
-        presentation.node->yaw(Ogre::Degree(static_cast<Ogre::Real>(
-            presentation.spec.visualYawDegrees)), Ogre::Node::TS_LOCAL);
       presentation.node->_update(true, true);
     }
     syncPresentationBody(presentation);
@@ -406,7 +423,10 @@ public:
     }
     names.erase(entry.spec.name);
     if (entry.entity) sceneManager->destroyEntity(entry.entity);
-    if (entry.node) sceneManager->destroySceneNode(entry.node);
+    if (entry.node) {
+      entry.node->removeAndDestroyAllChildren();
+      sceneManager->destroySceneNode(entry.node);
+    }
     presentations.erase(handle.id.value);
   }
 
@@ -505,6 +525,7 @@ public:
   std::unordered_map<std::uint64_t, std::vector<Attachment>> attachments;
   audio::SoundHandle music;
   std::set<std::string> reportedDeferred;
+  double meshLodBias{1.0};
   Ogre::ColourValue baseAmbient{0.25F, 0.25F, 0.25F};
 };
 
@@ -512,10 +533,12 @@ OgreSequenceServices::OgreSequenceServices(
     const AppPaths &paths, Ogre::SceneManager &sceneManager,
     physics::PhysicsWorld &physicsWorld, StaticMap &staticMap,
     PlayerController &player,
-    audio::IAudioEngine &audio, MapChangeRequest mapChangeRequest)
+    audio::IAudioEngine &audio, MapChangeRequest mapChangeRequest,
+    double meshLodBias)
     : impl_(std::make_unique<Impl>(paths, sceneManager, physicsWorld, staticMap,
                                    player,
-                                   audio, std::move(mapChangeRequest))) {}
+                                   audio, std::move(mapChangeRequest),
+                                   meshLodBias)) {}
 OgreSequenceServices::~OgreSequenceServices() = default;
 
 void OgreSequenceServices::attach(SequenceRuntime &runtime) noexcept {

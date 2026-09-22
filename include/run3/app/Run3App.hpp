@@ -45,8 +45,13 @@ struct Run3AppOptions {
   std::filesystem::path renderFixture;
   std::string mapName;
   std::string mapQuality{"low"};
+  std::string textureQuality{"low"};
+  std::string modelQuality{"medium"};
   std::string resourceProfile{"resources_low_low.cfg"};
   double playerHeightCm{180.0};
+  double verticalFovDegrees{75.0};
+  std::uint32_t windowWidth{1280};
+  std::uint32_t windowHeight{720};
   double renderHz{};
   bool fullscreen{};
   bool startNoclip{};

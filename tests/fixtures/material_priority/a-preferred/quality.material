@@ -1,0 +1,13 @@
+material Run3/QualityChoice
+{
+    technique
+    {
+        pass
+        {
+            texture_unit
+            {
+                texture preferred.dds
+            }
+        }
+    }
+}

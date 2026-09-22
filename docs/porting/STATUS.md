@@ -21,6 +21,38 @@ Last updated: 2026-09-22
 | 8C — fixed-tick Sequence runtime and interactive entities | Partial, verified slice | Typed map-owned runtime and selected interactions pass four Step 8C build/test workflows; full campaign behavior remains deferred as detailed below. |
 | 8D — map-owned NPC runtime | Partial, verified slice | Typed neutral/enemy construction, AIR3 movement, Lua events, Ogre/Bullet/audio adapters, content counts, and a real `tlwcao` smoke pass; remaining parity gaps are documented. |
 
+## 2026-09-22 — NPC placement, dynamic materials, display quality, and Doppler
+
+Four interactive-test regressions were corrected after Step 8D. NPC
+`physPosit` is once again a scaled local offset of a visual child node rather
+than part of the body/world transform, while `physSize` independently scales
+the mesh-derived collision box. The authored axis/angle adjustment is also
+preserved. This specifically covers the different origin conventions used by
+`fac_soldier01.mesh`, `alex_mezhin02.mesh`, `clgrl01.mesh`, and seated meshes.
+
+Doors, trains, buttons, NPCs, and other Sequence-spawned meshes now pass
+through the same legacy-material catalogue and RTSS-compatible textured
+material generator as static map sections. Generated material names are mapped
+back to their legacy source before reuse, avoiding false white/fallback
+materials on shared meshes.
+
+Runtime configuration now includes validated vertical FOV (35–120 degrees),
+display resolution, independently selected texture and scene quality, and a
+model LOD bias. The matching `resources_<texture>_<scene>.cfg` is derived
+automatically unless an explicit resource profile is supplied. Audio source
+and listener velocities cross a single game-unit-to-metre conversion boundary
+before miniaudio Doppler processing; positional attenuation remains in legacy
+game units.
+
+MSVC Debug and Release build the shell and focused runtime/audio/NPC targets.
+All 29 focused tests pass in each configuration. Installed D3D11 Debug
+`tlwcao` smokes at 1280x720, FOV 75, null audio, and high textures/models
+exited 0 with both low and high scene quality. They selected
+`resources_high_low.cfg` and `resources_high_high.cfg` respectively, loaded
+all 19 NPCs and dynamic entities, and shut down cleanly. Interactive
+visual/listening judgement remains the author-facing check described in
+[RUNNING.md](../RUNNING.md).
+
 ## 2026-09-22 — Step 8D NPC slice and Step 8C train/door corrections
 
 Step 8D is a **partial, tested vertical slice**. A new map-owned `NpcSystem`

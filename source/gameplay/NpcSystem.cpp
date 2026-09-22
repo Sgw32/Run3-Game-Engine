@@ -117,6 +117,10 @@ struct NpcSystem::Impl {
     std::string handBone{"Hand"};
     physics::Vec3 parentOffset;
     physics::Quaternion parentRotation;
+    physics::Vec3 visualOffset{};
+    physics::Vec3 collisionScale{1.0, 1.0, 1.0};
+    physics::Vec3 visualRotationAxis{0.0, 1.0, 0.0};
+    double visualRotationDegrees{};
     double speed{1.0}, stopDistance{1.0}, renderDistance{10000.0};
     double farFind{1000.0}, attackDistance{130.0}, headshotDistance{20.0};
     double movementMultiplier{1.0}, yShift{};
@@ -174,6 +178,18 @@ struct NpcSystem::Impl {
       physics::Vec3 scale{1, 1, 1};
       if (const auto *authoredScale = element->firstChild("scale"))
         scale = vector(*authoredScale, scale);
+      if (const auto *physPosition = element->firstChild("physPosit"))
+        npc.visualOffset = vector(*physPosition);
+      if (const auto *physSize = element->firstChild("physSize"))
+        npc.collisionScale = vector(*physSize, npc.collisionScale);
+      if (const auto *axis = element->firstChild("axis"))
+        npc.visualRotationAxis = vector(*axis, npc.visualRotationAxis);
+      if (const auto *angle = element->firstChild("angle"))
+        npc.visualRotationDegrees = number(*angle, "f", 0.0);
+      if (npc.collisionScale.x <= 0 || npc.collisionScale.y <= 0 ||
+          npc.collisionScale.z <= 0)
+        throw std::runtime_error(origin(*element) +
+                                 ": physSize must be positive");
       const auto handles = registry->findAll(npc.publicState.name);
       const auto found = std::find_if(handles.begin(), handles.end(),
           [this, element](EntityHandle handle) {
@@ -269,9 +285,16 @@ void NpcSystem::start() {
     spec.material = npc.material;
     spec.transform = npc.publicState.transform;
     spec.scale = impl_->scales[i];
+    spec.visualOffset = npc.visualOffset;
+    spec.collisionScale = npc.collisionScale;
+    spec.visualRotationAxis = npc.visualRotationAxis;
+    spec.visualRotationDegrees = npc.visualRotationDegrees;
     spec.visualYawDegrees = npc.yShift;
     spec.renderDistance = npc.renderDistance;
     spec.handBone = npc.handBone;
+    // Ogre presentation derives the exact legacy box from the loaded mesh
+    // AABB * authored scale * physSize. This fallback is used only if no mesh
+    // presentation can be created.
     spec.halfExtents = {20, 90, 20};
     impl_->services->submit(SpawnRuntimeEntity{std::move(spec)});
     npc.spawned = true;

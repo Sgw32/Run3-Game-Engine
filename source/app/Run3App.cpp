@@ -30,6 +30,7 @@
 #endif
 
 #include <algorithm>
+#include <charconv>
 #include <cctype>
 #include <filesystem>
 #include <exception>
@@ -105,6 +106,58 @@ double configuredDouble(const Configuration &configuration,
                              "' is invalid: " + *value);
   }
   return result;
+}
+
+std::string configuredQuality(const Configuration &configuration,
+                              std::string_view key,
+                              std::string fallback) {
+  std::string value = lower(configuration.valueOr(key, std::move(fallback)));
+  if (value == "med") value = "medium";
+  if (value != "low" && value != "medium" && value != "high") {
+    throw std::runtime_error("Configuration value for '" + std::string(key) +
+                             "' must be low, medium, or high: " + value);
+  }
+  return value;
+}
+
+std::pair<std::uint32_t, std::uint32_t>
+configuredResolution(const Configuration &configuration) {
+  const std::string value = configuration.valueOr("resolution", "1280x720");
+  const std::size_t separator = value.find_first_of("xX");
+  if (separator == std::string::npos || separator == 0 ||
+      separator + 1 == value.size()) {
+    throw std::runtime_error(
+        "resolution must use WIDTHxHEIGHT syntax: " + value);
+  }
+  const auto parsePart = [&value](std::string_view part) {
+    std::uint32_t result{};
+    const auto parsed = std::from_chars(part.data(),
+                                        part.data() + part.size(), result);
+    if (parsed.ec != std::errc{} || parsed.ptr != part.data() + part.size()) {
+      throw std::runtime_error(
+          "resolution must use WIDTHxHEIGHT syntax: " + value);
+    }
+    return result;
+  };
+  const std::uint32_t width = parsePart(
+      std::string_view(value).substr(0, separator));
+  const std::uint32_t height = parsePart(
+      std::string_view(value).substr(separator + 1));
+  if (width < 640 || height < 480 || width > 16384 || height > 16384) {
+    throw std::runtime_error(
+        "resolution must be between 640x480 and 16384x16384: " + value);
+  }
+  return {width, height};
+}
+
+std::string profileQualityToken(const std::string &quality) {
+  return quality == "medium" ? "med" : quality;
+}
+
+double meshLodBias(const std::string &quality) {
+  if (quality == "high") return 2.0;
+  if (quality == "low") return 0.5;
+  return 1.0;
 }
 
 } // namespace
@@ -197,15 +250,34 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
   options.reportPath = configuredPath(std::move(reportPath), executableDir);
   options.renderFixture = installedShare / "validation-fixture" / "step5.scene";
   options.mapName = configuration.valueOr("map", "");
-  options.mapQuality = configuration.valueOr("map-quality", "low");
-  options.resourceProfile =
-      configuration.valueOr("resource-profile", "resources_low_low.cfg");
+  options.mapQuality = configuredQuality(
+      configuration, "scene-quality",
+      configuration.valueOr("map-quality", "low"));
+  options.textureQuality =
+      configuredQuality(configuration, "texture-quality", "low");
+  options.modelQuality =
+      configuredQuality(configuration, "model-quality", "medium");
+  if (const auto profile = configuration.find("resource-profile")) {
+    options.resourceProfile = *profile;
+  } else {
+    options.resourceProfile =
+        "resources_" + profileQualityToken(options.textureQuality) + "_" +
+        profileQualityToken(options.mapQuality) + ".cfg";
+  }
   options.playerHeightCm =
       configuredDouble(configuration, "player-height-cm", 180.0);
   if (options.playerHeightCm < 120.0 || options.playerHeightCm > 240.0) {
     throw std::runtime_error(
         "player-height-cm must be between 120 and 240 centimetres");
   }
+  options.verticalFovDegrees = configuredDouble(configuration, "fov", 75.0);
+  if (options.verticalFovDegrees < 35.0 ||
+      options.verticalFovDegrees > 120.0) {
+    throw std::runtime_error("fov must be between 35 and 120 degrees");
+  }
+  const auto [width, height] = configuredResolution(configuration);
+  options.windowWidth = width;
+  options.windowHeight = height;
   options.renderHz = configuredDouble(configuration, "render-hz");
   options.fullscreen = configuredBool(configuration, "fullscreen");
   options.startNoclip = configuredBool(configuration, "noclip");
@@ -219,8 +291,11 @@ void printRun3AppUsage() {
          " [--frames N]"
          " [--user-dir PATH] [--content-root PATH]\n"
       << "       [--validate-content] [--manifest PATH] [--report PATH]\n"
-      << "       [--map NAME] [--map-quality low|medium|high]\n"
+      << "       [--map NAME] [--scene-quality low|medium|high]\n"
+      << "       [--texture-quality low|medium|high]"
+         " [--model-quality low|medium|high]\n"
       << "       [--resource-profile FILE] [--player-height-cm N]\n"
+      << "       [--fov 35..120] [--resolution WIDTHxHEIGHT]\n"
       << "       [--fullscreen|--windowed] [--noclip] [--physics-debug]\n"
       << "       [--audio-backend auto|miniaudio|null]\n"
       << "       [--render-hz 30|60|144]\n"
@@ -459,6 +534,31 @@ bool Run3App::oneTimeConfig() {
   if (config.find("VSync") != config.end()) {
     selected->setConfigOption("VSync", "No");
   }
+  if (const auto videoMode = config.find("Video Mode");
+      videoMode != config.end()) {
+    const std::string requestedDimensions =
+        std::to_string(options_.windowWidth) + "x" +
+        std::to_string(options_.windowHeight);
+    const auto matching = std::find_if(
+        videoMode->second.possibleValues.begin(),
+        videoMode->second.possibleValues.end(),
+        [&requestedDimensions](const Ogre::String &value) {
+          std::string compact;
+          std::copy_if(value.begin(), value.end(),
+                       std::back_inserter(compact),
+                       [](unsigned char character) {
+                         return !std::isspace(character);
+                       });
+          return compact.rfind(requestedDimensions, 0) == 0;
+        });
+    if (matching == videoMode->second.possibleValues.end()) {
+      throw std::runtime_error("Requested resolution " +
+                               requestedDimensions +
+                               " is unavailable for renderer '" +
+                               selected->getName() + "'");
+    }
+    selected->setConfigOption("Video Mode", *matching);
+  }
   mRoot->setRenderSystem(selected);
   return true;
 }
@@ -513,6 +613,8 @@ void Run3App::setup() {
 
   camera_ = sceneManager_->createCamera("Run3ShellCamera");
   camera_->setNearClipDistance(5.0F);
+  camera_->setFOVy(Ogre::Degree(static_cast<Ogre::Real>(
+      options_.verticalFovDegrees)));
   cameraNode_ = sceneManager_->getRootSceneNode()->createChildSceneNode();
   cameraNode_->setPosition(0.0F, 75.0F, 300.0F);
   cameraNode_->lookAt(Ogre::Vector3::ZERO, Ogre::Node::TS_WORLD);
@@ -520,6 +622,15 @@ void Run3App::setup() {
   Ogre::Viewport *viewport = getRenderWindow()->addViewport(camera_);
   viewport->setBackgroundColour(Ogre::ColourValue(0.04F, 0.06F, 0.1F));
   updateAspectRatio();
+  Ogre::LogManager::getSingleton().logMessage(
+      "Run3 display: " + std::to_string(options_.windowWidth) + "x" +
+      std::to_string(options_.windowHeight) +
+      (options_.fullscreen ? " fullscreen" : " windowed") +
+      ", vertical FOV=" + std::to_string(options_.verticalFovDegrees));
+  Ogre::LogManager::getSingleton().logMessage(
+      "Run3 content quality: textures=" + options_.textureQuality +
+      " models=" + options_.modelQuality + " scenes=" +
+      options_.mapQuality + " profile=" + options_.resourceProfile);
 
   const audio::AudioEngineConfig audioConfig{32, false};
   if (options_.audioBackend == "null") {
@@ -543,7 +654,8 @@ void Run3App::setup() {
                                                        *physicsWorld_);
     const gameplay::StaticMapStats mapStats = staticMap_->load(
         {&options_.paths, options_.mapName, options_.mapQuality,
-         options_.resourceProfile});
+         options_.resourceProfile, options_.textureQuality,
+         meshLodBias(options_.modelQuality)});
     static_cast<void>(mapStats);
     gameplay::PlayerConfig playerConfig;
     playerConfig.standingHeight = options_.playerHeightCm;
@@ -588,7 +700,8 @@ void Run3App::setup() {
     sequenceServices_ = std::make_unique<gameplay::OgreSequenceServices>(
         options_.paths, *sceneManager_, *physicsWorld_, *staticMap_,
         *player_, *audioEngine_,
-        [this](std::string) { requestQuit(); });
+        [this](std::string) { requestQuit(); },
+        meshLodBias(options_.modelQuality));
     if (mapAudio_) {
       sequenceServices_->attachMapAudio(*mapAudio_);
     }

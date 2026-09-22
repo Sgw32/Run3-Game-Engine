@@ -11,6 +11,12 @@ namespace run3::audio {
 
 Vec3 fromGameCoordinates(const Vec3 value) noexcept { return value; }
 
+Vec3 fromGameVelocity(const Vec3 value) noexcept {
+  constexpr float gameUnitsToMetres = 0.01F;
+  return {value.x * gameUnitsToMetres, value.y * gameUnitsToMetres,
+          value.z * gameUnitsToMetres};
+}
+
 SoundHandle::SoundHandle(std::shared_ptr<detail::HandleOwner> owner,
                          const std::uint64_t token) noexcept
     : owner_(std::move(owner)), token_(token) {}

@@ -7,6 +7,8 @@ build\install\windows-debug\bin\run3_shell.exe ^
     --map tlwcao ^
     --user-dir ".\build\user\windows-debug" ^
     --fullscreen ^
+    --resolution 1920x1080 --fov 75 ^
+    --texture-quality high --model-quality high --scene-quality high ^
     --audio-backend miniaudio
 
 pause

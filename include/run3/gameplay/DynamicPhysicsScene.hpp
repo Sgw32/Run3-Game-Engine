@@ -86,6 +86,8 @@ public:
   [[nodiscard]] std::size_t entityCount() const noexcept;
   [[nodiscard]] std::size_t bodyCount() const noexcept;
   [[nodiscard]] std::size_t constraintCount() const noexcept;
+  void destroyEntity(PhysicsEntityId entity) noexcept;
+  void setEntityEnabled(PhysicsEntityId entity, bool enabled);
   void unload() noexcept;
 
 private:

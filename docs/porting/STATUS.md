@@ -19,6 +19,57 @@ Last updated: 2026-09-22
 | 8 — XML and Lua | Completed | Golden schema adapters, pinned TinyXML2/Lua 5.4/sol2, a sandboxed `ScriptEngine`, 202-name API snapshot, and the 955-script compatibility gate pass with three explicitly broken legacy files. |
 | 8B — gameplay scene schema, entity inventory, and ownership | Completed | Side-effect-free map/sequence definitions, exact-case AppPaths resolution, generation-safe map ownership, deferred name resolution, definition-driven StaticMap loading, and all 18 attached low-variant map/sequence inventories pass on MSVC/GCC. |
 | 8C — fixed-tick Sequence runtime and interactive entities | Partial, verified slice | Typed map-owned runtime and selected interactions pass four Step 8C build/test workflows; full campaign behavior remains deferred as detailed below. |
+| 8D — map-owned NPC runtime | Partial, verified slice | Typed neutral/enemy construction, AIR3 movement, Lua events, Ogre/Bullet/audio adapters, content counts, and a real `tlwcao` smoke pass; remaining parity gaps are documented. |
+
+## 2026-09-22 — Step 8D NPC slice and Step 8C train/door corrections
+
+Step 8D is a **partial, tested vertical slice**. A new map-owned `NpcSystem`
+constructs all 19 `tlwcao` and 28 `tlwhome02` declarations using Step 8B
+handles. It implements the content-proven `npc_neutral` and `npc_enemy`
+classes as policies over one deterministic state machine, uses the AIR3
+`IPhysicsQuery` seam, existing Bullet dynamic scene, Ogre presentation,
+miniaudio voice path, and typed ScriptEngine command dispatcher. There is no
+`NPCManager` singleton and no Ogre/Bullet type in the public NPC behavior API.
+The modular/Lua extension contract and exact numeric event ABI are in
+[NPC_RUNTIME.md](NPC_RUNTIME.md).
+
+Implemented integration includes authored transform/scale/yaw, mesh/material,
+render distance, movement/stopping, animations, proximity/use/goal/death Lua,
+health and headshot classification, neutral/enemy policy, parent/train motion,
+teleports, physical-object bone attachments, positional facial-definition
+voice audio, and generic Step 6C ragdoll transition/cleanup. Unsupported known
+events fail visibly; missing NPC names warn and continue for legacy campaign
+compatibility. Friend/aerial policies and `npcgroup` were not invented because
+the selected content census does not prove them live.
+
+Nine Step 8D cases pass under MSVC Debug and Release. They cover navigation/blocked paths,
+callbacks, fixed-rate replay, animations, parent motion, damage/death/ragdoll,
+lifetime/unload, the selected declaration counts, and referenced Lua targets.
+The installed D3D11 Debug shell constructs both the 19 `tlwcao` and 28
+`tlwhome02` NPC sets, completes startup scripts (including event 17 parent and
+event 31 attachment), renders two frames on each map, and exits 0. The Linux
+rerun is blocked by external local state:
+the prior WSL cache points at removed `/tmp/run3-vcpkg-step7-src2`, and the
+documented `$HOME/dev/vcpkg` checkout is absent. As a narrower compiler check,
+GCC 13 compiles `NpcSystem.cpp`, `SequenceRuntime.cpp`, and
+`DynamicPhysicsScene.cpp` directly with `-Wall -Wextra -Wpedantic`; the final
+NPC compile also passes `-Werror`. No content was modified.
+
+Legacy parity is not yet complete: bone look/head motion, animation blending,
+facial morphs/subtitles, the detailed NPC sound set, flashlight presentation,
+dynamic gravity/floor resolution, blood/gibs, full enemy combat/LOS, and exact
+legacy ragdoll bone maps remain explicit gaps. Step 8D therefore does not yet
+meet the guide's full 1:1 exit criterion despite passing construction and smoke
+coverage.
+
+Two reported Step 8C regressions were corrected at the same boundary. A
+non-`inf` train now stops at its terminal key point instead of modulo-wrapping
+to the first point; a one-key train also stops. An `inf=true` train retains
+legacy wrap behavior. Translating doors use the legacy `TIME_SHIFT / 0.2`
+rate, i.e. five times the authored speed per second, instead of treating the
+authored value as direct units/second. The regression fixture checks a door's
+first two fixed ticks and proves a train remains at its destination after
+additional ticks.
 
 ## 2026-09-22 — Step 8C and station-map crash
 
@@ -28,10 +79,33 @@ fixed gameplay tick. Typed game-service commands connect authored Lua to live
 doors, trains, timers, triggers, visibility, teleport, script chaining, and
 the existing physics and audio layers. The stable tick/order queue supports
 delayed events, one-shot and repeated edges, startup/onexit Lua, contextual
-errors, cancellation on unload, and in-memory snapshot/restore. NPC,
-cinematic, computer, and presentation-only commands log explicit deferrals;
-they do **not** yet execute campaign gameplay. Unknown required targets fail
-visibly; absent optional authored lights follow the legacy `hasLight` check.
+errors, cancellation on unload, and in-memory snapshot/restore. NPC commands
+are now consumed by Step 8D; cinematic, computer, and presentation-only
+commands log explicit deferrals and do **not** yet execute campaign gameplay. Missing named objects requested
+by compatibility Lua now produce a console/log warning and leave the script
+running; malformed calls and real script failures still propagate. Absent
+optional authored lights follow the legacy `hasLight` check.
+
+### Missing-object compatibility correction
+
+The author reported two further shutdowns: `tlwcao` requested absent door
+`right3`, and `tlwstations01` requested train `mspz1`. The latter is not
+absent: the selected Sequence also declares a **dark zone** named `mspz1`
+before the train. Lookup now selects the first record of the requested type,
+so `startTrain("mspz1")` reaches the train. Visibility commands also target
+its rendered train rather than the dark zone, and visibility no longer disables
+train simulation. Truly absent door, train, timer, trigger, event, entity, and
+named-ambient targets warn and skip only that
+command. The same rule applies to missing door targets in queued authored
+events. Empty target names, invalid numeric arguments, missing script files,
+and Lua execution errors remain errors. A fixture runs a command following an
+absent door to prove script continuation; attached-content tests execute the
+reported `close_turnik.lua` and `air.lua` files and verify the duplicate-name
+train selection. The focused 10/10 Step 8C cases pass on MSVC Debug and Linux
+Ninja Debug with this correction. The full Windows Debug CTest suite passes
+93/93 inside the VS developer environment, and the updated installed D3D11
+shell renders two `tlwstations01` frames and exits 0. No game content was
+modified.
 
 The fixture tests cover trigger light restoration, buttons and use rays,
 translating doors, rotators/pendulums, train key points and Bullet ground-probe
@@ -56,26 +130,20 @@ The corrected installed Debug build also rendered two `tlwcao` D3D11 frames
 and exited 0, preserving its player position. That run logged 21 buttons
 without a matching already-presented scene object (they use authored Sequence
 transforms and meshes), missing authored-light presentations, and deferred
-NPC/UI/presentation callbacks. These are visible compatibility gaps, not a
+UI/presentation callbacks (NPC callbacks are now handled by Step 8D). These are visible compatibility gaps, not a
 claim of fully playable map interactions.
 
 The Windows install/smoke CTest tail passes inside the VS developer
 environment; running `cmake --install` outside it copies the shell but fails
 at `file Could not find objdump` during dependency packaging.
 
-Verification: `windows-msvc-x64-debug` and `linux-ninja-debug` both build the
-shell and Step 8C tests and pass all 10 labeled Step 8C cases. Before the
-closed-door regression case was added, the Windows 92-test Debug suite had
-88 passing cases followed by an install failure outside VS; rerunning the four
-install/smoke cases inside the VS developer environment passed 4/4. The
-final 93-test aggregate was not rerun as one command; the new case passed in
-both Debug/Release focused runs. The
-audio/player focused suite passed 32/32 before the final door fix; no related
-source changed afterward. The `windows-msvc-x64-release` shell/Step 8C
-targets build and the 10/10 Release Step 8C tests pass. The
-`linux-ninja-release` shell/Step 8C targets also build and 10/10 labeled
-tests pass. D3D11 visual smokes were performed on Windows Debug only; a Linux
-graphical session and long campaign replay were not run.
+Verification: the current `windows-msvc-x64-debug` full CTest suite passes
+93/93 in the VS developer environment, including install and audio/player
+tests. The current `linux-ninja-debug` shell/Step 8C build passes 10/10
+focused cases. Before this missing-object correction, both Windows and Linux
+Release presets built the shell and passed 10/10 Step 8C cases; Release was
+not rerun after this correction. D3D11 visual smokes were performed on Windows
+Debug only; a Linux graphical session and long campaign replay were not run.
 
 ## 2026-09-18 — Static-map root regression repair
 

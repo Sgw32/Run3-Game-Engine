@@ -140,15 +140,29 @@ TEST_CASE("Step 8C timers, trigger modes, delayed events, and use are determinis
   CHECK(fixture.runtime->state("button")->activationCount == 1);
 }
 
-TEST_CASE("Step 8C validates script targets and routes typed commands",
+TEST_CASE("Step 8C warns on missing objects and preserves script execution",
           "[step8c][lua][commands]") {
   FixtureRuntime fixture;
   fixture.runtime->start();
   CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
       {"sequence", "openDoor", {"door"}}));
   CHECK(fixture.runtime->state("door")->active);
-  CHECK_THROWS(fixture.runtime->dispatchScriptCall(
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
       {"sequence", "openDoor", {"missing"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"sequence", "startTrain", {"missing"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"sequence", "enableTimer", {"missing"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"sequence", "enableTrigger", {"missing"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"sequence", "showEntity", {"missing"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"sequence", "startEvent", {"missing"}}));
+  CHECK_THROWS(fixture.runtime->dispatchScriptCall(
+      {"sequence", "closeDoor", {}}));
+  CHECK_THROWS(fixture.runtime->dispatchScriptCall(
+      {"sequence", "setSpeedTrain", {"train", "not-a-number"}}));
   CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
       {"player", "teleport", {"1", "2", "3"}}));
   CHECK(fixture.services.count<gameplay::TeleportRuntimePlayer>() == 1);
@@ -159,9 +173,22 @@ TEST_CASE("Step 8C validates script targets and routes typed commands",
         return fixture.runtime->dispatchScriptCall(call);
       });
   CHECK_NOTHROW(scripts.executeFile("run3/lua/start.lua"));
-  CHECK_THROWS_WITH(
-      scripts.executeFile("run3/lua/bad-target.lua"),
-      Catch::Matchers::ContainsSubstring("unknown door 'missing'"));
+  CHECK_NOTHROW(scripts.executeFile("run3/lua/bad-target.lua"));
+  CHECK(std::any_of(fixture.services.commands.begin(),
+                    fixture.services.commands.end(),
+                    [](const gameplay::GameCommand &command) {
+    const auto *message = std::get_if<gameplay::RuntimeLog>(&command);
+    return message && message->message.find(
+        "warning: Lua command openDoor skipped missing door 'missing'") !=
+        std::string::npos;
+  }));
+  CHECK(std::any_of(fixture.services.commands.begin(),
+                    fixture.services.commands.end(),
+                    [](const gameplay::GameCommand &command) {
+    const auto *message = std::get_if<gameplay::RuntimeLog>(&command);
+    return message && message->message == "continued after missing door";
+  }));
+  CHECK_THROWS(scripts.executeFile("run3/lua/does-not-exist.lua"));
 }
 
 TEST_CASE("Step 8C persistent state round-trips entity state",
@@ -199,6 +226,26 @@ TEST_CASE("Step 8C platform carries only a player standing on that train",
   fixture.services.standingOnTrain = false;
   fixture.runtime->fixedUpdate();
   CHECK(fixture.services.count<gameplay::ApplyRuntimeParentMotion>() == 1);
+}
+
+TEST_CASE("Step 8C train stops at its last key point and door keeps legacy rate",
+          "[step8c][train][door]") {
+  FixtureRuntime fixture;
+  fixture.services.player = {1000.0, 1000.0, 1000.0};
+  fixture.runtime->start();
+  REQUIRE(fixture.runtime->setDoorOpen("door", true));
+  fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->state("door")->transform.position.x == 5.0);
+  fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->state("door")->transform.position.x == 6.0);
+  for (int tick = 0; tick < 8; ++tick) fixture.runtime->fixedUpdate();
+  const auto train = fixture.runtime->state("train");
+  REQUIRE(train.has_value());
+  CHECK(train->transform.position.x == 6.0);
+  CHECK_FALSE(train->active);
+  for (int tick = 0; tick < 30; ++tick) fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->state("train")->transform.position.x == 6.0);
+  CHECK(fixture.services.count<gameplay::StopRuntimeSound>() == 1);
 }
 
 TEST_CASE("Step 8C closed-door completion requires a real close transition",
@@ -289,6 +336,45 @@ TEST_CASE("Step 8C inventories selected TLW maps and constructs live slices",
     if (map == "tlwcao") CHECK(runtime.states().size() == 110);
     if (map == "tlwhome02") CHECK(runtime.states().size() == 143);
     runtime.start();
+    if (map == "tlwcao") {
+      scripting::ScriptEngine scripts(
+          {paths.contentRoot(), paths.userRoot(), 10000},
+          [&runtime](const scripting::ScriptCall &call) {
+            return runtime.dispatchScriptCall(call);
+          });
+      CHECK_NOTHROW(scripts.executeFile(
+          "run3/lua/chapters/tlwcao/close_turnik.lua"));
+      CHECK(std::any_of(services.commands.begin(), services.commands.end(),
+                        [](const gameplay::GameCommand &command) {
+        const auto *message = std::get_if<gameplay::RuntimeLog>(&command);
+        return message && message->message.find("missing door 'right3'") !=
+                              std::string::npos;
+      }));
+    }
+    if (map == "tlwstations01") {
+      CHECK_NOTHROW(runtime.dispatchScriptCall(
+          {"sequence", "startTrain", {"mspz1"}}));
+      CHECK_NOTHROW(runtime.dispatchScriptCall(
+          {"sequence", "toggleEntity", {"mspz1"}}));
+      const auto &states = runtime.states();
+      const auto train = std::find_if(states.begin(), states.end(),
+                                      [](const gameplay::SequenceEntityState &state) {
+        return state.name == "mspz1" && state.tag == "train";
+      });
+      REQUIRE(train != states.end());
+      CHECK(train->active);
+      CHECK(train->enabled);
+      CHECK_FALSE(train->visible);
+      CHECK(services.count<gameplay::RuntimeLog>() == 0);
+      scripting::ScriptEngine scripts(
+          {paths.contentRoot(), paths.userRoot(), 10000},
+          [&runtime](const scripting::ScriptCall &call) {
+            return runtime.dispatchScriptCall(call);
+          });
+      CHECK_NOTHROW(scripts.executeFile(
+          "run3/lua/chapters/tlwstations01/air.lua"));
+      CHECK(services.count<gameplay::RuntimeLog>() == 0);
+    }
     runtime.fixedUpdate();
     runtime.unload(false);
   }

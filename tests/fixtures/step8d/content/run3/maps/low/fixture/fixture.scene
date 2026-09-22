@@ -1,0 +1,4 @@
+<scene><nodes>
+  <player x="0" y="0" z="0"/>
+  <npcnode x="5" y="0" z="5"/>
+</nodes></scene>

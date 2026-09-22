@@ -110,6 +110,17 @@ DynamicPhysicsScene::~DynamicPhysicsScene() {
   unload();
 }
 
+void DynamicPhysicsScene::destroyEntity(PhysicsEntityId entity) noexcept {
+  implementation_->records.erase(entity);
+}
+
+void DynamicPhysicsScene::setEntityEnabled(PhysicsEntityId entity,
+                                            bool enabled) {
+  auto &record = implementation_->require(entity);
+  for (auto &body : record.bodies)
+    implementation_->world->setEnabled(body, enabled);
+}
+
 PhysicsEntityId
 DynamicPhysicsScene::createEntity(DynamicEntityDesc description) {
   if (description.name.empty()) {

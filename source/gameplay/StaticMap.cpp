@@ -872,4 +872,34 @@ StaticMap::namedObjectBounds(std::string_view name) const {
                            {half.x, half.y, half.z}};
 }
 
+Ogre::Entity *StaticMap::namedObject(std::string_view name) const {
+  const auto found = implementation_->namedEntities_.find(std::string(name));
+  return found == implementation_->namedEntities_.end() ? nullptr : found->second;
+}
+
+bool StaticMap::setNamedObjectPhysicsEnabled(std::string_view name,
+                                              bool enabled) {
+  Ogre::Entity *entity = namedObject(name);
+  if (entity == nullptr) return false;
+  Ogre::SceneNode *node = entity->getParentSceneNode();
+  if (node == nullptr) return false;
+  for (auto &binding : implementation_->bodies_) {
+    if (binding.node == node) {
+      implementation_->world_->setEnabled(binding.body, enabled);
+      return true;
+    }
+  }
+  return false;
+}
+
+void StaticMap::applyCompatibleMaterials(Ogre::Entity &entity,
+                                         std::string_view overrideMaterial) {
+  for (unsigned index = 0; index < entity.getNumSubEntities(); ++index) {
+    Ogre::SubEntity *subEntity = entity.getSubEntity(index);
+    const std::string legacy = overrideMaterial.empty()
+        ? subEntity->getMaterialName() : std::string(overrideMaterial);
+    implementation_->assignCompatibleMaterial(subEntity, legacy);
+  }
+}
+
 } // namespace run3::gameplay

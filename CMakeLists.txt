@@ -204,6 +204,14 @@ target_include_directories(
 target_link_libraries(run3_sequence PUBLIC run3::entities run3::scripting
                       PRIVATE run3::warnings run3::sanitizers)
 
+add_library(run3_npcs STATIC source/gameplay/NpcSystem.cpp)
+add_library(run3::npcs ALIAS run3_npcs)
+target_compile_features(run3_npcs PUBLIC cxx_std_17)
+target_include_directories(run3_npcs
+    PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(run3_npcs PUBLIC run3::entities run3::air3
+                      PRIVATE run3::warnings run3::sanitizers)
+
 add_library(run3_asset_validation STATIC source/content/AssetValidation.cpp
                                          source/content/Sha256.cpp)
 add_library(run3::asset_validation ALIAS run3_asset_validation)
@@ -246,7 +254,8 @@ target_include_directories(
 target_link_libraries(
     run3_ogre_app
     PUBLIC run3::core run3::asset_validation OgreMain OgreBites OgreOverlay
-           OgreRTShaderSystem run3::gameplay run3::sequence run3::audio_miniaudio
+           OgreRTShaderSystem run3::gameplay run3::sequence run3::npcs
+           run3::audio_miniaudio
     PRIVATE run3::warnings)
 
 if(RUN3_BUILD_LEGACY)
@@ -443,6 +452,16 @@ if(RUN3_BUILD_TESTS)
     catch_discover_tests(run3_step8c_tests
                          TEST_PREFIX "run3_step8c."
                          PROPERTIES LABELS "step8c;sequence;entities")
+
+    add_executable(run3_step8d_tests tests/step8d_npc_tests.cpp)
+    target_compile_features(run3_step8d_tests PRIVATE cxx_std_17)
+    target_compile_definitions(run3_step8d_tests
+        PRIVATE RUN3_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(run3_step8d_tests
+        PRIVATE run3::warnings run3::npcs Catch2::Catch2WithMain)
+    catch_discover_tests(run3_step8d_tests
+        TEST_PREFIX "run3_step8d."
+        PROPERTIES LABELS "step8d;npc;entities")
     add_test(
         NAME run3_step8.legacy-boundary
         COMMAND

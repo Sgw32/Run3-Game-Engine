@@ -19,8 +19,11 @@ while existing Step 6C owns the physics world and Step 7 owns audio. Authored
 buttons with a corresponding scene object use its world-space bounds for a
 ray-query collider, without duplicating that visible mesh. Unsupported nested
 train visual components and non-presented authored lights produce diagnostics.
-An absent optional light does not abort legacy Lua startup; unknown required
-doors, trains, timers, triggers, and event targets produce contextual errors.
+An absent optional light does not abort legacy Lua startup. Missing named
+door/train/timer/trigger/event/entity targets now warn and skip the command,
+while malformed calls and script failures retain contextual errors. Lookup is
+type-aware for collisions such as the `tlwstations01` `mspz1` dark zone and
+train.
 Triggered `lighton`/`lightoff` values are captured and restored on exit where
 those lights exist. `SequenceRuntime` contains no frame listener or singleton.
 
@@ -149,7 +152,7 @@ complete record; the runtime owner identifies who consumes or will consume it.
 | `lightRange` (20) | `inner, outer` | rendering | required/deferred 9B |
 | `dynamic` (1) | `b, g, r` | rendering | required/deferred 9B |
 | `normal` (20) | `x, y, z` | rendering | required/deferred 9B |
-| `aiNodes` (14), `npcnode` (210) | npcnode: `drawNPCNode, m, x, y, z` | NpcSystem/AIR3 | required/deferred 8D |
+| `aiNodes` (14), `npcnode` (210) | npcnode: `drawNPCNode, m, x, y, z` | NpcSystem/AIR3 | supported Step 8D path graph input |
 | `environment` (18) | none | Parser | supported container |
 | `player` (17) | `fov, mpr, startFreeze, x, y, z` | StaticMap/player | spawn supported; remaining fields deferred 8C/9A |
 | `newtonWorld` (16) | `x1, x2, y1, y2, z1, z2` | Step 6 physics | retired as Newton config; preserved for bounds comparison |
@@ -220,7 +223,7 @@ none occurs in the selected variant, there is no invented attribute count.
 | `door` | 171 | SequenceRuntime + Step 6C | required/deferred 8C |
 | `ladder` | 4 | SequenceRuntime/player | required/deferred 8C |
 | `lua` | 18 | SequenceRuntime/ScriptEngine | required/deferred 8C |
-| `npc` | 154 | NpcSystem | required/deferred 8D |
+| `npc` | 154 | NpcSystem | supported Step 8D neutral/enemy construction and typed runtime; presentation parity gaps documented |
 | `onexit` | 5 | SequenceRuntime/ScriptEngine | required/deferred 8C |
 | `pendulum` | 68 | SequenceRuntime + Step 6C | required/deferred 8C |
 | `rot` | 166 | SequenceRuntime + Step 6C | required/deferred 8C |
@@ -365,6 +368,7 @@ each behavior becomes live.
 ## Step boundary
 
 Step 8B proves parsing, inventory, construction identity, cross-reference
-resolution, and map-scoped lifetime only. Doors do not open, triggers do not
-fire, NPCs do not think, cutscenes do not take the camera, and computers do not
-capture input here. Those behaviors remain Steps 8C, 8D, and 8E.
+resolution, and map-scoped lifetime. Steps 8C and 8D now consume those models
+for tested sequence/NPC slices. Cutscenes still do not take the camera and
+computers do not capture input; those remain Step 8E. Exact remaining NPC
+presentation/behavior differences are in `NPC_RUNTIME.md`.

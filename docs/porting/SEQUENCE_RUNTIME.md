@@ -10,8 +10,13 @@ modify The Long Way assets.
 
 - Declaration order, first-declaration name resolution, and authored source
   file/line context come from Step 8B. Startup scripts run after scene entities
-  are constructed; `onexit` runs before entity teardown. Errors in scripts and
-  required command targets propagate with context, even when cleanup is needed.
+  are constructed; `onexit` runs before entity teardown. Missing named targets
+  requested by compatibility Lua warn and skip that command, matching legacy
+  campaign behavior; malformed calls and genuine script failures retain
+  contextual exceptions, even when cleanup is needed. Lookup is type-aware:
+  the authored `mspz1` dark zone does not shadow the same-named train.
+  Visibility is stored separately from simulation enabled state, so hiding a
+  train does not stop its authored movement.
 - Events enter one stable queue keyed by `(dueTick, insertionOrder)`; canceling
   a map discards pending actions. Time in seconds rounds up to the next fixed
   1/60-second tick. Timer phase, pending actions, entity state, and train
@@ -28,18 +33,22 @@ modify The Long Way assets.
   previous visibility of any existing `lighton`/`lightoff` lights on exit.
   The optional-light behavior matches the legacy check for `hasLight()`.
 - Doors approach their authored directional endpoint at fixed-tick speed;
+  authored translating-door speed retains the legacy `/ 0.2` factor (five
+  times the numeric value per second with default time shift);
   completion scripts run only after a real transition, never on the initial
   closed tick (the old eager callback broke `tlwcao` startup by naming an
   entity from `tlwhome02`). Rotators update orientation and pendulums
-  oscillate. Trains visit authored key points and carry the player only if a
+  oscillate. Non-infinite trains stop at their terminal authored key point;
+  only `inf=true` trains wrap to the first point. Trains carry the player only if a
   Bullet ground probe hits that
   exact train body. Ladders reuse player ladder motion; pickups are implemented
   in a fixture but have no declarations in the selected campaign. Dark zones
   modulate ambient light; state is map-owned and resets at unload.
 - Commands for current gameplay objects, teleport, existing map audio, ambient
   sound, music, effects, and existing sequence animations use typed services.
-  Commands owned by later NPC/cinematic/computer/presentation steps emit an
-  explicit deferred diagnostic, not a silent compatibility no-op. `changelevel`
+  NPC commands are routed to the map-owned Step 8D system. Commands owned by
+  later cinematic/computer/presentation steps emit an explicit deferred
+  diagnostic, not a silent compatibility no-op. `changelevel`
   safely requests shutdown and cancels queued work; actual map transition is
   not implemented here.
 
@@ -54,9 +63,11 @@ currently boxes from the primary mesh, not a reconstruction of every authored
 `physPosit`/`physSize` child. The dark-zone factor is a bounded ambient-light
 approximation rather than a full legacy screen-space effect. Buttons without a
 matching scene object log a warning and use a sequence mesh fallback; these
-must be checked on the specific campaign map. Deferred NPC/cinematic/computer
-commands do not execute gameplay and should not be mistaken for completed
-campaign coverage. No NPC, cinematic playback, or computer port was added.
+must be checked on the specific campaign map. Cinematic/computer commands do
+not execute gameplay and should not be mistaken for completed campaign
+coverage. NPC behavior is now owned by Step 8D and its limits are documented
+in [NPC_RUNTIME.md](NPC_RUNTIME.md); cinematic playback and computers remain
+unported.
 
 The sequence snapshot test covers in-memory state and delayed events. A
 persistent user save file and end-to-end campaign replay remain unverified.

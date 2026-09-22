@@ -232,7 +232,14 @@ Run3App::Run3App(Run3AppOptions options)
     : OgreBites::ApplicationContext("Run3 renderer shell"),
       options_(std::move(options)), inputAdapter_(input_),
       clock_(ClockMode::Fixed) {}
-Run3App::~Run3App() = default;
+Run3App::~Run3App() {
+  // initApp() may throw before run() reaches its cleanup block. Keep service
+  // dependencies alive while map-owned NPC presentation is released.
+  if (npcSystem_) {
+    try { npcSystem_->unload(); } catch (...) {}
+  }
+  npcSystem_.reset();
+}
 
 int Run3App::run() {
   options_.paths.createWritableDirectories();
@@ -285,6 +292,7 @@ int Run3App::run() {
           if (sequenceRuntime_) {
             sequenceRuntime_->fixedUpdate();
           }
+          if (npcSystem_) npcSystem_->fixedUpdate();
           static_cast<void>(player_->simulateFixedStep());
           ++simulatedSteps_;
         }
@@ -356,6 +364,9 @@ int Run3App::run() {
     if (gameplayMouseCapture_) {
       setGameplayMouseCapture(false);
     }
+    if (npcSystem_) npcSystem_->unload();
+    npcSystem_.reset();
+    npcPhysicsQuery_.reset();
     if (sequenceRuntime_) {
       sequenceRuntime_->unload(false);
     }
@@ -381,6 +392,9 @@ int Run3App::run() {
     setGameplayMouseCapture(false);
   }
   std::exception_ptr exitFailure;
+  if (npcSystem_) npcSystem_->unload();
+  npcSystem_.reset();
+  npcPhysicsQuery_.reset();
   if (sequenceRuntime_) {
     try {
       sequenceRuntime_->unload(true);
@@ -581,6 +595,12 @@ void Run3App::setup() {
     sequenceRuntime_ = std::make_unique<gameplay::SequenceRuntime>(
         staticMap_->definition(), staticMap_->registry(), *sequenceServices_);
     sequenceServices_->attach(*sequenceRuntime_);
+    npcPhysicsQuery_ = std::make_unique<physics::WorldPhysicsQuery>(*physicsWorld_);
+    npcSystem_ = std::make_unique<gameplay::NpcSystem>(
+        staticMap_->definition(), staticMap_->registry(), *npcPhysicsQuery_,
+        *sequenceServices_);
+    sequenceServices_->attachNpcSystem(*npcSystem_);
+    npcSystem_->start();
     sequenceRuntime_->start();
   }
 
@@ -684,7 +704,8 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
       if (hit && sequenceServices_ && sequenceRuntime_) {
         const auto handle = sequenceServices_->handleForPhysicsEntity(
             hit->metadata.entityId);
-        handled = handle && sequenceRuntime_->interact(*handle);
+        handled = handle && (sequenceRuntime_->interact(*handle) ||
+                             (npcSystem_ && npcSystem_->use(*handle)));
       }
       Ogre::LogManager::getSingleton().logMessage(
           handled ? "Use activated sequence entity"
@@ -693,6 +714,12 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
     } else if (player_ && event.type == InputEventType::MousePressed &&
                event.mouseButton == MouseButton::Left) {
       const auto hit = player_->weaponRaycast(pitchRadians_);
+      if (hit && sequenceServices_ && npcSystem_) {
+        const auto handle = sequenceServices_->handleForPhysicsEntity(
+            hit->metadata.entityId);
+        if (handle) static_cast<void>(npcSystem_->damage(*handle, 25.0,
+                                                         hit->point));
+      }
       Ogre::LogManager::getSingleton().logMessage(
           hit ? "Weapon ray hit body " + std::to_string(hit->body)
               : "Weapon ray missed");

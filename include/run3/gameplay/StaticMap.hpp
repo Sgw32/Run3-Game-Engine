@@ -14,6 +14,7 @@
 
 namespace Ogre {
 class SceneManager;
+class Entity;
 }
 
 namespace run3::gameplay {
@@ -69,6 +70,11 @@ public:
                                            std::optional<bool> visible);
   [[nodiscard]] std::optional<NamedObjectBounds>
   namedObjectBounds(std::string_view name) const;
+  [[nodiscard]] Ogre::Entity *namedObject(std::string_view name) const;
+  [[nodiscard]] bool setNamedObjectPhysicsEnabled(std::string_view name,
+                                                  bool enabled);
+  void applyCompatibleMaterials(Ogre::Entity &entity,
+                                std::string_view overrideMaterial = {});
 
 private:
   class Impl;

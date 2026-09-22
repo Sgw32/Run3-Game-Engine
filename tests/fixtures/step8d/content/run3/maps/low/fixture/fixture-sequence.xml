@@ -1,0 +1,14 @@
+<sequence><adents>
+  <npc name="guide" className="npc_neutral" meshFile="guide.mesh"
+       materialFile="guide/material" velocity="60" health="30"
+       stopAtDist="true" stopDist="1" headshot="true" headshotDist="20"
+       scriptOnReach="run3/lua/reach.lua"
+       scriptOnDeath="run3/lua/death.lua" cNearScript="run3/lua/use.lua">
+    <position x="0" y="0" z="0"/>
+    <scale x="1" y="1" z="1"/>
+  </npc>
+  <npc name="raider" className="npc_enemy" meshFile="raider.mesh"
+       velocity="60" health="20" ragdoll="true">
+    <position x="0" y="0" z="20"/>
+  </npc>
+</adents></sequence>

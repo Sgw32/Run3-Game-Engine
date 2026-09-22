@@ -4,13 +4,16 @@
 `tlwcao` and `tlwhome02` maps and place the new capsule player at the map spawn.
 Use `tlwcao` for the quickest check; `tlwhome02` (also accepted as
 `tlwhome2`) is substantially larger. This is a first-person map viewer and
-physics prototype, not yet the complete game. Step 6C adds live Bullet motion
+physics/gameplay prototype, not yet the complete game. Step 6C adds live Bullet motion
 for main-scene `<phys>`/`<breakable>` objects and typed/tested physics behavior
 for doors, trains, triggers, pickups, projectiles, NPC collision, ragdolls, and
 AIR3. Step 7 provides the live miniaudio/null device layer plus the first
 `tlwcao` audio compatibility slice: always-active 3D ambience, startup music,
 and concrete footsteps. Step 8 will bind the remaining named/event-controlled
-sequence and Lua sounds. Final materials are a later step.
+sequence and Lua sounds. Step 8D now constructs map NPCs, routes their Lua
+events, and provides deterministic movement, collision, animation, voice,
+parenting, damage/death, and generic ragdoll slices. NPC head-look/facial pose,
+complete sound/combat parity, and final materials remain later work.
 
 Build and test first with [BUILDING.md](BUILDING.md). Run the installed binary,
 because `cmake --install` stages the Ogre plugins, runtime libraries,

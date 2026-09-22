@@ -31,6 +31,7 @@ struct SequenceEntityState {
   std::string tag;
   physics::Transform transform;
   bool enabled{true};
+  bool visible{true};
   bool active{};
   bool inside{};
   std::uint64_t activationCount{};

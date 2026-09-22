@@ -18,6 +18,7 @@ namespace run3::gameplay {
 
 class PlayerController;
 class StaticMap;
+class NpcSystem;
 }
 namespace run3::audio {
 class MapAudioRuntime;
@@ -38,6 +39,7 @@ public:
   OgreSequenceServices &operator=(const OgreSequenceServices &) = delete;
 
   void attach(SequenceRuntime &runtime) noexcept;
+  void attachNpcSystem(NpcSystem &system) noexcept;
   void attachMapAudio(audio::MapAudioRuntime &mapAudio) noexcept;
   void updateAudio(float seconds);
   void submit(const GameCommand &command) override;
@@ -46,6 +48,8 @@ public:
   [[nodiscard]] bool playerStandingOn(EntityHandle handle) const override;
   [[nodiscard]] std::optional<bool>
   lightVisible(std::string_view name) const override;
+  [[nodiscard]] std::optional<physics::Transform>
+  runtimeTransform(std::string_view name) const override;
   [[nodiscard]] std::optional<EntityHandle>
   handleForPhysicsEntity(std::uint64_t physicsEntity) const;
 

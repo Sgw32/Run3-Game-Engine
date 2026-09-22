@@ -213,6 +213,7 @@ public:
     bool oneShotFired{};
     bool completionFired{};
     bool reverse{};
+    bool infinite{};
     std::string callback;
     std::string enterCallback;
     std::string leaveCallback;
@@ -269,6 +270,7 @@ public:
     record.scale = scale(element);
     record.useInteract = boolean(element, "useInteract", false);
     record.publicState.enabled = boolean(element, "enabled", true);
+    record.publicState.visible = boolean(element, "show", true);
     record.speed = number(element, "speed", kind == RuntimeEntityKind::Train
                                                 ? 30.0 : 10.0);
     record.distance = number(element, "distance", 90.0);
@@ -307,6 +309,7 @@ public:
       record.leaveCallback = attribute(element, "luaOnLeave", "");
     }
     if (kind == RuntimeEntityKind::Train) {
+      record.infinite = boolean(element, "inf", false);
       for (const AuthoredElement &child : element.children) {
         if (child.tag == "keyPoint") {
           record.keyPoints.push_back(vector(child));
@@ -388,6 +391,31 @@ public:
                                     });
     return found == records.end() ? nullptr : &*found;
   }
+  Record *findKind(std::string_view name, RuntimeEntityKind kind) {
+    const auto found = std::find_if(records.begin(), records.end(),
+                                    [name, kind](const Record &record) {
+      return record.publicState.name == name && record.kind == kind &&
+             record.publicState.tag != "timer";
+    });
+    return found == records.end() ? nullptr : &*found;
+  }
+  Record *findTag(std::string_view name, std::string_view tag) {
+    const auto found = std::find_if(records.begin(), records.end(),
+                                    [name, tag](const Record &record) {
+      return record.publicState.name == name && record.publicState.tag == tag;
+    });
+    return found == records.end() ? nullptr : &*found;
+  }
+  Record *findPresented(std::string_view name) {
+    const auto found = std::find_if(records.begin(), records.end(),
+                                    [name](const Record &record) {
+      return record.publicState.name == name &&
+             record.publicState.tag != "timer" &&
+             record.kind != RuntimeEntityKind::DarkZone &&
+             record.kind != RuntimeEntityKind::Trigger;
+    });
+    return found == records.end() ? nullptr : &*found;
+  }
   const Record *find(std::string_view name) const {
     const auto found = std::find_if(records.begin(), records.end(),
                                     [name](const Record &record) {
@@ -437,7 +465,7 @@ public:
     result.transform = record.publicState.transform;
     result.scale = record.scale;
     result.halfExtents = record.halfExtents;
-    result.visible = boolean(*record.definition, "show", true);
+    result.visible = record.publicState.visible;
     result.parent = attribute(*record.definition, "parent", "");
     if (record.kind == RuntimeEntityKind::Button ||
         record.kind == RuntimeEntityKind::Ladder) {
@@ -495,7 +523,7 @@ public:
                      });
   }
 
-  void queueStandaloneEvent(std::string_view name) {
+  bool queueStandaloneEvent(std::string_view name) {
     const auto declarations = content::sequenceDeclarations(*definition);
     const auto events = std::find_if(
         declarations.begin(), declarations.end(),
@@ -503,10 +531,7 @@ public:
           return declaration->tag == "event" &&
                  attribute(*declaration, "name", "") == name;
         });
-    if (events == declarations.end()) {
-      throw std::invalid_argument("unknown standalone event '" +
-                                  std::string(name) + "'");
-    }
+    if (events == declarations.end()) return false;
     for (const AuthoredElement &action : (*events)->children) {
       queue.push_back({tickNumber + secondsToTicks(number(action, "secs", 0.0)),
                        nextQueueOrder++, action});
@@ -517,6 +542,7 @@ public:
                               (left.dueTick == right.dueTick &&
                                left.order < right.order);
                      });
+    return true;
   }
 
   void fire(Record &record, bool entering = true) {
@@ -588,12 +614,17 @@ public:
     if (action.tag == "lua") {
       submitScript(action.source, attribute(action, "script", ""));
     } else if (action.tag == "door") {
-      Record *door = find(attribute(action, "name", ""));
-      if (door == nullptr || (door->kind != RuntimeEntityKind::Door &&
-                              door->kind != RuntimeEntityKind::Rotator)) {
-        throw SequenceRuntimeError(action.source,
-                                   "door action has no valid target '" +
-                                       attribute(action, "name", "") + "'");
+      const std::string name = attribute(action, "name", "");
+      if (name.empty()) {
+        throw SequenceRuntimeError(action.source, "door action has no name");
+      }
+      Record *door = findKind(name, RuntimeEntityKind::Door);
+      if (door == nullptr) door = findKind(name, RuntimeEntityKind::Rotator);
+      if (door == nullptr) {
+        services->submit(RuntimeLog{"warning: door event at " +
+                                    locationText(action.source) +
+                                    " skipped missing door '" + name + "'"});
+        return;
       }
       const std::string event = attribute(action, "event", "open");
       setDoor(*door, event == "open" ? true
@@ -639,7 +670,7 @@ public:
     }
     const physics::Vec3 before = record.publicState.transform.position;
     record.publicState.transform.position =
-        approach(before, target, std::abs(record.speed) * fixedStepSeconds);
+        approach(before, target, std::abs(record.speed) * 5.0 * fixedStepSeconds);
     if (!(before == record.publicState.transform.position)) {
       services->submit(SetRuntimeTransform{record.publicState.handle,
                                             record.publicState.transform});
@@ -694,17 +725,29 @@ public:
     if (carriesPlayer) {
       services->submit(ApplyRuntimeParentMotion{delta});
     }
-    if (!(before == target) && record.publicState.transform.position == target) {
+    if (record.publicState.transform.position == target) {
       if (record.keyPoint < record.authoredKeyPoints.size()) {
         const AuthoredElement &point = *record.authoredKeyPoints[record.keyPoint];
         submitScript(point.source, attribute(point, "script", ""));
       }
-      if (record.keyPoints.size() > 1) {
-        if (record.reverse) {
-          record.keyPoint = record.keyPoint == 0 ? record.keyPoints.size() - 1
-                                                  : record.keyPoint - 1;
+      if (record.keyPoints.size() == 1) {
+        record.publicState.active = false;
+        services->submit(StopRuntimeSound{record.publicState.handle});
+      } else {
+        const bool atEnd = record.reverse ? record.keyPoint == 0
+                                          : record.keyPoint + 1 == record.keyPoints.size();
+        if (atEnd && !record.infinite) {
+          record.publicState.active = false;
+          record.keyPoint = 1;
+          services->submit(StopRuntimeSound{record.publicState.handle});
+        } else if (atEnd) {
+          record.keyPoint = record.reverse ? record.keyPoints.size() - 1 : 0;
+          record.publicState.transform.position = record.keyPoints[record.keyPoint];
+          services->submit(SetRuntimeTransform{record.publicState.handle,
+                                                record.publicState.transform});
         } else {
-          record.keyPoint = (record.keyPoint + 1) % record.keyPoints.size();
+          record.keyPoint = record.reverse ? record.keyPoint - 1
+                                           : record.keyPoint + 1;
         }
       }
     }
@@ -837,8 +880,8 @@ bool SequenceRuntime::interactByEntityId(EntityId id) {
 }
 
 bool SequenceRuntime::setTriggerEnabled(std::string_view name, bool enabled) {
-  Impl::Record *record = impl_->find(name);
-  if (record == nullptr || record->kind != RuntimeEntityKind::Trigger) return false;
+  Impl::Record *record = impl_->findKind(name, RuntimeEntityKind::Trigger);
+  if (record == nullptr) return false;
   record->publicState.enabled = enabled;
   if (!enabled) record->publicState.inside = false;
   impl_->refreshPublicStates();
@@ -846,8 +889,8 @@ bool SequenceRuntime::setTriggerEnabled(std::string_view name, bool enabled) {
 }
 
 bool SequenceRuntime::setTimerEnabled(std::string_view name, bool enabled) {
-  Impl::Record *record = impl_->find(name);
-  if (record == nullptr || record->publicState.tag != "timer") return false;
+  Impl::Record *record = impl_->findTag(name, "timer");
+  if (record == nullptr) return false;
   record->publicState.enabled = enabled;
   record->nextTick = impl_->tickNumber + record->periodTicks;
   impl_->refreshPublicStates();
@@ -855,17 +898,17 @@ bool SequenceRuntime::setTimerEnabled(std::string_view name, bool enabled) {
 }
 
 bool SequenceRuntime::setDoorOpen(std::string_view name, bool open) {
-  Impl::Record *record = impl_->find(name);
-  if (record == nullptr || (record->kind != RuntimeEntityKind::Door &&
-                            record->kind != RuntimeEntityKind::Rotator)) return false;
+  Impl::Record *record = impl_->findKind(name, RuntimeEntityKind::Door);
+  if (record == nullptr) record = impl_->findKind(name, RuntimeEntityKind::Rotator);
+  if (record == nullptr) return false;
   impl_->setDoor(*record, open);
   impl_->refreshPublicStates();
   return true;
 }
 
 bool SequenceRuntime::setTrainRunning(std::string_view name, bool running) {
-  Impl::Record *record = impl_->find(name);
-  if (record == nullptr || record->kind != RuntimeEntityKind::Train) return false;
+  Impl::Record *record = impl_->findKind(name, RuntimeEntityKind::Train);
+  if (record == nullptr) return false;
   record->publicState.active = running;
   if (!record->movingSound.empty() && record->movingSound != "none") {
     if (running) {
@@ -889,34 +932,48 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
     }
     return call.arguments.front();
   };
+  const auto warnMissing = [this, &call](std::string_view kind,
+                                         std::string_view name) {
+    impl_->services->submit(RuntimeLog{
+        "warning: Lua command " + call.name + " skipped missing " +
+        std::string(kind) + " '" + std::string(name) + "'"});
+  };
   try {
     if (call.name == "openDoor" || call.name == "closeDoor" ||
         call.name == "toggleDoor") {
-      Impl::Record *door = impl_->find(requireName());
-      if (door == nullptr) throw std::invalid_argument("unknown door '" + requireName() + "'");
-      const bool open = call.name == "openDoor" ? true
-                        : call.name == "closeDoor" ? false
-                        : !door->publicState.active;
-      if (!setDoorOpen(requireName(), open)) throw std::invalid_argument("target is not a door");
+      const std::string &name = requireName();
+      Impl::Record *door = impl_->findKind(name, RuntimeEntityKind::Door);
+      if (door == nullptr) door = impl_->findKind(name, RuntimeEntityKind::Rotator);
+      if (door == nullptr) {
+        warnMissing("door", name);
+      } else {
+        const bool open = call.name == "openDoor" ? true
+                          : call.name == "closeDoor" ? false
+                          : !door->publicState.active;
+        setDoorOpen(name, open);
+      }
     } else if (call.name == "startTrain" || call.name == "stopTrain" ||
                call.name == "reverseTrain") {
-      Impl::Record *train = impl_->find(requireName());
-      if (train == nullptr || train->kind != RuntimeEntityKind::Train)
-        throw std::invalid_argument("unknown train '" + requireName() + "'");
-      if (call.name == "reverseTrain") train->reverse = !train->reverse;
-      else setTrainRunning(requireName(), call.name == "startTrain");
+      const std::string &name = requireName();
+      Impl::Record *train = impl_->findKind(name, RuntimeEntityKind::Train);
+      if (train == nullptr) warnMissing("train", name);
+      else if (call.name == "reverseTrain") train->reverse = !train->reverse;
+      else setTrainRunning(name, call.name == "startTrain");
     } else if (call.name == "enableTimer" || call.name == "disableTimer" ||
                call.name == "toggleTimer") {
-      Impl::Record *timer = impl_->find(requireName());
-      if (timer == nullptr || timer->publicState.tag != "timer")
-        throw std::invalid_argument("unknown timer '" + requireName() + "'");
-      const bool enabled = call.name == "enableTimer" ? true
-                           : call.name == "disableTimer" ? false
-                           : !timer->publicState.enabled;
-      setTimerEnabled(requireName(), enabled);
+      const std::string &name = requireName();
+      Impl::Record *timer = impl_->findTag(name, "timer");
+      if (timer == nullptr) warnMissing("timer", name);
+      else {
+        const bool enabled = call.name == "enableTimer" ? true
+                             : call.name == "disableTimer" ? false
+                             : !timer->publicState.enabled;
+        setTimerEnabled(name, enabled);
+      }
     } else if (call.name == "enableTrigger" || call.name == "disableTrigger") {
-      if (!setTriggerEnabled(requireName(), call.name == "enableTrigger"))
-        throw std::invalid_argument("unknown trigger '" + requireName() + "'");
+      const std::string &name = requireName();
+      if (!setTriggerEnabled(name, call.name == "enableTrigger"))
+        warnMissing("trigger", name);
     } else if (call.name == "teleport" || call.name == "teleport_rel") {
       physics::Vec3 position = argumentVector(call);
       if (call.name == "teleport_rel") position = add(impl_->services->playerPosition(), position);
@@ -926,7 +983,8 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
     } else if (call.name == "runScript") {
       impl_->services->submit(RunRuntimeScript{requireName()});
     } else if (call.name == "startEvent") {
-      impl_->queueStandaloneEvent(requireName());
+      const std::string &name = requireName();
+      if (!impl_->queueStandaloneEvent(name)) warnMissing("event", name);
     } else if (call.name == "playMusic") {
       const bool loop = call.arguments.size() < 2 ||
                         call.arguments[1] == "true" ||
@@ -955,35 +1013,49 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
       impl_->services->submit(PlayRuntimeEffect{
           requireName(), position, static_cast<float>(argumentNumber(call, 1)),
           spatial});
+    } else if (call.name == "npcEvent" || call.name == "npcEvent2" ||
+               call.name == "__all_npcEvent") {
+      const std::size_t expected = call.name == "npcEvent2" ? 4U : 3U;
+      if (call.arguments.size() != expected)
+        throw std::invalid_argument("expected " + std::to_string(expected) +
+                                    " NPC event arguments");
+      std::size_t used{};
+      const int code = std::stoi(call.arguments[1], &used);
+      if (used != call.arguments[1].size())
+        throw std::invalid_argument("NPC event code is not an integer");
+      impl_->services->submit(NpcRuntimeCommand{
+          call.arguments[0], code, call.arguments[2],
+          expected == 4 ? call.arguments[3] : std::string{},
+          call.name == "__all_npcEvent"});
+    } else if (call.name == "destroyNPC") {
+      impl_->services->submit(DestroyNpcRuntimeCommand{requireName()});
     } else if (call.name == "setSpeedTrain" ||
                call.name == "setRotSpeed") {
-      Impl::Record *record = impl_->find(requireName());
-      if (record == nullptr ||
-          (call.name == "setSpeedTrain" &&
-           record->kind != RuntimeEntityKind::Train) ||
-          (call.name == "setRotSpeed" &&
-           record->kind != RuntimeEntityKind::Rotator &&
-           record->kind != RuntimeEntityKind::Pendulum)) {
-        throw std::invalid_argument("unknown movement target '" +
-                                    requireName() + "'");
-      }
-      record->speed = argumentNumber(call, 1);
+      const std::string &name = requireName();
+      const double speed = argumentNumber(call, 1);
+      Impl::Record *record = call.name == "setSpeedTrain"
+          ? impl_->findKind(name, RuntimeEntityKind::Train)
+          : impl_->findKind(name, RuntimeEntityKind::Rotator);
+      if (record == nullptr && call.name == "setRotSpeed")
+        record = impl_->findKind(name, RuntimeEntityKind::Pendulum);
+      if (record == nullptr) warnMissing("movement target", name);
+      else record->speed = speed;
     } else if (call.name == "showEntity" || call.name == "hideEntity" ||
                call.name == "toggleEntity") {
       const std::optional<bool> requested =
           call.name == "toggleEntity" ? std::nullopt
           : std::optional<bool>{call.name == "showEntity"};
-      Impl::Record *record = impl_->find(requireName());
+      Impl::Record *record = impl_->findPresented(requireName());
       if (record != nullptr) {
-        record->publicState.enabled = requested.value_or(
-            !record->publicState.enabled);
+        record->publicState.visible = requested.value_or(
+            !record->publicState.visible);
         impl_->services->submit(SetRuntimeVisible{record->publicState.handle,
-                                                   record->publicState.enabled});
+                                                   record->publicState.visible});
       } else if (impl_->registry->findFirst(requireName()) ||
                  impl_->authoredTargetExists(requireName())) {
         impl_->services->submit(SetRuntimeNamedVisible{requireName(), requested});
       } else {
-        throw std::invalid_argument("unknown entity '" + requireName() + "'");
+        warnMissing("entity", requireName());
       }
     } else if (call.name == "toggleLight" || call.name == "enableLight" ||
                call.name == "disableLight") {
@@ -1057,7 +1129,7 @@ void SequenceRuntime::restoreState(const PersistentSequenceState &state) {
       impl_->services->submit(SetRuntimeTransform{current,
                                                   record.publicState.transform});
       impl_->services->submit(SetRuntimeVisible{current,
-                                                record.publicState.enabled});
+                                                record.publicState.visible});
     }
   }
   impl_->refreshPublicStates();

@@ -9,7 +9,9 @@
 #include <run3/input/OgreBitesInputAdapter.hpp>
 #include <run3/gameplay/PlayerController.hpp>
 #include <run3/gameplay/SequenceRuntime.hpp>
+#include <run3/gameplay/NpcSystem.hpp>
 #include <run3/gameplay/StaticMap.hpp>
+#include <run3/physics/PhysicsQuery.hpp>
 
 #include <OgreApplicationContext.h>
 
@@ -90,6 +92,8 @@ private:
   std::unique_ptr<gameplay::PlayerController> player_;
   std::unique_ptr<gameplay::OgreSequenceServices> sequenceServices_;
   std::unique_ptr<gameplay::SequenceRuntime> sequenceRuntime_;
+  std::unique_ptr<physics::WorldPhysicsQuery> npcPhysicsQuery_;
+  std::unique_ptr<gameplay::NpcSystem> npcSystem_;
   std::unique_ptr<audio::IAudioEngine> audioEngine_;
   std::unique_ptr<audio::MapAudioRuntime> mapAudio_;
   double yawRadians_{};

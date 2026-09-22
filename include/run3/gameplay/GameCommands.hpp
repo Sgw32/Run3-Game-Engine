@@ -20,7 +20,8 @@ enum class RuntimeEntityKind {
   Trigger,
   Ladder,
   Pickup,
-  DarkZone
+  DarkZone,
+  Npc
 };
 
 struct RuntimeEntitySpec {
@@ -33,11 +34,15 @@ struct RuntimeEntitySpec {
   physics::Transform transform;
   physics::Vec3 scale{1.0, 1.0, 1.0};
   physics::Vec3 halfExtents{1.0, 1.0, 1.0};
+  double visualYawDegrees{};
+  double renderDistance{10000.0};
+  std::string handBone{"Hand"};
   bool visible{true};
   bool collision{true};
 };
 
 struct SpawnRuntimeEntity { RuntimeEntitySpec spec; };
+struct DestroyRuntimeEntity { EntityHandle handle; };
 struct DestroyRuntimeEntities {};
 struct SetRuntimeTransform {
   EntityHandle handle;
@@ -46,6 +51,10 @@ struct SetRuntimeTransform {
 struct SetRuntimeVisible {
   EntityHandle handle;
   bool visible{};
+};
+struct SetRuntimeCollision {
+  EntityHandle handle;
+  bool enabled{};
 };
 struct SetRuntimeNamedVisible {
   std::string name;
@@ -85,6 +94,30 @@ struct PlayRuntimeAnimation {
   std::string animation;
   bool loop{};
 };
+struct NpcRuntimeCommand {
+  std::string name;
+  int legacyEvent{};
+  std::string argument;
+  std::string secondArgument;
+  bool broadcast{};
+};
+struct DestroyNpcRuntimeCommand { std::string name; };
+struct SetNpcAttachment {
+  EntityHandle owner;
+  std::string object;
+  std::string bone;
+  bool attach{true};
+};
+struct PlayRuntimeFacial {
+  EntityHandle owner;
+  std::filesystem::path definition;
+  physics::Vec3 position;
+};
+struct SpawnRuntimeRagdoll {
+  EntityHandle owner;
+  physics::Transform transform;
+};
+struct TickRuntimeNpcPhysics { double seconds{}; };
 struct DeferredLegacyCommand {
   std::string name;
   std::string detail;
@@ -92,15 +125,20 @@ struct DeferredLegacyCommand {
 struct RuntimeLog { std::string message; };
 
 using GameCommand =
-    std::variant<SpawnRuntimeEntity, DestroyRuntimeEntities,
-                 SetRuntimeTransform, SetRuntimeVisible,
+    std::variant<SpawnRuntimeEntity, DestroyRuntimeEntity, DestroyRuntimeEntities,
+                 SetRuntimeTransform, SetRuntimeVisible, SetRuntimeCollision,
                  SetRuntimeNamedVisible, SetRuntimeLightVisible,
                  PlayRuntimeSound,
                  StopRuntimeSound, PlayRuntimeEffect, SetRuntimeMusicGain,
                  SetRuntimeAmbientEnabled, RunRuntimeScript, ChangeRuntimeMap,
                  DamageRuntimePlayer, TeleportRuntimePlayer,
                  ApplyRuntimeParentMotion, SetRuntimeDarkness,
-                 PlayRuntimeAnimation, DeferredLegacyCommand, RuntimeLog>;
+                 PlayRuntimeAnimation, NpcRuntimeCommand,
+                 DestroyNpcRuntimeCommand,
+                 SetNpcAttachment,
+                 PlayRuntimeFacial, SpawnRuntimeRagdoll,
+                 TickRuntimeNpcPhysics,
+                 DeferredLegacyCommand, RuntimeLog>;
 
 class IGameServices {
 public:
@@ -111,6 +149,8 @@ public:
   [[nodiscard]] virtual bool playerStandingOn(EntityHandle handle) const = 0;
   [[nodiscard]] virtual std::optional<bool>
   lightVisible(std::string_view name) const = 0;
+  [[nodiscard]] virtual std::optional<physics::Transform>
+  runtimeTransform(std::string_view) const { return std::nullopt; }
 };
 
 } // namespace run3::gameplay

@@ -43,6 +43,9 @@ PlayerController::PlayerController(physics::PhysicsWorld &world,
 
 void PlayerController::spawn(physics::Vec3 centrePosition) {
   noclipPosition_ = centrePosition;
+  parentedPosition_ = centrePosition;
+  parentMotion_ = {};
+  parented_ = false;
   crouched_ = false;
   rebuildBody(false);
   updateGrounded();
@@ -166,6 +169,9 @@ void PlayerController::fixedUpdate(double seconds) {
     return;
   }
   if (noclip_) {
+    // Noclip is an explicit developer override.  Keep the scripted binding
+    // alive, but do not let train deltas prevent free inspection.
+    parentMotion_ = {};
     const physics::Vec3 direction = viewDirection();
     const physics::Vec3 right{std::cos(yaw_), 0.0, std::sin(yaw_)};
     physics::Vec3 motion = add(multiply(right, command_.strafe),
@@ -181,6 +187,19 @@ void PlayerController::fixedUpdate(double seconds) {
     physics::Transform transform = world_->transform(body_);
     transform.position = noclipPosition_;
     world_->setTransform(body_, transform);
+    jumpWasDown_ = command_.jump;
+    return;
+  }
+
+  if (parented_) {
+    physics::Transform transform = world_->transform(body_);
+    transform.position = add(transform.position, parentMotion_);
+    parentMotion_ = {};
+    parentedPosition_ = transform.position;
+    noclipPosition_ = transform.position;
+    world_->setTransform(body_, transform);
+    world_->setLinearVelocity(body_, {});
+    grounded_ = false;
     jumpWasDown_ = command_.jump;
     return;
   }
@@ -228,7 +247,18 @@ void PlayerController::fixedUpdate(double seconds) {
 
 physics::StepResult PlayerController::simulateFixedStep() {
   fixedUpdate(physics::PhysicsWorld::fixedStepSeconds);
-  return world_->advance(physics::PhysicsWorld::fixedStepSeconds);
+  const physics::StepResult result =
+      world_->advance(physics::PhysicsWorld::fixedStepSeconds);
+  // Bullet still integrates gravity for a dynamic capsule.  Re-assert the
+  // legacy parent relation after the shared world step so the rendered camera
+  // remains exactly at its authored seat instead of sagging every tick.
+  if (parented_ && !noclip_ && body_.valid()) {
+    physics::Transform transform = world_->transform(body_);
+    transform.position = parentedPosition_;
+    world_->setTransform(body_, transform);
+    world_->setLinearVelocity(body_, {});
+  }
+  return result;
 }
 
 void PlayerController::setNoclip(bool enabled) {
@@ -270,13 +300,24 @@ void PlayerController::applyParentMotion(physics::Vec3 motion) noexcept {
   parentMotion_ = add(parentMotion_, motion);
 }
 
+void PlayerController::setParented(bool enabled) noexcept {
+  if (parented_ == enabled) return;
+  parented_ = enabled;
+  parentMotion_ = {};
+  if (!body_.valid()) return;
+  parentedPosition_ = world_->transform(body_).position;
+  noclipPosition_ = parentedPosition_;
+  world_->setLinearVelocity(body_, {});
+  grounded_ = false;
+}
+
 PlayerState PlayerController::state() const {
   if (!body_.valid()) {
     return {};
   }
   return {noclip_ ? noclipPosition_ : world_->transform(body_).position,
           noclip_ ? physics::Vec3{} : world_->linearVelocity(body_), grounded_,
-          crouched_, noclip_, onLadder_};
+          crouched_, noclip_, onLadder_, parented_};
 }
 
 physics::Vec3 PlayerController::collisionHalfExtents() const noexcept {

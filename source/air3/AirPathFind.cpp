@@ -1,6 +1,7 @@
 #include <run3/air3/AirPathFind.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <queue>
 #include <utility>
@@ -15,6 +16,17 @@ void AirPathFind::setNodes(std::vector<PathNode> nodes) {
 }
 
 bool AirPathFind::lineBlocked(physics::Vec3 from, physics::Vec3 to) const {
+  // Bullet asserts when a ray has identical endpoints. Duplicate authored AI
+  // nodes are legal legacy content, so treat that graph edge as trivially
+  // traversable instead of forwarding an invalid query to the backend.
+  constexpr double duplicateNodeEpsilon = 1.0e-6;
+  const double dx = to.x - from.x;
+  const double dy = to.y - from.y;
+  const double dz = to.z - from.z;
+  if ((dx * dx + dy * dy + dz * dz) <=
+      duplicateNodeEpsilon * duplicateNodeEpsilon) {
+    return false;
+  }
   physics::RaycastQuery query{from, to};
   query.group = physics::CollisionGroup::Npc;
   query.mask = physics::collisionMask(physics::CollisionGroup::World) |

@@ -31,6 +31,8 @@ struct FakeServices final : gameplay::IGameServices {
   std::string failScript;
   bool standingOnTrain{};
   bool fixtureLightVisible{};
+  bool playerParented{};
+  std::size_t activePresentations{};
   double fovDegrees{75.0};
 
   void submit(const gameplay::GameCommand &command) override {
@@ -38,6 +40,13 @@ struct FakeServices final : gameplay::IGameServices {
         script != nullptr && script->path.generic_string() == failScript) {
       throw std::runtime_error("fixture script failure");
     }
+    if (std::holds_alternative<gameplay::SpawnRuntimeEntity>(command))
+      ++activePresentations;
+    if (std::holds_alternative<gameplay::DestroyRuntimeEntities>(command))
+      activePresentations = 0;
+    if (const auto *parent =
+            std::get_if<gameplay::SetRuntimePlayerParented>(&command))
+      playerParented = parent->parented;
     commands.push_back(command);
   }
   [[nodiscard]] physics::Vec3 playerPosition() const override { return player; }
@@ -171,6 +180,19 @@ TEST_CASE("Step 8C warns on missing objects and preserves script execution",
   CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
       {"player", "teleport", {"1", "2", "3"}}));
   CHECK(fixture.services.count<gameplay::TeleportRuntimePlayer>() == 1);
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"world", "materialEntity", {"button", "Fixture/Material"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"world", "toggleParticleSystem", {"fixture-particle"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"world", "createParticleSystem",
+       {"Fixture/Particle", "spawned-particle", "1 2 3", "2 2 2"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"ui", "deleteParticleSystem", {"spawned-particle"}}));
+  CHECK(fixture.services.count<gameplay::SetRuntimeNamedMaterial>() == 1);
+  CHECK(fixture.services.count<gameplay::SetRuntimeEffectEnabled>() == 1);
+  CHECK(fixture.services.count<gameplay::CreateRuntimeParticle>() == 1);
+  CHECK(fixture.services.count<gameplay::DestroyRuntimeParticle>() == 1);
 
   scripting::ScriptEngine scripts(
       {fixture.paths.contentRoot(), fixture.paths.userRoot(), 10000},
@@ -231,6 +253,63 @@ TEST_CASE("Step 8C platform carries only a player standing on that train",
   fixture.services.standingOnTrain = false;
   fixture.runtime->fixedUpdate();
   CHECK(fixture.services.count<gameplay::ApplyRuntimeParentMotion>() == 1);
+}
+
+TEST_CASE("Step 8C scripted train parent pins and releases the player",
+          "[step8c][train][parent]") {
+  FixtureRuntime fixture;
+  fixture.runtime->start();
+  REQUIRE_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"world", "setCameraParent", {"train"}}));
+  CHECK(fixture.services.playerParented);
+  fixture.runtime->fixedUpdate();
+  CHECK(fixture.services.count<gameplay::ApplyRuntimeParentMotion>() == 1);
+  REQUIRE_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"world", "resetCameraParent", {}}));
+  CHECK_FALSE(fixture.services.playerParented);
+
+  REQUIRE_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"world", "setCameraParent", {"train"}}));
+  fixture.runtime->unload(false);
+  CHECK_FALSE(fixture.services.playerParented);
+  CHECK(fixture.services.activePresentations == 0);
+}
+
+TEST_CASE("Step 8C train acceleration preserves legacy update ordering",
+          "[step8c][train][lua]") {
+  FixtureRuntime fixture;
+  fixture.runtime->start();
+  REQUIRE_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"sequence", "setSpeedTrain", {"train", "0"}}));
+  REQUIRE_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"sequence", "setAccTrain", {"train", "60"}}));
+  fixture.runtime->fixedUpdate();
+  REQUIRE(fixture.runtime->state("train").has_value());
+  CHECK(fixture.runtime->state("train")->transform.position.x ==
+        Catch::Approx(1.0 / 60.0));
+  const std::string snapshot = fixture.runtime->serializeState();
+  fixture.runtime->fixedUpdate();
+  REQUIRE_NOTHROW(fixture.runtime->restoreSerializedState(snapshot));
+  fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->state("train")->transform.position.x ==
+        Catch::Approx(3.0 / 60.0));
+}
+
+TEST_CASE("Step 8C repeated map ownership teardown is idempotent",
+          "[step8c][lifecycle][leak]") {
+  for (int cycle = 0; cycle < 100; ++cycle) {
+    FixtureRuntime fixture;
+    fixture.runtime->start();
+    REQUIRE(fixture.services.activePresentations == 11);
+    REQUIRE_NOTHROW(fixture.runtime->dispatchScriptCall(
+        {"world", "setCameraParent", {"train"}}));
+    fixture.runtime->fixedUpdate();
+    REQUIRE_NOTHROW(fixture.runtime->unload(false));
+    CHECK(fixture.services.activePresentations == 0);
+    CHECK_FALSE(fixture.services.playerParented);
+    REQUIRE_NOTHROW(fixture.runtime->unload(false));
+    CHECK(fixture.services.count<gameplay::DestroyRuntimeEntities>() == 1);
+  }
 }
 
 TEST_CASE("Step 8C train stops at its last key point and door keeps legacy rate",
@@ -403,7 +482,7 @@ TEST_CASE("Step 8C inventories selected TLW maps and constructs live slices",
       sourceRoot / "build/step8c-content.exe", contentRoot,
       sourceRoot / "build/step8c-content-user");
   for (const std::string map : {"tlwcao", "tlwhome02", "tlwstations01",
-                                "tlwstations03"}) {
+                                "tlwstations02", "tlwstations03"}) {
     CAPTURE(map);
     const auto definition = content::loadMapDefinition(paths, map, "low");
     gameplay::EntityRegistry registry;
@@ -467,7 +546,48 @@ TEST_CASE("Step 8C inventories selected TLW maps and constructs live slices",
           "run3/lua/chapters/tlwstations01/air.lua"));
       CHECK(services.count<gameplay::RuntimeLog>() == 0);
     }
-    runtime.fixedUpdate();
+    if (map == "tlwstations01" || map == "tlwstations02" ||
+        map == "tlwstations03") {
+      const auto parentSpawn = std::find_if(
+          services.commands.begin(), services.commands.end(),
+          [](const gameplay::GameCommand &command) {
+            const auto *spawn =
+                std::get_if<gameplay::SpawnRuntimeEntity>(&command);
+            return spawn != nullptr && spawn->spec.name == "er9m_1_1";
+          });
+      REQUIRE(parentSpawn != services.commands.end());
+      const auto &trainSpec =
+          std::get<gameplay::SpawnRuntimeEntity>(*parentSpawn).spec;
+      if (map == "tlwstations02" || map == "tlwstations03") {
+        CHECK_FALSE(trainSpec.parts.empty());
+        CHECK(std::any_of(trainSpec.parts.begin(), trainSpec.parts.end(),
+                          [](const gameplay::RuntimeVisualPartSpec &part) {
+          return part.collision;
+        }));
+        CHECK(std::any_of(trainSpec.parts.begin(), trainSpec.parts.end(),
+                          [](const gameplay::RuntimeVisualPartSpec &part) {
+          return !part.collision;
+        }));
+      }
+      scripting::ScriptEngine startup(
+          {paths.contentRoot(), paths.userRoot(), 1'000'000},
+          [&runtime](const scripting::ScriptCall &call) {
+            return runtime.dispatchScriptCall(call);
+          });
+      CHECK_NOTHROW(startup.executeFile(
+          "run3/lua/chapters/" + map + "/startup.lua"));
+      CHECK(services.playerParented);
+      const std::size_t motionBefore =
+          services.count<gameplay::ApplyRuntimeParentMotion>();
+      runtime.fixedUpdate();
+      CHECK(services.count<gameplay::ApplyRuntimeParentMotion>() ==
+            motionBefore + 1);
+    }
+    if (map != "tlwstations01" && map != "tlwstations02" &&
+        map != "tlwstations03")
+      runtime.fixedUpdate();
     runtime.unload(false);
+    CHECK(services.activePresentations == 0);
+    CHECK_FALSE(services.playerParented);
   }
 }

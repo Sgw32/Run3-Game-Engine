@@ -37,6 +37,7 @@ struct SourceMaterial {
   std::string parent;
   std::string aliasTexture;
   std::string directTexture;
+  std::optional<bool> lighting;
   bool transparent{};
   bool doubleSided{};
 };
@@ -130,6 +131,10 @@ struct LegacyMaterialCatalog::Impl {
         // per-light accumulation. That does not make the whole material
         // transparent and must not disable compatibility-material depth writes.
         active->transparent = active->transparent || mode == "alpha_blend";
+      } else if (keyword == "lighting") {
+        std::string value;
+        tokens >> value;
+        active->lighting = lower(value) != "off";
       } else if (keyword == "depth_write") {
         std::string value;
         tokens >> value;
@@ -174,12 +179,16 @@ struct LegacyMaterialCatalog::Impl {
     result.texture = !found->second.aliasTexture.empty()
                          ? found->second.aliasTexture
                          : found->second.directTexture;
+    result.lighting = found->second.lighting.value_or(true);
     result.transparent = found->second.transparent;
     result.doubleSided = found->second.doubleSided;
     if (!found->second.parent.empty()) {
       if (const auto parent = resolve(found->second.parent, visiting)) {
         if (result.texture.empty()) {
           result.texture = parent->texture;
+        }
+        if (!found->second.lighting.has_value()) {
+          result.lighting = parent->lighting;
         }
         result.transparent = result.transparent || parent->transparent;
         result.doubleSided = result.doubleSided || parent->doubleSided;

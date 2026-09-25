@@ -43,6 +43,18 @@ struct StaticMapStats {
   std::size_t skippedSections{};
 };
 
+struct StaticMapResourceCounts {
+  std::size_t entities{};
+  std::size_t particles{};
+  std::size_t physicsBodies{};
+  bool rootNode{};
+
+  [[nodiscard]] bool empty() const noexcept {
+    return entities == 0 && particles == 0 && physicsBodies == 0 &&
+           !rootNode;
+  }
+};
+
 struct NamedObjectBounds {
   physics::Vec3 centre;
   physics::Vec3 halfExtents;
@@ -65,6 +77,7 @@ public:
   [[nodiscard]] physics::Vec3 spawnPosition() const noexcept;
   [[nodiscard]] const std::vector<AxisAlignedVolume> &ladderVolumes() const;
   [[nodiscard]] const StaticMapStats &stats() const noexcept;
+  [[nodiscard]] StaticMapResourceCounts resourceCounts() const noexcept;
   [[nodiscard]] const content::MapDefinition &definition() const;
   [[nodiscard]] EntityRegistry &registry();
   [[nodiscard]] const EntityRegistry &registry() const;
@@ -75,6 +88,8 @@ public:
   [[nodiscard]] Ogre::Entity *namedObject(std::string_view name) const;
   [[nodiscard]] bool setNamedObjectPhysicsEnabled(std::string_view name,
                                                   bool enabled);
+  [[nodiscard]] bool setNamedObjectMaterial(std::string_view name,
+                                            std::string_view material);
   void applyCompatibleMaterials(Ogre::Entity &entity,
                                 std::string_view overrideMaterial = {});
 

@@ -4,6 +4,7 @@ material Run3/TestTransparent
     {
         pass
         {
+            lighting off
             scene_blend alpha_blend
             depth_write off
             cull_hardware none

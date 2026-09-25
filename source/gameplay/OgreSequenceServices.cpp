@@ -17,6 +17,7 @@
 #include <OgreLogManager.h>
 #include <OgreMaterialManager.h>
 #include <OgreMesh.h>
+#include <OgreParticleSystem.h>
 #include <OgreResourceGroupManager.h>
 #include <OgreSceneManager.h>
 #include <OgreSceneNode.h>
@@ -95,12 +96,26 @@ public:
     std::string objectName;
   };
   struct Presentation {
+    struct Part {
+      RuntimeVisualPartSpec spec;
+      Ogre::SceneNode *node{};
+      Ogre::Entity *entity{};
+      Ogre::Vector3 localCentre{Ogre::Vector3::ZERO};
+      std::optional<PhysicsEntityId> physicsEntity;
+    };
     RuntimeEntitySpec spec;
     Ogre::SceneNode *node{};
     Ogre::SceneNode *visualNode{};
     Ogre::Entity *entity{};
     Ogre::Vector3 localCentre{Ogre::Vector3::ZERO};
     std::optional<PhysicsEntityId> physicsEntity;
+    std::vector<Part> parts;
+  };
+  struct ParticlePresentation {
+    std::string name;
+    std::uint64_t owner{};
+    Ogre::SceneNode *node{};
+    Ogre::ParticleSystem *system{};
   };
 
   Impl(const AppPaths &appPaths, Ogre::SceneManager &manager,
@@ -208,6 +223,84 @@ public:
     physicsHandles[*presentation.physicsEntity] = presentation.spec.handle;
   }
 
+  void createPartPhysics(Presentation &owner, Presentation::Part &part) {
+    if (!part.spec.collision || part.entity == nullptr || part.node == nullptr)
+      return;
+    const Ogre::Vector3 meshHalf = part.entity->getBoundingBox().getHalfSize();
+    const Ogre::Vector3 derivedScale = part.node->_getDerivedScale();
+    physics::Vec3 half{
+        std::max(0.01, static_cast<double>(
+                           std::abs(meshHalf.x * derivedScale.x))),
+        std::max(0.01, static_cast<double>(
+                           std::abs(meshHalf.y * derivedScale.y))),
+        std::max(0.01, static_cast<double>(
+                           std::abs(meshHalf.z * derivedScale.z)))};
+    DynamicEntityDesc body{
+        part.spec.name.empty() ? owner.spec.name : part.spec.name,
+        physics::BodyType::Train, physics::Shape::box(half)};
+    body.motion = physics::BodyMotion::Kinematic;
+    part.node->_update(true, true);
+    body.transform.position = fromOgre(
+        part.node->_getDerivedPosition() +
+        part.node->_getDerivedOrientation() * part.localCentre);
+    body.transform.rotation = fromOgre(part.node->_getDerivedOrientation());
+    body.group = physics::CollisionGroup::Train;
+    body.mask = physics::collisionMask(physics::CollisionGroup::Player) |
+                physics::collisionMask(physics::CollisionGroup::Dynamic) |
+                physics::collisionMask(physics::CollisionGroup::Npc);
+    part.physicsEntity = dynamicPhysics.createEntity(std::move(body));
+    physicsHandles[*part.physicsEntity] = owner.spec.handle;
+  }
+
+  void syncPartBody(Presentation::Part &part) {
+    if (!part.physicsEntity || part.node == nullptr) return;
+    part.node->_update(true, true);
+    physics::Transform worldTransform;
+    worldTransform.position = fromOgre(
+        part.node->_getDerivedPosition() +
+        part.node->_getDerivedOrientation() * part.localCentre);
+    worldTransform.rotation = fromOgre(part.node->_getDerivedOrientation());
+    dynamicPhysics.setEntityTransform(*part.physicsEntity, worldTransform);
+  }
+
+  void createParticle(const RuntimeParticleSpec &spec, Ogre::SceneNode &parent,
+                      std::uint64_t owner) {
+    if (spec.name.empty() || spec.templateName.empty()) return;
+    if (particles.count(spec.name) != 0) {
+      log("warning: duplicate particle name '" + spec.name + "' skipped");
+      return;
+    }
+    try {
+      const std::string objectName = "Run3Step8CParticle/" +
+          std::to_string(particleSequence++) + "/" + spec.name;
+      Ogre::ParticleSystem *system = sceneManager->createParticleSystem(
+          objectName, spec.templateName);
+      Ogre::SceneNode *node = parent.createChildSceneNode(
+          objectName + "/Node", toOgre(spec.position));
+      node->setScale(toOgre(spec.scale));
+      node->attachObject(system);
+      system->setVisible(spec.visible);
+      particles.emplace(spec.name,
+                        ParticlePresentation{spec.name, owner, node, system});
+    } catch (const Ogre::Exception &error) {
+      // The old loader caught missing/broken templates and continued the map.
+      log("warning: particle '" + spec.name + "' template '" +
+          spec.templateName + "' skipped: " + error.getDescription());
+    }
+  }
+
+  void destroyParticle(std::string_view name) noexcept {
+    const auto found = particles.find(std::string(name));
+    if (found == particles.end()) return;
+    try {
+      if (found->second.system != nullptr)
+        sceneManager->destroyParticleSystem(found->second.system);
+      if (found->second.node != nullptr)
+        sceneManager->destroySceneNode(found->second.node);
+    } catch (...) {}
+    particles.erase(found);
+  }
+
   void spawn(const RuntimeEntitySpec &spec) {
     if (presentations.count(spec.handle.id.value) != 0) {
       throw std::runtime_error("duplicate runtime presentation handle");
@@ -282,6 +375,44 @@ public:
           presentation.entity->getBoundingBox().getCenter() * toOgre(spec.scale);
     }
     presentations.emplace(spec.handle.id.value, std::move(presentation));
+    Presentation &stored = presentations.at(spec.handle.id.value);
+    if (stored.node != nullptr) {
+      for (const RuntimeVisualPartSpec &partSpec : spec.parts) {
+        if (partSpec.mesh.empty()) continue;
+        Presentation::Part part;
+        part.spec = partSpec;
+        try {
+          const std::string suffix = std::to_string(stored.parts.size());
+          part.entity = sceneManager->createEntity(
+              "Run3Step8CPart/" + std::to_string(spec.handle.id.value) + "/" +
+                  suffix,
+              partSpec.mesh,
+              Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
+          staticMap->applyCompatibleMaterials(*part.entity, partSpec.material);
+          part.entity->setMeshLodBias(static_cast<Ogre::Real>(meshLodBias));
+          part.node = stored.node->createChildSceneNode(
+              "Run3Step8CPartNode/" + std::to_string(spec.handle.id.value) +
+                  "/" + suffix,
+              toOgre(partSpec.transform.position),
+              toOgre(partSpec.transform.rotation));
+          part.node->setScale(toOgre(partSpec.scale));
+          part.node->attachObject(part.entity);
+          part.node->_update(true, true);
+          part.localCentre = part.entity->getBoundingBox().getCenter() *
+                             part.node->_getDerivedScale();
+          if (!partSpec.name.empty())
+            namedPartEntities.insert_or_assign(partSpec.name, part.entity);
+          stored.parts.push_back(std::move(part));
+          createPartPhysics(stored, stored.parts.back());
+        } catch (const Ogre::Exception &error) {
+          if (part.entity != nullptr) sceneManager->destroyEntity(part.entity);
+          log("warning: train part '" + partSpec.name + "' mesh '" +
+              partSpec.mesh + "' skipped: " + error.getDescription());
+        }
+      }
+      for (const RuntimeParticleSpec &particle : spec.particles)
+        createParticle(particle, *stored.node, spec.handle.id.value);
+    }
     const auto previous = names.find(spec.name);
     if (previous == names.end() ||
         (presentations.at(previous->second).node == nullptr &&
@@ -301,6 +432,7 @@ public:
       presentation.node->_update(true, true);
     }
     syncPresentationBody(presentation);
+    for (Presentation::Part &part : presentation.parts) syncPartBody(part);
     // Parent motion also moves authored children. Keep each child collision
     // body in the same Bullet world as the visual hierarchy.
     for (auto &[id, child] : presentations) {
@@ -379,8 +511,17 @@ public:
   void setEffectEnabled(const SetRuntimeEffectEnabled &command) {
     const bool enabled = command.enabled.value_or(!effectStates[command.name]);
     effectStates[command.name] = enabled;
-    log("effect controller '" + command.name + "'=" +
-        (enabled ? "on" : "off") + " (Step 9 visual adapter pending)");
+    const auto particle = particles.find(command.name);
+    if (particle != particles.end() && particle->second.system != nullptr) {
+      particle->second.system->setVisible(enabled);
+      return;
+    }
+    if (sceneManager->hasParticleSystem(command.name)) {
+      sceneManager->getParticleSystem(command.name)->setVisible(enabled);
+      return;
+    }
+    log("warning: effect controller '" + command.name +
+        "' has no loaded particle presentation; state retained");
   }
 
   void destroyAll() noexcept {
@@ -402,15 +543,23 @@ public:
     ragdolls.clear();
     music.reset();
     oneShots.clear();
+    while (!particles.empty()) destroyParticle(particles.begin()->first);
     dynamicPhysics.unload();
     physicsHandles.clear();
     names.clear();
+    namedPartEntities.clear();
     if (sceneManager != nullptr) {
       for (auto &[id, presentation] : presentations) {
         static_cast<void>(id);
         if (presentation.entity != nullptr) {
           try { sceneManager->destroyEntity(presentation.entity); }
           catch (...) {}
+        }
+        for (auto &part : presentation.parts) {
+          if (part.entity != nullptr) {
+            try { sceneManager->destroyEntity(part.entity); }
+            catch (...) {}
+          }
         }
       }
     }
@@ -445,6 +594,18 @@ public:
       physicsHandles.erase(*entry.physicsEntity);
       dynamicPhysics.destroyEntity(*entry.physicsEntity);
     }
+    for (auto &part : entry.parts) {
+      if (part.physicsEntity) {
+        physicsHandles.erase(*part.physicsEntity);
+        dynamicPhysics.destroyEntity(*part.physicsEntity);
+      }
+      if (!part.spec.name.empty()) namedPartEntities.erase(part.spec.name);
+      if (part.entity) sceneManager->destroyEntity(part.entity);
+    }
+    std::vector<std::string> ownedParticles;
+    for (const auto &[name, particle] : particles)
+      if (particle.owner == handle.id.value) ownedParticles.push_back(name);
+    for (const std::string &name : ownedParticles) destroyParticle(name);
     sounds.erase(handle.id.value);
     voices.erase(handle.id.value);
     const auto ragdoll = ragdolls.find(handle.id.value);
@@ -550,6 +711,9 @@ public:
   Ogre::SceneNode *root{};
   std::unordered_map<std::uint64_t, Presentation> presentations;
   std::unordered_map<std::string, std::uint64_t> names;
+  std::unordered_map<std::string, Ogre::Entity *> namedPartEntities;
+  std::unordered_map<std::string, ParticlePresentation> particles;
+  std::uint64_t particleSequence{};
   std::unordered_map<PhysicsEntityId, EntityHandle> physicsHandles;
   std::unordered_map<std::uint64_t, audio::SoundHandle> sounds;
   std::unordered_map<std::uint64_t, audio::SoundHandle> voices;
@@ -622,6 +786,11 @@ void OgreSequenceServices::submit(const GameCommand &command) {
             if (entry.physicsEntity)
               impl_->dynamicPhysics.setEntityEnabled(*entry.physicsEntity,
                                                       value.enabled);
+            for (auto &part : entry.parts) {
+              if (part.physicsEntity)
+                impl_->dynamicPhysics.setEntityEnabled(*part.physicsEntity,
+                                                        value.enabled);
+            }
           },
           [this](const SetRuntimeNamedVisible &value) {
             if (impl_->staticMap->setNamedObjectVisible(value.name,
@@ -635,8 +804,36 @@ void OgreSequenceServices::submit(const GameCommand &command) {
                 return;
               }
             }
-            impl_->log("authored entity '" + value.name +
-                       "' is not yet presented (nested train part/deferred)");
+            const auto part = impl_->namedPartEntities.find(value.name);
+            if (part != impl_->namedPartEntities.end()) {
+              part->second->setVisible(value.visible.value_or(
+                  !part->second->getVisible()));
+              return;
+            }
+            impl_->log("warning: authored entity '" + value.name +
+                       "' has no loaded presentation");
+          },
+          [this](const SetRuntimeNamedMaterial &value) {
+            if (impl_->staticMap->setNamedObjectMaterial(value.name,
+                                                          value.material))
+              return;
+            const auto part = impl_->namedPartEntities.find(value.name);
+            if (part != impl_->namedPartEntities.end()) {
+              impl_->staticMap->applyCompatibleMaterials(*part->second,
+                                                          value.material);
+              return;
+            }
+            const auto named = impl_->names.find(value.name);
+            if (named != impl_->names.end()) {
+              Impl::Presentation &entry = impl_->presentations.at(named->second);
+              if (entry.entity != nullptr) {
+                impl_->staticMap->applyCompatibleMaterials(*entry.entity,
+                                                            value.material);
+                return;
+              }
+            }
+            impl_->log("warning: materialEntity skipped missing entity '" +
+                       value.name + "'");
           },
           [this](const SetRuntimeLightVisible &value) {
             if (!impl_->sceneManager->hasLight(value.name)) {
@@ -697,6 +894,9 @@ void OgreSequenceServices::submit(const GameCommand &command) {
           [this](const ApplyRuntimeParentMotion &value) {
             impl_->player->applyParentMotion(value.translation);
           },
+          [this](const SetRuntimePlayerParented &value) {
+            impl_->player->setParented(value.parented);
+          },
           [this](const SetRuntimeHudVisible &value) {
             impl_->log(std::string("HUD ") +
                        (value.visible ? "shown" : "hidden") +
@@ -736,6 +936,32 @@ void OgreSequenceServices::submit(const GameCommand &command) {
           },
           [this](const SetRuntimeEffectEnabled &value) {
             impl_->setEffectEnabled(value);
+          },
+          [this](const CreateRuntimeParticle &value) {
+            RuntimeParticleSpec spec;
+            spec.name = value.name;
+            spec.templateName = value.templateName;
+            spec.position = value.position;
+            spec.scale = value.scale;
+            spec.visible = true;
+            impl_->createParticle(spec, *impl_->root, 0);
+          },
+          [this](const DestroyRuntimeParticle &value) {
+            if (impl_->particles.count(value.name) == 0 &&
+                impl_->sceneManager->hasParticleSystem(value.name)) {
+              try {
+                Ogre::ParticleSystem *system =
+                    impl_->sceneManager->getParticleSystem(value.name);
+                Ogre::SceneNode *node = system->getParentSceneNode();
+                impl_->sceneManager->destroyParticleSystem(system);
+                if (node != nullptr) impl_->sceneManager->destroySceneNode(node);
+              } catch (const Ogre::Exception &error) {
+                impl_->log("warning: deleteParticleSystem '" + value.name +
+                           "' failed: " + error.getDescription());
+              }
+            } else {
+              impl_->destroyParticle(value.name);
+            }
           },
           [this](const SetComputerPresentation &value) {
             setComputerPresentation(value);
@@ -884,6 +1110,24 @@ OgreSequenceServices::handleForPhysicsEntity(std::uint64_t physicsEntity) const 
   return found == impl_->physicsHandles.end()
              ? std::nullopt
              : std::optional<EntityHandle>{found->second};
+}
+
+OgreSequenceResourceCounts
+OgreSequenceServices::resourceCounts() const noexcept {
+  OgreSequenceResourceCounts result;
+  result.presentations = impl_->presentations.size();
+  for (const auto &[id, presentation] : impl_->presentations) {
+    static_cast<void>(id);
+    result.visualParts += presentation.parts.size();
+  }
+  result.particles = impl_->particles.size();
+  result.physicsBindings = impl_->physicsHandles.size();
+  result.audioHandles = impl_->sounds.size() + impl_->voices.size() +
+                        (impl_->music.valid() ? 1U : 0U);
+  result.attachments = impl_->attachments.size();
+  result.ragdolls = impl_->ragdolls.size();
+  result.rootNode = impl_->root != nullptr;
+  return result;
 }
 
 } // namespace run3::gameplay

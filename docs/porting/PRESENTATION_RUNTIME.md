@@ -41,9 +41,9 @@ display-material state without reviving CEGUI.
 | trigger/event relay | 65 trigger bindings; three live `changelevel` actions | Implemented typed delayed actions and deferred-safe transitions. The real `tlwstations01` `cng -> tlwstations02` target is an automated test. |
 | pickup | 0 | Explicitly unused in the selected campaign; fixture behavior remains implemented by Step 8C. |
 | Sequence `flare` / `fire` | 0 / 0 | Explicitly unused as Sequence declarations. |
-| DotScene `fire` | 4, all in `tlwdolg`; `fireToggle("fire1")` is script-live | Gameplay controller is typed and functional now; ParticleFX/flame drawing is delegated to the named Step 9A effects presentation adapter. |
-| DotScene `particleSystem` | 97 | Gameplay ownership/control is retained; ParticleFX rendering is delegated to Step 9A. |
-| nested train `entity` / `nocollide` / `object` / `phys` / `psys` parts | content-proven in station trains | Train motion, collision, parenting and authored names are functional; final multipart visual/particle assembly is delegated to the named Step 9A effects/environment adapter. |
+| DotScene `fire` | 4, all in `tlwdolg`; `fireToggle("fire1")` is script-live | Gameplay controller is typed and functional; it toggles the named Ogre ParticleFX presentation when loaded. Step 9A/9B own final effect/material polish. |
+| DotScene `particleSystem` | 97 | Selected-quality templates, authored instances, typed toggling, map ownership, and teardown are implemented. Step 9A/9B own final effect/material polish. |
+| nested train `entity` / `nocollide` / `object` / `phys` / `psys` parts | content-proven in station trains | Multipart visuals, authored collision/noncollision, particles, transform following, parenting, and teardown are functional. |
 | `npcgroup` | 0 | Explicitly unused; no legacy group singleton was revived. |
 | `seqscript` | 0 declarations / 0 bindings | Explicitly unused; ordinary startup, delayed-event, and cutscene scripts cover all selected content use. |
 | `fuzzy` | 0 | Explicitly retired for this campaign variant; legacy experimental classes are not built. |
@@ -53,11 +53,13 @@ display-material state without reviving CEGUI.
 
 ## Persistence and transitions
 
-`RUN3_SEQUENCE_STATE 1` is a deterministic, locale-independent text format
+`RUN3_SEQUENCE_STATE 4` is a deterministic, locale-independent text format
 covering map identity, tick/order, entity transforms and flags, timer/train
-internals, queued authored actions, explicit train parent, active cutscene time,
-and computer focus. Runtime handles are deliberately rebuilt from authored
-identity rather than serialized. `RUN3_NPC_STATE 1` covers NPC identity,
+internals (including speed and acceleration), queued authored actions,
+explicit train parent/mode/local offset, active cutscene time, and computer
+focus. Readers retain formats 1–3 for compatibility. Runtime handles are
+deliberately rebuilt from authored identity rather than serialized.
+`RUN3_NPC_STATE 1` covers NPC identity,
 state, transform, goal, health, animation, parent name, and gravity state.
 Malformed versions, count drift, and identity drift are rejected.
 
@@ -95,10 +97,11 @@ round trip, explicit 30/60/144 camera equivalence, all nine selected-map
 computer declarations, all four selected-map cutscenes and their script paths,
 typed NPC scheduling, and the real stations transition target. The adjacent
 NPC tests cover event 26, scheduler cadence, and NPC-state serialization.
-Windows MSVC Debug and Release build the shell; 38/38 focused Step 8B-8E tests
-and 116/116 complete tests pass in each configuration. Installed D3D11
-`tlwstations01` and `tlwstations03` smokes resolve `air01` textures without
-missing-material diagnostics, run event 26, scheduler control and train
-binding, render two frames, and exit cleanly. Linux verification is currently blocked
+Windows MSVC Debug and Release build the shell; the current 48/48 focused
+physics/player/Step 8C/8E tests and 124/124 complete tests pass in each
+configuration. Installed D3D11 `tlwstations01`, `tlwstations02`, and
+`tlwstations03` runs resolve dynamic materials, load selected-quality particle
+effects, run station scripts and train binding, satisfy teardown audits, and
+exit cleanly. Linux verification is currently blocked
 by the local WSL preset pointing at removed
 `/tmp/run3-vcpkg-step7-src2`; `$HOME/dev/vcpkg` is absent.

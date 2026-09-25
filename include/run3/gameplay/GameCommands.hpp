@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 namespace run3::gameplay {
 
@@ -23,6 +24,23 @@ enum class RuntimeEntityKind {
   DarkZone,
   Npc,
   Computer
+};
+
+struct RuntimeVisualPartSpec {
+  std::string name;
+  std::string mesh;
+  std::string material;
+  physics::Transform transform;
+  physics::Vec3 scale{1.0, 1.0, 1.0};
+  bool collision{};
+};
+
+struct RuntimeParticleSpec {
+  std::string name;
+  std::string templateName;
+  physics::Vec3 position;
+  physics::Vec3 scale{1.0, 1.0, 1.0};
+  bool visible{};
 };
 
 struct RuntimeEntitySpec {
@@ -46,6 +64,8 @@ struct RuntimeEntitySpec {
   std::string handBone{"Hand"};
   bool visible{true};
   bool collision{true};
+  std::vector<RuntimeVisualPartSpec> parts;
+  std::vector<RuntimeParticleSpec> particles;
 };
 
 struct SpawnRuntimeEntity { RuntimeEntitySpec spec; };
@@ -66,6 +86,10 @@ struct SetRuntimeCollision {
 struct SetRuntimeNamedVisible {
   std::string name;
   std::optional<bool> visible;
+};
+struct SetRuntimeNamedMaterial {
+  std::string name;
+  std::string material;
 };
 struct SetRuntimeLightVisible {
   std::string name;
@@ -95,6 +119,10 @@ struct ChangeRuntimeMap { std::string map; };
 struct DamageRuntimePlayer { double amount{}; };
 struct TeleportRuntimePlayer { physics::Vec3 position; };
 struct ApplyRuntimeParentMotion { physics::Vec3 translation; };
+// Script-authored train/camera parenting is a gameplay constraint, not just a
+// camera hint.  While attached the player is pinned to the authored relative
+// position and ordinary movement/gravity cannot make the capsule drift.
+struct SetRuntimePlayerParented { bool parented{}; };
 struct SetRuntimeHudVisible { bool visible{true}; };
 struct SetRuntimeSubtitle { std::string text; double seconds{}; };
 struct SetRuntimeInventoryEnabled { bool enabled{true}; };
@@ -116,6 +144,13 @@ struct SetRuntimeEffectEnabled {
   std::string name;
   std::optional<bool> enabled;
 };
+struct CreateRuntimeParticle {
+  std::string templateName;
+  std::string name;
+  physics::Vec3 position;
+  physics::Vec3 scale{1.0, 1.0, 1.0};
+};
+struct DestroyRuntimeParticle { std::string name; };
 struct SetComputerPresentation {
   EntityHandle owner;
   std::string material;
@@ -178,16 +213,19 @@ struct RuntimeLog { std::string message; };
 using GameCommand =
     std::variant<SpawnRuntimeEntity, DestroyRuntimeEntity, DestroyRuntimeEntities,
                  SetRuntimeTransform, SetRuntimeVisible, SetRuntimeCollision,
-                 SetRuntimeNamedVisible, SetRuntimeLightVisible,
+                 SetRuntimeNamedVisible, SetRuntimeNamedMaterial,
+                 SetRuntimeLightVisible,
                  PlayRuntimeSound,
                  StopRuntimeSound, PlayRuntimeEffect, SetRuntimeMusicGain,
                  SetRuntimeAmbientEnabled, RunRuntimeScript, ChangeRuntimeMap,
                  DamageRuntimePlayer, TeleportRuntimePlayer,
-                 ApplyRuntimeParentMotion, SetRuntimeHudVisible,
+                 ApplyRuntimeParentMotion, SetRuntimePlayerParented,
+                 SetRuntimeHudVisible,
                   SetRuntimeSubtitle, SetRuntimeInventoryEnabled,
                   SetRuntimeFlashlightAllowed, SetRuntimeFov,
                   SetRuntimeCompositor,
                  SetRuntimeShaderParameter, SetRuntimeEffectEnabled,
+                 CreateRuntimeParticle, DestroyRuntimeParticle,
                  SetComputerPresentation,
                  SendComputerInput, SetRuntimeDarkness,
                  PlayRuntimeAnimation, NpcRuntimeCommand,

@@ -8,6 +8,7 @@
 
 #include <OgreAxisAlignedBox.h>
 #include <OgreEntity.h>
+#include <OgreDataStream.h>
 #include <OgreHardwareBufferManager.h>
 #include <OgreHardwareIndexBuffer.h>
 #include <OgreHardwareVertexBuffer.h>
@@ -19,9 +20,12 @@
 #include <OgreMeshManager.h>
 #include <OgreMeshSerializer.h>
 #include <OgrePass.h>
+#include <OgreParticleSystem.h>
+#include <OgreParticleSystemManager.h>
 #include <OgreResourceGroupManager.h>
 #include <OgreSceneManager.h>
 #include <OgreSceneNode.h>
+#include <OgreScriptCompiler.h>
 #include <OgreSubEntity.h>
 #include <OgreSubMesh.h>
 #include <OgreTechnique.h>
@@ -29,6 +33,7 @@
 #include <OgreShaderGenerator.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <fstream>
 #include <optional>
@@ -320,8 +325,10 @@ public:
     // now, so MeshSerializer can resolve it without noisy/fatal missing-
     // material diagnostics (notably air01.mesh on tlwstations01/03).
     for (const std::string &legacyName : materialCatalog_.names()) {
+      const std::optional<LegacyMaterialInfo> legacy =
+          materialCatalog_.find(legacyName);
       const Ogre::MaterialPtr compatible = compatibleMaterial(
-          legacyName, true, true, false);
+          legacyName, !legacy || legacy->lighting, true, false);
       if (compatible &&
           !Ogre::MaterialManager::getSingleton().resourceExists(
               legacyName, resourceGroup_)) {
@@ -329,6 +336,9 @@ public:
         alias->changeGroupOwnership(resourceGroup_);
       }
     }
+    // Particle templates bind their material names while being parsed, so
+    // load them only after the compatibility aliases above are published.
+    loadParticleTemplates(options.paths->contentRoot(), options.textureQuality);
     class CompatibilityListener final : public Ogre::MeshSerializerListener {
     public:
       explicit CompatibilityListener(Impl &owner) : owner_(&owner) {}
@@ -437,6 +447,31 @@ public:
           processSceneElement(child, node, nodeName, sceneMultiplier,
                               firstPlayer);
         }
+      }
+      return;
+    }
+
+    if (element.tag == "particleSystem") {
+      const auto name = values.find("name");
+      const auto file = values.find("file");
+      if (name == values.end() || name->second.empty() ||
+          file == values.end() || file->second.empty()) {
+        Ogre::LogManager::getSingleton().logMessage(
+            "Step 8C skipped particle system without name/template at " +
+            element.source.file.generic_string() + ":" +
+            std::to_string(element.source.line));
+        return;
+      }
+      try {
+        Ogre::ParticleSystem *system =
+            sceneManager_->createParticleSystem(name->second, file->second);
+        parent->attachObject(system);
+        mapParticles_.push_back(system);
+      } catch (const Ogre::Exception &error) {
+        Ogre::LogManager::getSingleton().logMessage(
+            "Step 8C skipped particle system '" + name->second +
+            "' using template '" + file->second + "': " +
+            error.getDescription());
       }
       return;
     }
@@ -752,6 +787,44 @@ public:
     // RTSS materials instead.
   }
 
+  void loadParticleTemplates(const fs::path &contentRoot,
+                             const std::string &textureQuality) {
+    Ogre::ParticleSystemManager &particles =
+        Ogre::ParticleSystemManager::getSingleton();
+    particles.removeTemplatesByResourceGroup(resourceGroup_);
+    const std::array<fs::path, 3> roots{
+        contentRoot / "run3" / "mats" / textureQuality,
+        contentRoot / "run3" / "game", contentRoot / "run3" / "particle"};
+    std::set<fs::path> scripts;
+    for (const fs::path &root : roots) {
+      if (!fs::is_directory(root)) continue;
+      for (const fs::directory_entry &entry :
+           fs::recursive_directory_iterator(root)) {
+        if (entry.is_regular_file() && lower(entry.path().extension().string()) ==
+                                           ".particle") {
+          scripts.insert(entry.path());
+        }
+      }
+    }
+    for (const fs::path &script : scripts) {
+      try {
+        std::ifstream source(script, std::ios::binary);
+        if (!source) continue;
+        Ogre::DataStreamPtr data(OGRE_NEW Ogre::FileStreamDataStream(
+            script.filename().string(), &source, false));
+        Ogre::ScriptCompilerManager::getSingleton().parseScript(data,
+                                                                 resourceGroup_);
+      } catch (const Ogre::Exception &error) {
+        Ogre::LogManager::getSingleton().logMessage(
+            "Step 8C particle script skipped: " + script.string() + ": " +
+            error.getDescription());
+      }
+    }
+    Ogre::LogManager::getSingleton().logMessage(
+        "Step 8C particle templates: parsed " +
+        std::to_string(scripts.size()) + " selected-quality scripts");
+  }
+
   void unload() noexcept {
     bodies_.clear();
     registry_.clear();
@@ -760,6 +833,13 @@ public:
     ladders_.clear();
     debugNodes_.clear();
     if (sceneManager_ != nullptr) {
+      for (Ogre::ParticleSystem *particle : mapParticles_) {
+        try {
+          sceneManager_->destroyParticleSystem(particle);
+        } catch (...) {
+        }
+      }
+      mapParticles_.clear();
       for (Ogre::Entity *entity : entities_) {
         try {
           sceneManager_->destroyEntity(entity);
@@ -781,6 +861,13 @@ public:
     compatibleMaterials_.clear();
     generatedMaterialSources_.clear();
     unresolvedMaterials_.clear();
+    if (Ogre::ParticleSystemManager::getSingletonPtr() != nullptr) {
+      try {
+        Ogre::ParticleSystemManager::getSingleton()
+            .removeTemplatesByResourceGroup(resourceGroup_);
+      } catch (...) {
+      }
+    }
   }
 
   void syncDynamicTransforms() {
@@ -819,6 +906,7 @@ public:
   physics::PhysicsWorld *world_{};
   Ogre::SceneNode *rootNode_{};
   std::vector<Ogre::Entity *> entities_;
+  std::vector<Ogre::ParticleSystem *> mapParticles_;
   std::unordered_map<std::string, Ogre::Entity *> namedEntities_;
   std::vector<Ogre::SceneNode *> debugNodes_;
   std::vector<BodyBinding> bodies_;
@@ -863,6 +951,12 @@ const std::vector<AxisAlignedVolume> &StaticMap::ladderVolumes() const {
 }
 const StaticMapStats &StaticMap::stats() const noexcept {
   return implementation_->stats_;
+}
+StaticMapResourceCounts StaticMap::resourceCounts() const noexcept {
+  return {implementation_->entities_.size(),
+          implementation_->mapParticles_.size(),
+          implementation_->bodies_.size(),
+          implementation_->rootNode_ != nullptr};
 }
 const content::MapDefinition &StaticMap::definition() const {
   if (!implementation_->definition_) {
@@ -912,6 +1006,14 @@ bool StaticMap::setNamedObjectPhysicsEnabled(std::string_view name,
     }
   }
   return false;
+}
+
+bool StaticMap::setNamedObjectMaterial(std::string_view name,
+                                       std::string_view material) {
+  Ogre::Entity *entity = namedObject(name);
+  if (entity == nullptr || material.empty()) return false;
+  applyCompatibleMaterials(*entity, material);
+  return true;
 }
 
 void StaticMap::applyCompatibleMaterials(Ogre::Entity &entity,

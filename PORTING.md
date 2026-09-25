@@ -20,7 +20,7 @@ Progress checklist (mark a step only when its exit criteria pass):
 - [x] 7 — unified audio
 - [x] 8A — XML and Lua compatibility substrate
 - [x] 8B — gameplay scene schema, entity inventory, and ownership
-- [ ] 8C — sequence runtime and core interactive entities
+- [x] 8C — sequence runtime and core interactive entities
 - [ ] 8D — legacy NPCs, AI nodes, and character events
 - [x] 8E — cutscenes, computers, and remaining authored entities
 - [ ] 9A — UI and visual portability
@@ -58,7 +58,7 @@ These observations make a big-bang rewrite unsafe. Keep a running, testable vert
 | OpenAL/ALUT + Audiere | Run3 audio API + miniaudio | Effects/music/3D audio pass; null audio is safe |
 | Lua 5.0 + luabind | Lua 5.4 + sol2 behind `ScriptEngine` | Full script inventory and representative sequences pass |
 | TinyXML 1 | TinyXML2 behind Run3 parsers | Golden scene/sequence/save parser tests pass |
-| CEGUI | Small Run3/OgreBites menu layer; retain Overlay HUD initially | Main/options/chapter/quit flows pass |
+| CEGUI | Pinned MyGUI/Ogre platform adapter behind Run3 UI services; retain Overlay HUD and `buttonGUI` only as migration compatibility | Main/options/chapter/quit, HUD, Lua UI, and computer render-surface flows pass |
 | Hydrax 0.5.1 + SkyX 0.1 | Simple portable adapters; richer effects optional | Every required map has acceptable fallback visuals |
 | DirectShow WMV intro | Skippable/no-video default; portable video is optional | Startup has no COM/DirectShow dependency |
 | Win32 serial/named pipes | Optional platform backends + null implementations | Default build/run is platform-neutral |
@@ -77,7 +77,7 @@ Use these decisions unless a short written architecture decision record (ADR) de
 8. **Audio:** replace OpenAL/ALUT and Audiere with one Run3 audio interface and a pinned miniaudio backend. Preserve WAV/MP3 playback, 3D attenuation, looping, pitch/time effects, fades, music streaming, and volume groups. Convert the few used OGG/tracker tracks to FLAC in an offline, reproducible content step, retaining originals and rights metadata.
 9. **Scripting:** preserve Lua 5.0 behavior during the first playable milestone, then move to pinned Lua 5.4 + sol2. Do not jump to Lua 5.5 until the existing 955 scripts and bindings pass under 5.4.
 10. **XML:** replace bundled TinyXML 1 with TinyXML2 only behind the existing scene/sequence schema tests.
-11. **UI:** do not make old CEGUI a permanent dependency. Recreate the small main/options/chapter menu with OgreBites Trays or a thin Run3 UI layer; keep the Ogre Overlay HUD and `buttonGUI` working during the port. Replace OIS types in `buttonGUI` with Run3 input types.
+11. **UI:** MyGUI is the primary engine GUI. Pin and build the `mygui` submodule at the reviewed gitlink (`8629ea76896fba2d837cffde9fce9f32935a1d11` at the time of this plan) with its Ogre-classic platform adapter; configuration must never fetch a floating branch. Put MyGUI behind Run3-owned UI/context/surface interfaces, translate Run3 input once at the adapter edge, and keep MyGUI types out of gameplay-facing APIs. Keep Ogre Overlay and `buttonGUI` working as temporary compatibility paths, including their legacy Lua calls, until each caller is migrated. CEGUI is reference material only and must not return as a runtime dependency.
 12. **Sky/water/video:** make SkyX, Hydrax, DirectShow, serial hardware, and named pipes optional. Supply simple Ogre sky/water and no-video/null-device fallbacks so these cannot block the game. The single WMV logo can be skipped for the first release.
 13. **Refactoring:** no repository-wide rename, file move, formatting pass, ECS conversion, or smart-pointer rewrite before the relevant behavior is covered. Small behavior-preserving refactors are encouraged.
 
@@ -95,8 +95,8 @@ run3_runtime (application loop, service ownership, configuration)
 +------------+-------------+-------------+-------------+
 | rendering  | physics API | audio API   | input/UI API| scripting API
 +------------+-------------+-------------+-------------+
-| Ogre 14.x  | Bullet 3    | miniaudio   | OgreBites/  | Lua 5.4 + sol2
-| adapter    | backend     | backend     | SDL adapter | backend
+| Ogre 14.x  | Bullet 3    | miniaudio   | Run3 input +| Lua 5.4 + sol2
+| adapter    | backend     | backend     | MyGUI/Ogre  | backend
 +------------+-------------+-------------+-------------+
              |
 run3_platform (paths, files, timing, logging, optional devices)
@@ -173,6 +173,7 @@ The exact system packages depend on the Ogre render systems enabled. Ogre's auth
 - [FFmpeg downloads](https://ffmpeg.org/download.html) for offline developer-only audio conversion; FFmpeg is not a planned runtime dependency
 - [Lua 5.4 manual](https://www.lua.org/manual/5.4/) and [sol2](https://github.com/ThePhD/sol2)
 - [TinyXML2](https://github.com/leethomason/tinyxml2)
+- [MyGUI source](https://github.com/MyGUI/mygui), [Ogre platform API](https://github.com/MyGUI/mygui/tree/master/Platforms/OgrePlatform), and [MyGUI documentation](https://mygui.info/docs/)
 - [CEGUI 0.8.7](https://github.com/cegui/cegui/releases/tag/v0-8-7) only as a format/API migration reference, not the desired final dependency
 - [Git LFS](https://git-lfs.com/) if and only if the project has permission to redistribute large game assets
 - [clang-format](https://clang.llvm.org/docs/ClangFormat.html), [clang-tidy](https://clang.llvm.org/extra/clang-tidy/), and [AddressSanitizer](https://clang.llvm.org/docs/AddressSanitizer.html)
@@ -445,6 +446,8 @@ Exit criteria:
 
 This step makes the environment interactive. Work in vertical slices and keep legacy XML and Lua names stable; do not port NPC behavior, cinematic cameras, or computer UI yet.
 
+Current status (2026-09-25): **completed for the Step 8C boundary**. The map-owned fixed-tick runtime and typed gameplay hooks cover the inventoried core entities. Train acceleration, terminal-stop behavior, multipart visuals/collision, selected-quality particle effects, material mutation, animation dispatch, scripted and ground-probe player parenting, stable runtime state, and audited teardown are tested. Real D3D11 starts of `tlwstations01`, `tlwstations02`, and `tlwstations03` complete cleanly; the station01 run proves the seated player follows the moving train. Missing compatibility targets warn with source/command context and continue, while malformed calls and genuine script failures still fail visibly. By owner direction, the campaign's chapter-only user-save UI/storage and the full start-to-finish campaign soak belong to final integration (Step 10), not this step. Step 9 still owns final presentation polish; these deferrals do not remove any Step 8C gameplay control.
+
 Paste into Codex:
 
 ```text
@@ -453,13 +456,15 @@ Read PORTING.md and do only Step 8C. Replace the legacy Sequence frame-listener/
 
 Exit criteria:
 
-- Fixture doors/buttons/triggers/timers/trains/ladders complete their authored state transitions and callbacks deterministically; missing command targets fail with context rather than becoming no-ops.
+- Fixture doors/buttons/triggers/timers/trains/ladders complete their authored state transitions and callbacks deterministically; missing compatibility targets warn with context and skip only that command, while malformed calls and real script failures fail visibly.
 - Representative `tlwcao` and `tlwhome02` doors, buttons, triggers, elevators/trains, rotators/pendulums, and ladders can be seen and used in first person, with correct collision, sound, parenting, and scripts.
 - Rendering FPS does not alter fixed-tick action order or final recorded entity state, and unload/reload leaves no callbacks, handles, audio voices, or physics objects from the previous map.
 
 ### Step 8D — Legacy NPCs, AI nodes, and character events
 
 The active low campaign census contains 146 `npc_neutral` and 8 `npc_enemy` declarations. Implement neutral characters first, then enemies; only implement friend/aerial or experimental classes when the compatibility census proves live content needs them.
+
+Current status (2026-09-25): **partial, not ready to close**. Construction, typed state/event handling, AIR3 motion, physics/audio adapters, all 19 `tlwcao` and 28 `tlwhome02` declarations, and focused lifetime tests are covered. Completion still requires content-proven 1:1 slices for bone head/look motion, animation blending, facial pose/subtitle output, detailed footsteps/voice/attack sounds, flashlight presentation, gravity/floor resolution, blood/gibs, enemy line-of-sight/combat, and legacy ragdoll bone mapping, plus representative story callbacks and unload/leak validation in real play. An item may move to Step 9A only when it is presentation-only and the typed gameplay control already works; otherwise it remains an 8D blocker. Update `docs/porting/NPC_RUNTIME.md`, `ENTITY_COMPATIBILITY.md`, and `STATUS.md` with evidence rather than treating an instantiated mesh as behavioral parity.
 
 Paste into Codex:
 
@@ -490,19 +495,29 @@ Exit criteria:
 - Every DotScene/Sequence tag encountered in the selected campaign has a reviewed disposition and an automated validation result. No required entity, event, or action is silently ignored.
 - Entity/NPC/sequence persistent state survives a save/load fixture and a representative chapter transition, while transient handles are rebuilt safely and old-map callbacks cannot fire.
 
-### Step 9A — Menus/HUD, shader compatibility, sky/water, and intro-video fallback
+### Step 9A — MyGUI menus/HUD/computers, shader compatibility, sky/water, and intro-video fallback
 
 This is the visual-parity milestone. Correctness beats exact legacy effects.
+
+MyGUI is the required primary UI backend for this step. Use the reviewed `mygui` submodule gitlink, build only `MyGUI::MyGUI` and `MyGUI::OgrePlatform` needed by Run3, and link exported/alias CMake targets rather than raw library names. No configure or build is allowed to update the submodule, download an unversioned MyGUI archive, or depend on a developer-wide MyGUI installation. Keep CEGUI disabled and use it only to understand legacy behavior.
+
+Introduce a Run3-owned UI service and scoped GUI contexts for the main window, HUD, and computer surfaces. MyGUI receives backend-neutral Run3 input at one adapter boundary and must obey the Step 4 focus/capture rules. Preserve `buttonGUI` as a compatibility facade while migrating callers; its API and the safe MyGUI facade coexist in virtual computers until content evidence permits retirement.
+
+The computer presentation adapter must reproduce the legacy rendering model without restoring legacy globals: entering one connected/attached computer captures player input, hides the main-viewport HUD, overlays, pointer, and other GUI layers for the off-screen pass, renders the computer GUI into its own Ogre render texture, then displays that texture only on the attached computer screen material. Restore all viewport visibility masks, overlays, GUI layers, camera, focus, and input state on exit, script failure, skip, map change, and unload. Only the active computer may receive keyboard/mouse events. Multiple declared computers may exist, but a player has at most one active attachment; render-to-texture state must not leak between them or into the main viewport.
+
+Expose MyGUI to Lua through `ScriptEngine`/sol2 under a stable `mygui` namespace as a capability-limited Run3 facade, alongside the existing `buttonGUI` compatibility API. Preserve recognizable MyGUI widget/layout/property concepts so computer scripts can use MyGUI directly rather than funneling new work through `buttonGUI`. At minimum, support scoped layout loading; create/find/destroy child widgets; typed handles; text, visibility, enabled state and selected safe properties; focus; and click/change/submit callbacks. Lua never receives owning raw `MyGUI::Widget*` pointers, arbitrary resource paths, renderer access, or cross-computer widget access. Validate stale handles, resource roots, duplicate names, callback lifetime, instruction budgets, and teardown. Record the exported names/signatures in the Step 8 binding snapshot and add compatibility shims only for content-proven calls.
 
 Paste into Codex:
 
 ```text
-Read PORTING.md and do only Step 9A. Remove direct CEGUI use from main.cpp by separating menu state/actions from presentation, then implement the required main/new-game/chapter/options/quit UI with the chosen Run3/OgreBites UI adapter. Preserve HUD, subtitles, console, and buttonGUI through Ogre Overlay while removing OIS types. Build a shader/material compatibility matrix and eliminate required Cg/ps_2_0/vs_2_0 programs: use Ogre RTSS for ordinary materials and maintained GLSL/HLSL implementations only for effects that materially affect gameplay. Make shader compile errors test failures for the required set. Replace Hydrax/SkyX with simple portable sky/water adapters first; port richer effects only behind optional backends. Make intro video skippable and disabled by default, removing DirectShow/WMV from the portable runtime. Validate UI scaling at 16:9, 16:10, 4:3, and high DPI. Verify D3D11 and GL3+, update status, and stop before Step 9B lighting work.
+Read PORTING.md and do only Step 9A. Make the pinned `mygui` submodule the primary GUI backend through Run3-owned UI/context/surface interfaces and its Ogre-classic platform target; never fetch a floating version or expose MyGUI ownership types to gameplay. Remove direct CEGUI use from main.cpp by separating menu state/actions from presentation, then implement the required main/new-game/chapter/options/quit UI in MyGUI. Migrate HUD, subtitles, console, loading screens, inventory, and settings in small slices while retaining Ogre Overlay and buttonGUI only as tested compatibility facades. Translate backend-neutral Run3 input once into MyGUI and preserve focus/capture behavior. Implement virtual-computer presentation as an isolated MyGUI render-to-texture context: hide main HUD/overlay/GUI layers during the off-screen pass, draw the texture on the single player-attached computer screen, route input only to that computer, and restore every render/input state on exit, failure, map change, and unload. Expose a capability-limited typed MyGUI facade to Lua through ScriptEngine/sol2 alongside buttonGUI: scoped layouts/widgets/properties/focus and safe callbacks, with no raw widget pointers, arbitrary paths, or cross-computer access; snapshot names/signatures and test stale-handle/callback cleanup. Keep CEGUI retired. Build a shader/material compatibility matrix and eliminate required Cg/ps_2_0/vs_2_0 programs: use Ogre RTSS for ordinary materials and maintained GLSL/HLSL implementations only for effects that materially affect gameplay. Make shader compile errors test failures for the required set. Replace Hydrax/SkyX with simple portable sky/water adapters first; port richer effects only behind optional backends. Make intro video skippable and disabled by default, removing DirectShow/WMV from the portable runtime. Validate UI and computer surfaces at 16:9, 16:10, 4:3, high DPI, D3D11, and GL3+. Update status and stop before Step 9B lighting work.
 ```
 
 Exit criteria:
 
-- A player can start/continue/quit the game and change supported settings without CEGUI.
+- A player can start/continue/quit the game and change supported settings through MyGUI without CEGUI; focus, resize, DPI scaling, and map teardown leave no stale widgets or callbacks.
+- A fixture computer and representative campaign computer can be entered, operated through both the typed MyGUI Lua facade and retained `buttonGUI` calls, rendered to their screen texture without drawing the main HUD into it, and exited with camera/input/render state restored.
+- MyGUI is reproducibly built from the pinned submodule on Windows and Linux using CMake targets; the asset-independent `Demos/MyGUIOgre` rotating-cube foreground-GUI smoke passes on D3D11 and GL3+ before engine integration is declared ready.
 - Required scenes have a visible fallback material rather than disappearing when a fancy shader is unavailable.
 - Required material/shader set produces zero compiler errors on D3D11 and GL3+.
 

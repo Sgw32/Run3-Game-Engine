@@ -206,12 +206,34 @@ TEST_CASE("Step 8E stable state and authored train binding round trip",
   REQUIRE(fixture.runtime->startCutscene("intro"));
   fixture.runtime->fixedUpdate();
   const std::string state = fixture.runtime->serializeState();
-  CHECK(state.rfind("RUN3_SEQUENCE_STATE 2", 0) == 0);
+  CHECK(state.rfind("RUN3_SEQUENCE_STATE 4", 0) == 0);
   fixture.runtime->skipCutscene();
   for (int tick = 0; tick < 10; ++tick) fixture.runtime->fixedUpdate();
   REQUIRE_NOTHROW(fixture.runtime->restoreSerializedState(state));
   CHECK(fixture.runtime->presentation().activeCutscene == "intro");
   CHECK(fixture.runtime->presentation().camera.has_value());
+}
+
+TEST_CASE("Step 8C full camera parent rotates the authored local offset",
+          "[step8c][parent][rotation]") {
+  ReadyFixture fixture;
+  fixture.services.player = {12, 0, 0};
+  fixture.runtime->start();
+  REQUIRE_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"world", "setCameraParent", {"platform"}}));
+  REQUIRE_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"world", "setFullCameraParent", {"true"}}));
+  fixture.services.platform.rotation = {0, 0, 1, 0};
+  fixture.runtime->fixedUpdate();
+  const auto motion = std::find_if(
+      fixture.services.commands.rbegin(), fixture.services.commands.rend(),
+      [](const auto &command) {
+        return std::holds_alternative<gameplay::ApplyRuntimeParentMotion>(
+            command);
+      });
+  REQUIRE(motion != fixture.services.commands.rend());
+  CHECK(std::get<gameplay::ApplyRuntimeParentMotion>(*motion).translation.x ==
+        -4.0);
 }
 
 TEST_CASE("Step 8E chapter transition cancels presentation before request",

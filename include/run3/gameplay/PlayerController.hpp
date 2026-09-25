@@ -42,6 +42,7 @@ struct PlayerState {
   bool crouched{};
   bool noclip{};
   bool onLadder{};
+  bool parented{};
 };
 
 class PlayerController final {
@@ -59,6 +60,7 @@ public:
   void setOnLadder(bool enabled) noexcept;
   void teleport(physics::Vec3 centrePosition);
   void applyParentMotion(physics::Vec3 translationPerStep) noexcept;
+  void setParented(bool enabled) noexcept;
 
   [[nodiscard]] PlayerState state() const;
   [[nodiscard]] physics::Vec3 collisionHalfExtents() const noexcept;
@@ -84,11 +86,13 @@ private:
   PlayerCommand command_;
   physics::Vec3 noclipPosition_;
   physics::Vec3 parentMotion_;
+  physics::Vec3 parentedPosition_;
   double yaw_{};
   bool grounded_{};
   bool crouched_{};
   bool noclip_{};
   bool onLadder_{};
+  bool parented_{};
   bool jumpWasDown_{};
 };
 

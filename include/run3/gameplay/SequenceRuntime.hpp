@@ -44,6 +44,8 @@ struct PersistentSequenceState {
     std::size_t keyPoint{};
     double phase{};
     physics::Vec3 rotationProgress{};
+    double speed{};
+    double acceleration{};
     bool oneShotFired{};
     bool completionFired{};
     bool reverse{};
@@ -61,6 +63,8 @@ struct PersistentSequenceState {
   std::vector<PendingAction> pending;
   std::uint64_t nextQueueOrder{};
   std::string playerParent;
+  bool fullPlayerParent{};
+  physics::Vec3 playerParentLocalOffset{};
   std::string activeCutscene;
   std::uint64_t cutsceneTick{};
   std::string activeComputer;

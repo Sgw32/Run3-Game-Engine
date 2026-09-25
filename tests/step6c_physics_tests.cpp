@@ -52,6 +52,10 @@ public:
   std::vector<run3::physics::RaycastHit>
   raycastAll(const run3::physics::RaycastQuery &query) const override {
     ++calls;
+    if (query.from.x == query.to.x && query.from.y == query.to.y &&
+        query.from.z == query.to.z) {
+      submittedZeroLengthRay = true;
+    }
     // The direct route at z=0 is blocked. Routes through the z=100 waypoint
     // are clear, demonstrating that AIR3 consumes only the injected seam.
     if (query.from.z == 0.0 && query.to.z == 0.0 &&
@@ -61,6 +65,7 @@ public:
     return {};
   }
   mutable int calls{};
+  mutable bool submittedZeroLengthRay{};
 };
 
 std::size_t countTags(const std::filesystem::path &file,
@@ -90,6 +95,24 @@ TEST_CASE("AIR3 path raycasts through the injected Run3 query interface") {
   REQUIRE(path.size() == 3);
   CHECK(path[1].id == 10);
   CHECK(query.calls > 1);
+}
+
+TEST_CASE("AIR3 never submits zero-length rays for duplicate authored nodes") {
+  BlockingQuery query;
+  run3::air3::AirPathFind pathfinder(query);
+  pathfinder.setNodes({{10, {0.0, 0.0, 0.0}},
+                       {11, {0.0, 0.0, 0.0}}});
+
+  const auto samePoint =
+      pathfinder.search({1, {0.0, 0.0, 0.0}}, {2, {0.0, 0.0, 0.0}});
+  REQUIRE(samePoint.size() == 2);
+  CHECK(query.calls == 0);
+
+  const auto duplicateGraph =
+      pathfinder.search({1, {0.0, 0.0, 0.0}}, {2, {100.0, 0.0, 0.0}});
+  CHECK(duplicateGraph.empty());
+  CHECK(query.calls > 0);
+  CHECK_FALSE(query.submittedZeroLengthRay);
 }
 
 TEST_CASE("pickup button and trigger callbacks become queued typed events") {

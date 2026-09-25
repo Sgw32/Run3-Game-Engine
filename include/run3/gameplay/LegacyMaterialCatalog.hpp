@@ -11,6 +11,7 @@ namespace run3::gameplay {
 
 struct LegacyMaterialInfo {
   std::string texture;
+  bool lighting{true};
   bool transparent{};
   bool doubleSided{};
 };

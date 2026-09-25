@@ -164,6 +164,22 @@ physics::Quaternion normalized(physics::Quaternion value) {
           value.z / magnitude};
 }
 
+physics::Vec3 rotate(physics::Quaternion rotation, physics::Vec3 value) {
+  rotation = normalized(rotation);
+  const physics::Quaternion vectorValue{0.0, value.x, value.y, value.z};
+  const physics::Quaternion conjugate{rotation.w, -rotation.x, -rotation.y,
+                                      -rotation.z};
+  const physics::Quaternion result =
+      multiply(multiply(rotation, vectorValue), conjugate);
+  return {result.x, result.y, result.z};
+}
+
+physics::Vec3 inverseRotate(physics::Quaternion rotation,
+                            physics::Vec3 value) {
+  rotation = normalized(rotation);
+  return rotate({rotation.w, -rotation.x, -rotation.y, -rotation.z}, value);
+}
+
 physics::Quaternion interpolate(physics::Quaternion from,
                                 physics::Quaternion to, double amount) {
   const double dot = from.w * to.w + from.x * to.x + from.y * to.y +
@@ -278,6 +294,7 @@ public:
     std::vector<const AuthoredElement *> authoredKeyPoints;
     std::size_t keyPoint{};
     double speed{};
+    double acceleration{};
     double distance{};
     double angle{};
     double phase{};
@@ -753,6 +770,31 @@ public:
       } else {
         result.mesh = "box.mesh";
       }
+      for (const AuthoredElement &child : record.definition->children) {
+        if (child.tag == "object" || child.tag == "nocollide") {
+          const AuthoredElement *entity = child.firstChild("entity");
+          if (entity == nullptr) continue;
+          RuntimeVisualPartSpec part;
+          part.name = attribute(*entity, "name", "");
+          part.mesh = attribute(*entity, "meshFile", "box.mesh");
+          part.material = attribute(*entity, "materialFile", "");
+          part.transform = transform(child);
+          part.scale = scale(child);
+          part.collision = child.tag == "object";
+          result.parts.push_back(std::move(part));
+        } else if (child.tag == "psys") {
+          RuntimeParticleSpec particle;
+          particle.name = record.publicState.name + "particle";
+          particle.templateName = attribute(child, "psysName", "");
+          if (const AuthoredElement *position = child.firstChild("position"))
+            particle.position = vector(*position);
+          if (const AuthoredElement *particleScale = child.firstChild("scale"))
+            particle.scale = vector(*particleScale, {1.0, 1.0, 1.0});
+          particle.visible = record.publicState.active;
+          if (!particle.templateName.empty())
+            result.particles.push_back(std::move(particle));
+        }
+      }
     } else if (record.kind != RuntimeEntityKind::Trigger &&
                record.kind != RuntimeEntityKind::DarkZone) {
       result.mesh = attribute(*record.definition, "mesh", "box.mesh");
@@ -1071,6 +1113,9 @@ public:
 
   void updateTrain(Record &record) {
     if (!record.publicState.active || record.keyPoints.empty()) return;
+    // Legacy Train::train_movement applied acceleration before calculating
+    // this tick's velocity.  Keep that ordering for station braking scripts.
+    record.speed += record.acceleration * fixedStepSeconds;
     if (record.keyPoints.size() > 1 && record.keyPoint == 0 &&
         record.publicState.transform.position == record.keyPoints.front()) {
       record.keyPoint = record.reverse ? record.keyPoints.size() - 1 : 1;
@@ -1203,9 +1248,18 @@ public:
     // Script-authored train parenting is evaluated after train transforms so
     // the player receives the same fixed-tick delta without a frame of lag.
     if (!playerParent.empty()) {
-      const auto parent = services->runtimeTransform(playerParent);
+      const Record *parentRecord = findPresented(playerParent);
+      const std::optional<physics::Transform> parent = parentRecord != nullptr
+          ? std::optional<physics::Transform>{parentRecord->publicState.transform}
+          : services->runtimeTransform(playerParent);
       if (parent) {
-        if (lastPlayerParentTransform) {
+        if (fullPlayerParent) {
+          const physics::Vec3 desired = add(
+              parent->position,
+              rotate(parent->rotation, playerParentLocalOffset));
+          services->submit(ApplyRuntimeParentMotion{
+              subtract(desired, services->playerPosition())});
+        } else if (lastPlayerParentTransform) {
           services->submit(ApplyRuntimeParentMotion{
               subtract(parent->position, lastPlayerParentTransform->position)});
         }
@@ -1213,7 +1267,10 @@ public:
       } else {
         services->submit(RuntimeLog{"warning: player parent '" + playerParent +
                                     "' disappeared; binding released"});
+        services->submit(SetRuntimePlayerParented{false});
         playerParent.clear();
+        fullPlayerParent = false;
+        playerParentLocalOffset = {};
         lastPlayerParentTransform.reset();
       }
     }
@@ -1231,7 +1288,12 @@ public:
     queue.clear();
     finishCutscene();
     static_cast<void>(exitComputer());
+    if (!playerParent.empty()) {
+      services->submit(SetRuntimePlayerParented{false});
+    }
     playerParent.clear();
+    fullPlayerParent = false;
+    playerParentLocalOffset = {};
     lastPlayerParentTransform.reset();
     std::exception_ptr failure;
     if (runOnExit && isStarted) {
@@ -1267,6 +1329,8 @@ public:
   Record *activeComputer{};
   SequencePresentationState presentationState;
   std::string playerParent;
+  bool fullPlayerParent{};
+  physics::Vec3 playerParentLocalOffset{};
   std::optional<physics::Transform> lastPlayerParentTransform;
   std::uint64_t tickNumber{};
   std::uint64_t nextQueueOrder{};
@@ -1373,6 +1437,10 @@ bool SequenceRuntime::setTrainRunning(std::string_view name, bool running) {
   Impl::Record *record = impl_->findKind(name, RuntimeEntityKind::Train);
   if (record == nullptr) return false;
   record->publicState.active = running;
+  if (record->definition->firstChild("psys") != nullptr) {
+    impl_->services->submit(SetRuntimeEffectEnabled{
+        record->publicState.name + "particle", running});
+  }
   if (!record->movingSound.empty() && record->movingSound != "none") {
     if (running) {
       impl_->services->submit(PlayRuntimeSound{record->publicState.handle,
@@ -1464,14 +1532,45 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
       static_cast<void>(exitComputer());
     } else if (call.name == "setCameraParent") {
       const std::string &name = requireName();
-      const auto transform = impl_->services->runtimeTransform(name);
+      const Impl::Record *parentRecord = impl_->findPresented(name);
+      const std::optional<physics::Transform> transform = parentRecord != nullptr
+          ? std::optional<physics::Transform>{parentRecord->publicState.transform}
+          : impl_->services->runtimeTransform(name);
       if (!transform) warnMissing("player parent", name);
       else {
+        if (impl_->playerParent.empty())
+          impl_->services->submit(SetRuntimePlayerParented{true});
         impl_->playerParent = name;
         impl_->lastPlayerParentTransform = transform;
+        impl_->playerParentLocalOffset = inverseRotate(
+            transform->rotation,
+            subtract(impl_->services->playerPosition(), transform->position));
+      }
+    } else if (call.name == "setFullCameraParent") {
+      if (call.arguments.size() != 1)
+        throw std::invalid_argument("expected one boolean argument");
+      const std::string &value = call.arguments.front();
+      if (value != "true" && value != "1" && value != "false" &&
+          value != "0")
+        throw std::invalid_argument("parent rotation flag is not boolean");
+      impl_->fullPlayerParent = value == "true" || value == "1";
+      if (!impl_->playerParent.empty()) {
+        const Impl::Record *record = impl_->findPresented(impl_->playerParent);
+        const std::optional<physics::Transform> parent = record != nullptr
+            ? std::optional<physics::Transform>{record->publicState.transform}
+            : impl_->services->runtimeTransform(impl_->playerParent);
+        if (parent) {
+          impl_->playerParentLocalOffset = inverseRotate(
+              parent->rotation,
+              subtract(impl_->services->playerPosition(), parent->position));
+        }
       }
     } else if (call.name == "resetCameraParent") {
+      if (!impl_->playerParent.empty())
+        impl_->services->submit(SetRuntimePlayerParented{false});
       impl_->playerParent.clear();
+      impl_->fullPlayerParent = false;
+      impl_->playerParentLocalOffset = {};
       impl_->lastPlayerParentTransform.reset();
     } else if (call.name == "HUDHide" || call.name == "HUDDisable") {
       impl_->presentationState.hudVisible = false;
@@ -1529,6 +1628,34 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
           requireName(), call.name == "fireToggle"
                              ? std::nullopt
                              : std::optional<bool>{call.name == "fireFire"}});
+    } else if (call.name == "toggleParticleSystem") {
+      impl_->services->submit(SetRuntimeEffectEnabled{requireName(),
+                                                       std::nullopt});
+    } else if (call.name == "createParticleSystem") {
+      if (call.arguments.size() != 4)
+        throw std::invalid_argument(
+            "expected template, name, position and scale");
+      const auto parseVectorText = [](const std::string &text,
+                                      std::string_view argumentName) {
+        std::istringstream input(text);
+        physics::Vec3 value;
+        std::string trailing;
+        if (!(input >> value.x >> value.y >> value.z) || input >> trailing)
+          throw std::invalid_argument(std::string(argumentName) +
+                                      " is not an x y z vector");
+        return value;
+      };
+      impl_->services->submit(CreateRuntimeParticle{
+          call.arguments[0], call.arguments[1],
+          parseVectorText(call.arguments[2], "position"),
+          parseVectorText(call.arguments[3], "scale")});
+    } else if (call.name == "deleteParticleSystem") {
+      impl_->services->submit(DestroyRuntimeParticle{requireName()});
+    } else if (call.name == "materialEntity") {
+      if (call.arguments.size() != 2)
+        throw std::invalid_argument("expected entity and material names");
+      impl_->services->submit(
+          SetRuntimeNamedMaterial{call.arguments[0], call.arguments[1]});
     } else if (call.name == "playMusic") {
       const bool loop = call.arguments.size() < 2 ||
                         call.arguments[1] == "true" ||
@@ -1577,10 +1704,12 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
       impl_->services->submit(SetNpcUpdateInterval{
           std::max(0.0, argumentNumber(call, 0))});
     } else if (call.name == "setSpeedTrain" ||
+               call.name == "setAccTrain" ||
                call.name == "setRotSpeed") {
       const std::string &name = requireName();
       const double speed = argumentNumber(call, 1);
-      Impl::Record *record = call.name == "setSpeedTrain"
+      Impl::Record *record = (call.name == "setSpeedTrain" ||
+                              call.name == "setAccTrain")
           ? impl_->findKind(name, RuntimeEntityKind::Train)
           : impl_->findKind(name, RuntimeEntityKind::Rotator);
       if (record == nullptr && call.name == "setRotSpeed")
@@ -1588,6 +1717,7 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
       if (record == nullptr && call.name == "setRotSpeed")
         record = impl_->findKind(name, RuntimeEntityKind::Pendulum);
       if (record == nullptr) warnMissing("movement target", name);
+      else if (call.name == "setAccTrain") record->acceleration = speed;
       else record->speed = speed;
     } else if (call.name == "showEntity" || call.name == "hideEntity" ||
                call.name == "toggleEntity") {
@@ -1629,6 +1759,8 @@ PersistentSequenceState SequenceRuntime::saveState() const {
   saved.entities = impl_->publicStates;
   saved.nextQueueOrder = impl_->nextQueueOrder;
   saved.playerParent = impl_->playerParent;
+  saved.fullPlayerParent = impl_->fullPlayerParent;
+  saved.playerParentLocalOffset = impl_->playerParentLocalOffset;
   if (impl_->activeCutscene != nullptr) {
     saved.activeCutscene = impl_->activeCutscene->name;
     saved.cutsceneTick = impl_->activeCutscene->elapsedTicks;
@@ -1637,7 +1769,8 @@ PersistentSequenceState SequenceRuntime::saveState() const {
     saved.activeComputer = impl_->activeComputer->publicState.name;
   for (const Impl::Record &record : impl_->records) {
     saved.internals.push_back({record.nextTick, record.keyPoint, record.phase,
-                               record.rotationProgress,
+                               record.rotationProgress, record.speed,
+                               record.acceleration,
                                record.oneShotFired, record.completionFired,
                                record.reverse});
   }
@@ -1667,8 +1800,17 @@ void SequenceRuntime::restoreState(const PersistentSequenceState &state) {
   impl_->tickNumber = state.tick;
   impl_->nextQueueOrder = state.nextQueueOrder;
   impl_->playerParent = state.playerParent;
-  impl_->lastPlayerParentTransform = state.playerParent.empty()
-      ? std::nullopt : impl_->services->runtimeTransform(state.playerParent);
+  impl_->fullPlayerParent = state.fullPlayerParent;
+  impl_->playerParentLocalOffset = state.playerParentLocalOffset;
+  const Impl::Record *savedParent = state.playerParent.empty()
+      ? nullptr : impl_->findPresented(state.playerParent);
+  impl_->lastPlayerParentTransform = savedParent != nullptr
+      ? std::optional<physics::Transform>{savedParent->publicState.transform}
+      : (state.playerParent.empty()
+             ? std::nullopt
+             : impl_->services->runtimeTransform(state.playerParent));
+  impl_->services->submit(SetRuntimePlayerParented{
+      !state.playerParent.empty() && impl_->lastPlayerParentTransform.has_value()});
   impl_->queue.clear();
   for (const PersistentSequenceState::PendingAction &action : state.pending) {
     impl_->queue.push_back({action.dueTick, action.order, action.action});
@@ -1683,6 +1825,8 @@ void SequenceRuntime::restoreState(const PersistentSequenceState &state) {
     record.keyPoint = internals.keyPoint;
     record.phase = internals.phase;
     record.rotationProgress = internals.rotationProgress;
+    record.speed = internals.speed;
+    record.acceleration = internals.acceleration;
     record.oneShotFired = internals.oneShotFired;
     record.completionFired = internals.completionFired;
     record.reverse = internals.reverse;
@@ -1746,9 +1890,12 @@ std::string SequenceRuntime::serializeState() const {
   std::ostringstream output;
   output.imbue(std::locale::classic());
   output << std::setprecision(17);
-  output << "RUN3_SEQUENCE_STATE 2\n" << std::quoted(saved.mapName) << ' '
+  output << "RUN3_SEQUENCE_STATE 4\n" << std::quoted(saved.mapName) << ' '
          << saved.tick << ' ' << saved.nextQueueOrder << '\n'
-         << std::quoted(saved.playerParent) << ' '
+         << std::quoted(saved.playerParent) << ' ' << saved.fullPlayerParent
+         << ' ' << saved.playerParentLocalOffset.x << ' '
+         << saved.playerParentLocalOffset.y << ' '
+         << saved.playerParentLocalOffset.z << ' '
          << std::quoted(saved.activeCutscene) << ' ' << saved.cutsceneTick << ' '
          << std::quoted(saved.activeComputer) << '\n'
          << saved.entities.size() << '\n';
@@ -1767,7 +1914,8 @@ std::string SequenceRuntime::serializeState() const {
     output << internal.nextTick << ' ' << internal.keyPoint << ' '
            << internal.phase << ' ' << internal.rotationProgress.x << ' '
            << internal.rotationProgress.y << ' '
-           << internal.rotationProgress.z << ' ' << internal.oneShotFired << ' '
+           << internal.rotationProgress.z << ' ' << internal.speed << ' '
+           << internal.acceleration << ' ' << internal.oneShotFired << ' '
            << internal.completionFired << ' ' << internal.reverse << '\n';
   output << saved.pending.size() << '\n';
   for (const auto &pending : saved.pending) {
@@ -1783,13 +1931,22 @@ void SequenceRuntime::restoreSerializedState(std::string_view state) {
   std::string magic;
   int version{};
   if (!(input >> magic >> version) || magic != "RUN3_SEQUENCE_STATE" ||
-      (version != 1 && version != 2))
+      (version < 1 || version > 4))
     throw std::invalid_argument("unsupported sequence state format");
   PersistentSequenceState saved = saveState();
   std::size_t count{};
   if (!(input >> std::quoted(saved.mapName) >> saved.tick >>
-        saved.nextQueueOrder >> std::quoted(saved.playerParent) >>
-        std::quoted(saved.activeCutscene) >> saved.cutsceneTick >>
+        saved.nextQueueOrder >> std::quoted(saved.playerParent)))
+    throw std::invalid_argument("invalid sequence state header");
+  if (version >= 4) {
+    if (!(input >> saved.fullPlayerParent >> saved.playerParentLocalOffset.x >>
+          saved.playerParentLocalOffset.y >> saved.playerParentLocalOffset.z))
+      throw std::invalid_argument("invalid sequence parent state");
+  } else {
+    saved.fullPlayerParent = false;
+    saved.playerParentLocalOffset = {};
+  }
+  if (!(input >> std::quoted(saved.activeCutscene) >> saved.cutsceneTick >>
         std::quoted(saved.activeComputer) >> count) ||
       count != saved.entities.size())
     throw std::invalid_argument("invalid sequence state header");
@@ -1811,12 +1968,16 @@ void SequenceRuntime::restoreSerializedState(std::string_view state) {
   for (auto &internal : saved.internals) {
     if (!(input >> internal.nextTick >> internal.keyPoint >> internal.phase))
       throw std::invalid_argument("invalid sequence internals record");
-    if (version == 2) {
+    if (version >= 2) {
       if (!(input >> internal.rotationProgress.x >>
             internal.rotationProgress.y >> internal.rotationProgress.z))
         throw std::invalid_argument("invalid sequence rotation state");
     } else {
       internal.rotationProgress = {};
+    }
+    if (version >= 3) {
+      if (!(input >> internal.speed >> internal.acceleration))
+        throw std::invalid_argument("invalid sequence train state");
     }
     if (!(input >> internal.oneShotFired >> internal.completionFired >>
           internal.reverse))

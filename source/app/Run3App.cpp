@@ -14,6 +14,7 @@
 #include <OgreCamera.h>
 #include <OgreColourValue.h>
 #include <OgreEntity.h>
+#include <OgreException.h>
 #include <OgreLight.h>
 #include <OgreLogManager.h>
 #include <OgreOverlaySystem.h>
@@ -320,6 +321,7 @@ int Run3App::run() {
   }
 
   clock_.reset();
+  std::string runtimeFailure;
   try {
     while (!quitRequested_ && !getRoot()->endRenderingQueued()) {
       pollEvents();
@@ -458,14 +460,31 @@ int Run3App::run() {
         requestQuit();
       }
     }
+  } catch (const Ogre::Exception &error) {
+    // Copy plugin-owned exception text before closeApp() unloads the render
+    // system DLL which supplied the exception's code and RTTI.
+    runtimeFailure = "Ogre main-loop error: " + error.getFullDescription();
+  } catch (const std::exception &error) {
+    runtimeFailure = "Run3 main-loop error: " + std::string(error.what());
   } catch (...) {
+    runtimeFailure = "Run3 main-loop error: unknown exception";
+  }
+  if (!runtimeFailure.empty()) {
+    logError(runtimeFailure);
     if (gameplayMouseCapture_) {
       setGameplayMouseCapture(false);
     }
-    unloadMap(false);
+    try {
+      unloadMap(false);
+    } catch (const std::exception &error) {
+      logError("Run3 cleanup error after main-loop failure: " +
+               std::string(error.what()));
+    } catch (...) {
+      logError("Run3 cleanup error after main-loop failure: unknown exception");
+    }
     audioEngine_.reset();
     closeApp();
-    throw;
+    return 1;
   }
   if (player_) {
     const gameplay::PlayerState finalState = player_->state();
@@ -760,12 +779,48 @@ void Run3App::unloadMap(const bool runOnExit) {
     try { npcSystem_->unload(); }
     catch (...) { if (!failure) failure = std::current_exception(); }
   }
+  if (sequenceServices_) {
+    try {
+      // Also covers partial load failures where no SequenceRuntime reached
+      // start()/unload() but the presentation root was already allocated.
+      sequenceServices_->submit(gameplay::DestroyRuntimeEntities{});
+    } catch (...) {
+      if (!failure) failure = std::current_exception();
+    }
+    const gameplay::OgreSequenceResourceCounts resources =
+        sequenceServices_->resourceCounts();
+    if (!resources.empty() && !failure) {
+      failure = std::make_exception_ptr(std::runtime_error(
+          "map teardown retained Sequence resources: presentations=" +
+          std::to_string(resources.presentations) + " parts=" +
+          std::to_string(resources.visualParts) + " particles=" +
+          std::to_string(resources.particles) + " physics=" +
+          std::to_string(resources.physicsBindings) + " audio=" +
+          std::to_string(resources.audioHandles) + " attachments=" +
+          std::to_string(resources.attachments) + " ragdolls=" +
+          std::to_string(resources.ragdolls) + " root=" +
+          (resources.rootNode ? "1" : "0")));
+    }
+  }
   npcSystem_.reset();
   npcPhysicsQuery_.reset();
   sequenceRuntime_.reset();
   sequenceServices_.reset();
   mapAudio_.reset();
   player_.reset();
+  if (staticMap_) {
+    staticMap_->unload();
+    const gameplay::StaticMapResourceCounts resources =
+        staticMap_->resourceCounts();
+    if (!resources.empty() && !failure) {
+      failure = std::make_exception_ptr(std::runtime_error(
+          "map teardown retained StaticMap resources: entities=" +
+          std::to_string(resources.entities) + " particles=" +
+          std::to_string(resources.particles) + " physics=" +
+          std::to_string(resources.physicsBodies) + " root=" +
+          (resources.rootNode ? "1" : "0")));
+    }
+  }
   staticMap_.reset();
   physicsWorld_.reset();
   if (failure) std::rethrow_exception(failure);

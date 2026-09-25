@@ -12,14 +12,16 @@ retains its authored `tlwstations02` target. See
 [PRESENTATION_RUNTIME.md](PRESENTATION_RUNTIME.md) for exact semantics and the
 reviewed disposition of every remaining tag.
 
-Final computer screen/button drawing, HUD/subtitle widgets, and visual
-ParticleFX are explicitly delegated to the named Step 9A presentation
-adapters, with typed functional control available now. Lighting/material
-presentation is delegated to Step 9B. Zero-use Sequence `pickup`, `event`,
+Final computer screen/button drawing and HUD/subtitle widgets are explicitly
+delegated to the named Step 9A presentation adapters. Step 8C now loads the
+selected-quality ParticleFX templates and owns functional map/train/runtime
+particle creation, toggling, and teardown; final effect/material polish remains
+Step 9A/9B work. Lighting/material presentation is delegated to Step 9B.
+Zero-use Sequence `pickup`, `event`,
 `flare`, `fire`, `npcgroup`, `seqscript`, and `fuzzy` tags are not revived;
 disabled exact-name variants remain retired. Source content is unchanged.
 
-## Step 8C runtime overlay (2026-09-22)
+## Step 8C runtime overlay (completed 2026-09-25)
 
 This inventory's declaration and attribute counts remain unchanged. The map-owned
 `SequenceRuntime` now constructs and schedules the following exact-tag slices from
@@ -32,14 +34,16 @@ and `entc` actions, with `entc` explicitly logged as deferred. The 20
 `cutscene` event bindings and their 112 nested `run` actions remain deferred
 to Step 8E; they are not active SequenceRuntime events. The selected maps still
 have 154 NPC and 31 computer declarations, owned by Steps 8D and 8E.
-This paragraph records the Step 8C boundary and is superseded by the Step 8E
-closure above.
+Step 8E owns the cinematic/computer rows described in its closure above; the
+remaining rows in this overlay are the completed Step 8C boundary.
 
 The Step 8C service creates Ogre presentations and kinematic Bullet bodies,
 while existing Step 6C owns the physics world and Step 7 owns audio. Authored
 buttons with a corresponding scene object use its world-space bounds for a
-ray-query collider, without duplicating that visible mesh. Unsupported nested
-train visual components and non-presented authored lights produce diagnostics.
+ray-query collider, without duplicating that visible mesh. Content-proven
+nested train visual/collision/particle components are owned by their train and
+follow its transform; non-presented optional authored lights produce
+diagnostics.
 An absent optional light does not abort legacy Lua startup. Missing named
 door/train/timer/trigger/event/entity targets now warn and skip the command,
 while malformed calls and script failures retain contextual errors. Lookup is
@@ -50,11 +54,11 @@ those lights exist. `SequenceRuntime` contains no frame listener or singleton.
 
 The corrected `tlwcao` D3D11 startup identified 21 buttons without a
 matching already-presented scene object; they use their Sequence-authored
-mesh/transform fallback and log the case. The map still ran for two frames
-with a stable player spawn. This is a **partial behavioral implementation**,
-not proof that all listed
-attributes are honored. See [SEQUENCE_RUNTIME.md](SEQUENCE_RUNTIME.md) for
-exact semantics, known gaps, and deterministic replay evidence. The table below
+mesh/transform fallback and log the case. The historical two-frame observation
+is superseded by the completed Step 8C runtime and station-map validation dated
+2026-09-25. See [SEQUENCE_RUNTIME.md](SEQUENCE_RUNTIME.md) for exact semantics,
+intentional differences, lifetime checks, and deterministic replay evidence.
+The table below
 remains the Step 8B baseline; interpret its historical `required/deferred 8C`
 labels together with this dated overlay.
 
@@ -165,7 +169,7 @@ complete record; the runtime owner identifies who consumes or will consume it.
 | `subphys` (76) | `index, materialName` | StaticMap | supported definition, material adapter pending |
 | `breakable` (8) | `box, castShadows, explosive, gibMesh, gibScale, meshFile, name` | Step 6C contacts / Step 9A visuals | implemented typed body/damage control; gib/effect drawing delegated to the named Step 9A effects adapter |
 | `pblock` (12) | `castShadows, meshFile, name` | StaticMap/Step 6C | supported invisible collision |
-| `particleSystem` (97) | `castShadows, file, meshFile, name` | Step 8E controller / Step 9A adapter | gameplay control supported; visual presentation delegated 9A |
+| `particleSystem` (97) | `castShadows, file, meshFile, name` | StaticMap / Step 8C services | selected-quality template parsing, Ogre presentation, typed control, and map teardown implemented; final material polish is Step 9 |
 | `fire` (4) | `pSys, renderDist` | Step 8E controller / Step 9A adapter | typed on/off/toggle control supported; visual presentation delegated 9A |
 | `light` (20) | `castShadows, dist, name, type` | named Step 9B lighting adapter | delegated with definitions preserved and typed visibility control live |
 | `colourDiffuse` (20), `colourSpecular` (20) | `b, g, r` | named Step 9B lighting adapter | delegated |

@@ -1,6 +1,6 @@
 # Run3 porting status
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
 
 ## Milestones
 
@@ -18,9 +18,86 @@ Last updated: 2026-09-25
 | 7 — unified audio | Completed | Run3-owned RAII audio, null and pinned miniaudio 0.11.25 backends, safe device fallback, a live `tlwcao` ambience/music/footstep slice, hashed offline FLAC conversion, and cross-platform tests pass. |
 | 8 — XML and Lua | Completed | Golden schema adapters, pinned TinyXML2/Lua 5.4/sol2, a sandboxed `ScriptEngine`, 202-name API snapshot, and the 955-script compatibility gate pass with three explicitly broken legacy files. |
 | 8B — gameplay scene schema, entity inventory, and ownership | Completed | Side-effect-free map/sequence definitions, exact-case AppPaths resolution, generation-safe map ownership, deferred name resolution, definition-driven StaticMap loading, and all 18 attached low-variant map/sequence inventories pass on MSVC/GCC. |
-| 8C — fixed-tick Sequence runtime and interactive entities | Partial, verified slice | Typed map-owned runtime and selected interactions pass four Step 8C build/test workflows; full campaign behavior remains deferred as detailed below. |
+| 8C — fixed-tick Sequence runtime and interactive entities | Completed | Deterministic map-owned entities, typed script/render/physics/audio hooks, explicit train parenting, selected-quality particles, stable state, and audited teardown pass the Step 8C boundary. Chapter saves and the campaign soak are Step 10 work by owner direction. |
 | 8D — map-owned NPC runtime | Partial, verified slice | Typed neutral/enemy construction, AIR3 movement, Lua events, Ogre/Bullet/audio adapters, content counts, and a real `tlwcao` smoke pass; remaining parity gaps are documented. |
 | 8E — cutscenes, computers, and authored presentation state | Completed with named Step 9 adapters | Deterministic cutscene/computer control, stable sequence/NPC state, safe live transitions, station train binding/event 26, and complete reviewed tag dispositions pass; final HUD/computer/effect drawing is delegated to Step 9A and lighting/material output to Step 9B. |
+
+## 2026-09-26 — delayed ParticleFX renderer crash regression
+
+The delayed D3D11 exits on `tlwstations01` and `tlwcao` were not caused by the
+reported HLSL narrowing warnings or by `air.lua`. Enabling authored particles
+had exposed a compatibility-material defect: the material catalogue discarded
+legacy `lighting off`, so RTShader generated a vertex shader requiring
+`NORMAL0` for ParticleFX billboards, whose vertex declaration has no normals.
+The resulting rendering exception was then hidden by unloading the render
+plugin while that plugin-owned exception was still unwinding.
+
+Legacy lighting state is now preserved through material inheritance and used
+when compatibility aliases are generated, keeping smoke/flare/strobe particle
+materials unlit. Main-loop Ogre exceptions are converted to diagnostics before
+plugins unload, so a future rendering failure exits cleanly with its actual
+cause. No The Long Way file was changed.
+
+Verification on this workspace: the exact `tlwstations01` train run now passes
+`air.lua`, `RunLSD`, and the formerly failing `DUniverse1` emission point and
+completes 1,800 fixed ticks; high-quality `tlwcao` completes 900 fixed ticks.
+Both installed Debug D3D11 runs exit 0. The MSVC Debug suite passes all 124
+tests (120 in the initial run and the four install-dependent tests after
+entering the Visual Studio developer environment), and the focused MSVC
+Release material tests pass 2/2.
+
+## 2026-09-25 — Step 8C completion: train seats, effects, and teardown
+
+Step 8C is complete at its documented gameplay boundary. `setCameraParent`
+now creates an explicit player/train relation instead of relying on an
+incidental floor ray. While attached, the capsule is pinned to the authored
+seat and receives the train's fixed-tick translation; full parenting also
+rotates the saved local offset. Reset, map change, and unload release the
+relation. Noclip deliberately remains free-flight while retaining the binding
+for restoration. Train acceleration follows the legacy update order, terminal
+trains stop, and state format 4 preserves speed, acceleration, parent mode,
+and local offset while continuing to read older snapshots.
+
+Station trains now construct their nested visual, colliding, non-colliding,
+and particle parts under one owner. Material mutation reaches static map
+objects, runtime entities, and named train parts. The selected texture-quality
+`.particle` scripts are parsed only after compatible material aliases exist;
+authored DotScene and runtime-created particle systems can be toggled and are
+destroyed with the map. Existing NPC/sequence animation commands remain typed
+and map scoped. Final shader/compositor/HUD quality is still Step 9
+presentation work, not a second gameplay implementation.
+
+Teardown now runs an idempotent runtime destroy even after partial load and
+audits presentations, child parts, particles, physics bindings, audio handles,
+attachments, ragdolls, and the Ogre runtime root before releasing the map.
+StaticMap teardown is audited separately for entities, authored particles,
+physics bodies, and its Ogre map root.
+The fixture repeats construction/unload 100 times and verifies zero retained
+service objects. A zero-length AIR3 ray guard also prevents duplicate authored
+AI nodes from tripping Bullet's Debug assertion; this was the previously silent
+`tlwstations02` startup breakpoint.
+
+Verification on this workspace:
+
+- Windows MSVC Debug and Release focused physics/player/Step 8C/8E suites pass
+  48/48 in each configuration.
+- The complete CTest suite passes 124/124 in both MSVC Debug and Release,
+  including install and shell smoke tests.
+- Installed Debug D3D11 runs of `tlwstations01`, `tlwstations02`, and
+  `tlwstations03` load startup Lua, multipart trains, NPC commands, materials,
+  audio, and particles, render bounded frames, satisfy the zero-resource
+  teardown audit, and exit 0. The ten-tick `tlwstations01` run moves the player
+  from Z 16214.0 to 16080.666667, exactly the train's 800 units/second motion
+  over ten 60 Hz ticks.
+- Linux could not be rerun: the existing WSL cache references removed
+  `/tmp/run3-vcpkg-step7-src2/scripts/buildsystems/vcpkg.cmake`, no
+  `$HOME/dev/vcpkg` checkout exists, and Lua 5.4 is consequently unavailable
+  during regeneration. This is external local dependency state, not a source
+  failure.
+
+The campaign's chapter-only user-save UI/storage and a full start-to-finish
+soak remain intentionally assigned to Step 10 by owner direction. No The Long
+Way file was modified.
 
 ## 2026-09-25 — rotator, FOV-script, and map teardown regressions
 
@@ -172,7 +249,8 @@ additional ticks.
 
 ## 2026-09-22 — Step 8C and station-map crash
 
-Step 8C status: **partial, tested vertical slice**. `SequenceRuntime` is map
+Historical status at 2026-09-22: Step 8C was a **partial, tested vertical
+slice**. `SequenceRuntime` is map
 owned, constructed from Step 8B definitions/registry, and updated from the
 fixed gameplay tick. Typed game-service commands connect authored Lua to live
 doors, trains, timers, triggers, visibility, teleport, script chaining, and

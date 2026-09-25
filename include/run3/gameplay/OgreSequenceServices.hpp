@@ -17,6 +17,23 @@ class SceneManager;
 
 namespace run3::gameplay {
 
+struct OgreSequenceResourceCounts {
+  std::size_t presentations{};
+  std::size_t visualParts{};
+  std::size_t particles{};
+  std::size_t physicsBindings{};
+  std::size_t audioHandles{};
+  std::size_t attachments{};
+  std::size_t ragdolls{};
+  bool rootNode{};
+
+  [[nodiscard]] bool empty() const noexcept {
+    return presentations == 0 && visualParts == 0 && particles == 0 &&
+           physicsBindings == 0 && audioHandles == 0 && attachments == 0 &&
+           ragdolls == 0 && !rootNode;
+  }
+};
+
 class PlayerController;
 class StaticMap;
 class NpcSystem;
@@ -61,6 +78,7 @@ public:
   [[nodiscard]] double runtimeFovDegrees() const override;
   [[nodiscard]] std::optional<EntityHandle>
   handleForPhysicsEntity(std::uint64_t physicsEntity) const;
+  [[nodiscard]] OgreSequenceResourceCounts resourceCounts() const noexcept;
 
 private:
   class Impl;

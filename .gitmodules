@@ -1,3 +1,6 @@
 [submodule "AIR3-System"]
 	path = AIR3-System
 	url = https://github.com/Sgw32/AIR3-System.git
+[submodule "mygui"]
+	path = mygui
+	url = https://github.com/MyGUI/mygui.git

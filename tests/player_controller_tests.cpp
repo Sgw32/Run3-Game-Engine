@@ -72,11 +72,13 @@ TEST_CASE("legacy materials retain diffuse textures without loading old shaders"
   const auto inherited = catalog.find("run3/testchild");
   REQUIRE(inherited);
   CHECK(inherited->texture == "test_diffuse.dds");
+  CHECK_FALSE(inherited->lighting);
   CHECK(inherited->transparent);
   CHECK(inherited->doubleSided);
   const auto opaqueMultipass = catalog.find("Run3/TestOpaqueChild");
   REQUIRE(opaqueMultipass);
   CHECK(opaqueMultipass->texture == "opaque_diffuse.dds");
+  CHECK(opaqueMultipass->lighting);
   CHECK_FALSE(opaqueMultipass->transparent);
   const auto direct = catalog.find("Run3/TestDirect");
   REQUIRE(direct);
@@ -217,6 +219,32 @@ TEST_CASE("noclip teleport parent motion and ladder motion are explicit") {
   REQUIRE(player.state().position.y > 600.0);
   player.setNoclip(false);
   REQUIRE_FALSE(player.state().noclip);
+  static_cast<void>(floor);
+}
+
+TEST_CASE("script parent binding pins the capsule and suppresses player drift") {
+  PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
+  const auto floor = addFloor(world);
+  PlayerController player(world);
+  player.spawn({0, 100, 0});
+  player.setParented(true);
+  player.setCommand({0, 1, 0, true, true, false});
+  player.applyParentMotion({5, 2, -3});
+  static_cast<void>(player.simulateFixedStep());
+  const auto attached = player.state();
+  CHECK(attached.parented);
+  CHECK(attached.position.x == Catch::Approx(5.0));
+  CHECK(attached.position.y == Catch::Approx(102.0));
+  CHECK(attached.position.z == Catch::Approx(-3.0));
+  CHECK(attached.velocity.x == Catch::Approx(0.0));
+  CHECK(attached.velocity.y == Catch::Approx(0.0));
+  CHECK(attached.velocity.z == Catch::Approx(0.0));
+
+  player.setParented(false);
+  player.setCommand({});
+  static_cast<void>(player.simulateFixedStep());
+  CHECK_FALSE(player.state().parented);
+  CHECK(player.state().velocity.y < 0.0);
   static_cast<void>(floor);
 }
 

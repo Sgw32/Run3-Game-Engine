@@ -308,12 +308,8 @@ Run3App::Run3App(Run3AppOptions options)
       options_(std::move(options)), inputAdapter_(input_),
       clock_(ClockMode::Fixed) {}
 Run3App::~Run3App() {
-  // initApp() may throw before run() reaches its cleanup block. Keep service
-  // dependencies alive while map-owned NPC presentation is released.
-  if (npcSystem_) {
-    try { npcSystem_->unload(); } catch (...) {}
-  }
-  npcSystem_.reset();
+  // initApp() may throw before run() reaches its cleanup block.
+  try { unloadMap(false); } catch (...) {}
 }
 
 int Run3App::run() {
@@ -338,14 +334,16 @@ int Run3App::run() {
       if (player_) {
         gameplay::PlayerCommand command;
         const InputState &state = input_.state();
-        command.forward = (state.keyDown(Key::W) || state.keyDown(Key::Up) ? 1.0 : 0.0) -
+        const bool frozen = sequenceRuntime_ &&
+                            sequenceRuntime_->presentation().playerFrozen;
+        command.forward = frozen ? 0.0 : (state.keyDown(Key::W) || state.keyDown(Key::Up) ? 1.0 : 0.0) -
                           (state.keyDown(Key::S) || state.keyDown(Key::Down) ? 1.0 : 0.0);
-        command.strafe = (state.keyDown(Key::D) || state.keyDown(Key::Right) ? 1.0 : 0.0) -
+        command.strafe = frozen ? 0.0 : (state.keyDown(Key::D) || state.keyDown(Key::Right) ? 1.0 : 0.0) -
                          (state.keyDown(Key::A) || state.keyDown(Key::Left) ? 1.0 : 0.0);
-        command.run = state.keyDown(Key::LeftShift) || state.keyDown(Key::RightShift);
-        command.jump = state.keyDown(Key::Space);
-        command.crouch = state.keyDown(Key::LeftControl) || state.keyDown(Key::RightControl);
-        if (player_->state().noclip) {
+        command.run = !frozen && (state.keyDown(Key::LeftShift) || state.keyDown(Key::RightShift));
+        command.jump = !frozen && state.keyDown(Key::Space);
+        command.crouch = !frozen && (state.keyDown(Key::LeftControl) || state.keyDown(Key::RightControl));
+        if (player_->state().noclip && !frozen) {
           command.vertical = (state.keyDown(Key::Space) ? 1.0 : 0.0) -
                              (command.crouch ? 1.0 : 0.0);
           command.jump = false;
@@ -375,14 +373,39 @@ int Run3App::run() {
           staticMap_->syncDynamicTransforms();
         }
         const physics::Vec3 eye = player_->eyePosition();
-        cameraNode_->setPosition(static_cast<Ogre::Real>(eye.x),
-                                 static_cast<Ogre::Real>(eye.y),
-                                 static_cast<Ogre::Real>(eye.z));
-        cameraNode_->setOrientation(
-            Ogre::Quaternion(Ogre::Radian(static_cast<Ogre::Real>(yawRadians_)),
-                             Ogre::Vector3::UNIT_Y) *
-            Ogre::Quaternion(Ogre::Radian(static_cast<Ogre::Real>(pitchRadians_)),
-                             Ogre::Vector3::UNIT_X));
+        const auto &presentation = sequenceRuntime_
+            ? sequenceRuntime_->presentation()
+            : gameplay::SequencePresentationState{};
+        if (presentation.camera) {
+          const auto &pose = *presentation.camera;
+          cameraNode_->setPosition(static_cast<Ogre::Real>(pose.position.x),
+                                   static_cast<Ogre::Real>(pose.position.y),
+                                   static_cast<Ogre::Real>(pose.position.z));
+          cameraNode_->setOrientation(
+              static_cast<Ogre::Real>(pose.rotation.w),
+              static_cast<Ogre::Real>(pose.rotation.x),
+              static_cast<Ogre::Real>(pose.rotation.y),
+              static_cast<Ogre::Real>(pose.rotation.z));
+        } else {
+          cameraNode_->setPosition(static_cast<Ogre::Real>(eye.x),
+                                   static_cast<Ogre::Real>(eye.y),
+                                   static_cast<Ogre::Real>(eye.z));
+          cameraNode_->setOrientation(
+              Ogre::Quaternion(Ogre::Radian(static_cast<Ogre::Real>(yawRadians_)),
+                               Ogre::Vector3::UNIT_Y) *
+              Ogre::Quaternion(Ogre::Radian(static_cast<Ogre::Real>(pitchRadians_)),
+                               Ogre::Vector3::UNIT_X));
+        }
+      }
+      if (pendingMapChange_) {
+        std::string nextMap = std::move(*pendingMapChange_);
+        pendingMapChange_.reset();
+        Ogre::LogManager::getSingleton().logMessage(
+            "Step 8E map transition: " + options_.mapName + " -> " +
+            nextMap);
+        unloadMap(true);
+        loadMap(nextMap);
+        continue;
       }
       if (cubeNode_ != nullptr) {
         cubeNode_->yaw(Ogre::Degree(
@@ -439,18 +462,7 @@ int Run3App::run() {
     if (gameplayMouseCapture_) {
       setGameplayMouseCapture(false);
     }
-    if (npcSystem_) npcSystem_->unload();
-    npcSystem_.reset();
-    npcPhysicsQuery_.reset();
-    if (sequenceRuntime_) {
-      sequenceRuntime_->unload(false);
-    }
-    sequenceRuntime_.reset();
-    sequenceServices_.reset();
-    mapAudio_.reset();
-    player_.reset();
-    staticMap_.reset();
-    physicsWorld_.reset();
+    unloadMap(false);
     audioEngine_.reset();
     closeApp();
     throw;
@@ -467,22 +479,11 @@ int Run3App::run() {
     setGameplayMouseCapture(false);
   }
   std::exception_ptr exitFailure;
-  if (npcSystem_) npcSystem_->unload();
-  npcSystem_.reset();
-  npcPhysicsQuery_.reset();
-  if (sequenceRuntime_) {
-    try {
-      sequenceRuntime_->unload(true);
-    } catch (...) {
-      exitFailure = std::current_exception();
-    }
+  try {
+    unloadMap(true);
+  } catch (...) {
+    exitFailure = std::current_exception();
   }
-  sequenceRuntime_.reset();
-  sequenceServices_.reset();
-  mapAudio_.reset();
-  player_.reset();
-  staticMap_.reset();
-  physicsWorld_.reset();
   audioEngine_.reset();
   closeApp();
   if (exitFailure) {
@@ -648,6 +649,36 @@ void Run3App::setup() {
                                        : " (no output device)"));
 
   if (!options_.mapName.empty()) {
+    loadMap(options_.mapName);
+  }
+
+  gameplayMouseCapture_ = player_ != nullptr && options_.frameLimit == 0;
+  if (gameplayMouseCapture_) {
+    setGameplayMouseCapture(true);
+  }
+
+  Ogre::LogManager::getSingleton().logMessage(
+      "Run3 shell pinned Ogre version: " + std::string(ogreVersion));
+  Ogre::LogManager::getSingleton().logMessage(
+      "Run3 shell selected render system: " + mRoot->getRenderSystem()->getName());
+  Ogre::LogManager::getSingleton().logMessage(
+      "Run3 shell content root (read-only): " + options_.paths.contentRoot().string());
+  Ogre::LogManager::getSingleton().logMessage(
+      "Run3 shell user root (writable): " + options_.paths.userRoot().string());
+
+  if (options_.validateContent) {
+    AssetReport report = validateContent(
+        {options_.paths.contentRoot(), options_.manifestPath});
+    validateOgreContent(report, *sceneManager_, options_.renderFixture);
+    report.writeJson(options_.reportPath);
+    std::cout << report.conciseReport();
+    std::cout << "  JSON report: " << options_.reportPath.string() << '\n';
+    validationFailed_ = !report.passed();
+  }
+}
+
+void Run3App::loadMap(const std::string &mapName) {
+    options_.mapName = mapName;
     physicsWorld_ = std::make_unique<physics::PhysicsWorld>(
         physics::createBulletPhysicsWorld());
     staticMap_ = std::make_unique<gameplay::StaticMap>(*sceneManager_,
@@ -671,6 +702,8 @@ void Run3App::setup() {
     staticMap_->setDebugDraw(physicsDebug_);
     camera_->setNearClipDistance(5.0F);
     camera_->setFarClipDistance(100000.0F);
+    camera_->setFOVy(Ogre::Degree(static_cast<Ogre::Real>(
+        options_.verticalFovDegrees)));
 
     try {
       audio::MapAudioLoadResult loaded = audio::loadLegacyMapAudio(
@@ -698,10 +731,10 @@ void Run3App::setup() {
     }
 
     sequenceServices_ = std::make_unique<gameplay::OgreSequenceServices>(
-        options_.paths, *sceneManager_, *physicsWorld_, *staticMap_,
+        options_.paths, *sceneManager_, *camera_, *physicsWorld_, *staticMap_,
         *player_, *audioEngine_,
-        [this](std::string) { requestQuit(); },
-        meshLodBias(options_.modelQuality));
+        [this](std::string map) { requestMapChange(std::move(map)); },
+        meshLodBias(options_.modelQuality), options_.verticalFovDegrees);
     if (mapAudio_) {
       sequenceServices_->attachMapAudio(*mapAudio_);
     }
@@ -715,31 +748,36 @@ void Run3App::setup() {
     sequenceServices_->attachNpcSystem(*npcSystem_);
     npcSystem_->start();
     sequenceRuntime_->start();
-  }
+}
 
-  gameplayMouseCapture_ = player_ != nullptr && options_.frameLimit == 0;
-  if (gameplayMouseCapture_) {
-    setGameplayMouseCapture(true);
+void Run3App::unloadMap(const bool runOnExit) {
+  std::exception_ptr failure;
+  if (sequenceRuntime_) {
+    try { sequenceRuntime_->unload(runOnExit); }
+    catch (...) { if (!failure) failure = std::current_exception(); }
   }
-
-  Ogre::LogManager::getSingleton().logMessage(
-      "Run3 shell pinned Ogre version: " + std::string(ogreVersion));
-  Ogre::LogManager::getSingleton().logMessage(
-      "Run3 shell selected render system: " + mRoot->getRenderSystem()->getName());
-  Ogre::LogManager::getSingleton().logMessage(
-      "Run3 shell content root (read-only): " + options_.paths.contentRoot().string());
-  Ogre::LogManager::getSingleton().logMessage(
-      "Run3 shell user root (writable): " + options_.paths.userRoot().string());
-
-  if (options_.validateContent) {
-    AssetReport report = validateContent(
-        {options_.paths.contentRoot(), options_.manifestPath});
-    validateOgreContent(report, *sceneManager_, options_.renderFixture);
-    report.writeJson(options_.reportPath);
-    std::cout << report.conciseReport();
-    std::cout << "  JSON report: " << options_.reportPath.string() << '\n';
-    validationFailed_ = !report.passed();
+  if (npcSystem_) {
+    try { npcSystem_->unload(); }
+    catch (...) { if (!failure) failure = std::current_exception(); }
   }
+  npcSystem_.reset();
+  npcPhysicsQuery_.reset();
+  sequenceRuntime_.reset();
+  sequenceServices_.reset();
+  mapAudio_.reset();
+  player_.reset();
+  staticMap_.reset();
+  physicsWorld_.reset();
+  if (failure) std::rethrow_exception(failure);
+}
+
+void Run3App::requestMapChange(std::string mapName) {
+  if (mapName.empty()) {
+    Ogre::LogManager::getSingleton().logMessage(
+        "Step 8E ignored empty map transition");
+    return;
+  }
+  pendingMapChange_ = std::move(mapName);
 }
 
 void Run3App::windowResized(Ogre::RenderWindow *window) {
@@ -791,10 +829,15 @@ void Run3App::updateAspectRatio() {
 
 void Run3App::handleInput(const std::vector<InputEvent> &events) {
   for (const InputEvent &event : events) {
+    if (sequenceRuntime_ && sequenceRuntime_->handleInput(event)) {
+      continue;
+    }
     if (event.type == InputEventType::Quit ||
         (event.type == InputEventType::KeyPressed && event.key == Key::Escape)) {
       requestQuit();
-    } else if (player_ && event.type == InputEventType::MouseMoved) {
+    } else if (player_ && event.type == InputEventType::MouseMoved &&
+               !(sequenceRuntime_ &&
+                 sequenceRuntime_->presentation().playerFrozen)) {
       constexpr double sensitivity = 0.0025;
       yawRadians_ -= static_cast<double>(event.deltaX) * sensitivity;
       pitchRadians_ = std::clamp(

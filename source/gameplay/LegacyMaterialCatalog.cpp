@@ -254,4 +254,16 @@ std::size_t LegacyMaterialCatalog::size() const noexcept {
   return implementation_ ? implementation_->source.size() : 0;
 }
 
+std::vector<std::string> LegacyMaterialCatalog::names() const {
+  std::vector<std::string> result;
+  if (!implementation_) return result;
+  result.reserve(implementation_->source.size());
+  for (const auto &[name, material] : implementation_->source) {
+    static_cast<void>(material);
+    result.push_back(name);
+  }
+  std::sort(result.begin(), result.end());
+  return result;
+}
+
 } // namespace run3::gameplay

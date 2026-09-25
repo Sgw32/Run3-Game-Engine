@@ -1,5 +1,24 @@
 # Step 8B entity compatibility inventory
 
+## Step 8E authored-presentation closure (2026-09-23)
+
+The 23 cutscene declarations, 20 cutscene bindings, 112 ordered run hooks, and
+31 computers now have typed, map-owned runtime state. Automated attached-content
+checks cover every `tlwcao`/`tlwhome02` computer and cutscene declaration and
+every referenced init/near/shutdown/run script. A fixture covers deterministic
+camera interpolation, wait/skip, focus/input/exit, restoration, stable
+serialization, interruption and unload. The real `tlwstations01` transition
+retains its authored `tlwstations02` target. See
+[PRESENTATION_RUNTIME.md](PRESENTATION_RUNTIME.md) for exact semantics and the
+reviewed disposition of every remaining tag.
+
+Final computer screen/button drawing, HUD/subtitle widgets, and visual
+ParticleFX are explicitly delegated to the named Step 9A presentation
+adapters, with typed functional control available now. Lighting/material
+presentation is delegated to Step 9B. Zero-use Sequence `pickup`, `event`,
+`flare`, `fire`, `npcgroup`, `seqscript`, and `fuzzy` tags are not revived;
+disabled exact-name variants remain retired. Source content is unchanged.
+
 ## Step 8C runtime overlay (2026-09-22)
 
 This inventory's declaration and attribute counts remain unchanged. The map-owned
@@ -13,6 +32,8 @@ and `entc` actions, with `entc` explicitly logged as deferred. The 20
 `cutscene` event bindings and their 112 nested `run` actions remain deferred
 to Step 8E; they are not active SequenceRuntime events. The selected maps still
 have 154 NPC and 31 computer declarations, owned by Steps 8D and 8E.
+This paragraph records the Step 8C boundary and is superseded by the Step 8E
+closure above.
 
 The Step 8C service creates Ogre presentations and kinematic Bullet bodies,
 while existing Step 6C owns the physics world and Step 7 owns audio. Authored
@@ -142,31 +163,31 @@ complete record; the runtime owner identifies who consumes or will consume it.
 | `subnocollide` (1334) | `index, materialFile, materialName, run3batcher` | StaticMap | supported material mapping |
 | `phys` (200) | `castShadows, mass, materialFile, meshFile, name, poMd, rfun3batcher, rudn3batcher, run3baftcher, run3batcher, run3bfatcher, run3dbatcher, runs3batcher` | StaticMap/Step 6C | supported body construction; misspellings preserved |
 | `subphys` (76) | `index, materialName` | StaticMap | supported definition, material adapter pending |
-| `breakable` (8) | `box, castShadows, explosive, gibMesh, gibScale, meshFile, name` | Step 6C/8C | body supported; behavior deferred 8C |
+| `breakable` (8) | `box, castShadows, explosive, gibMesh, gibScale, meshFile, name` | Step 6C contacts / Step 9A visuals | implemented typed body/damage control; gib/effect drawing delegated to the named Step 9A effects adapter |
 | `pblock` (12) | `castShadows, meshFile, name` | StaticMap/Step 6C | supported invisible collision |
-| `particleSystem` (97) | `castShadows, file, meshFile, name` | presentation | required/deferred 9A |
-| `fire` (4) | `pSys, renderDist` | presentation | required/deferred 8E/9A |
-| `light` (20) | `castShadows, dist, name, type` | rendering | required/deferred 9B |
-| `colourDiffuse` (20), `colourSpecular` (20) | `b, g, r` | rendering | required/deferred 9B |
-| `lightAttenuation` (20) | `range` | rendering | required/deferred 9B |
-| `lightRange` (20) | `inner, outer` | rendering | required/deferred 9B |
-| `dynamic` (1) | `b, g, r` | rendering | required/deferred 9B |
-| `normal` (20) | `x, y, z` | rendering | required/deferred 9B |
+| `particleSystem` (97) | `castShadows, file, meshFile, name` | Step 8E controller / Step 9A adapter | gameplay control supported; visual presentation delegated 9A |
+| `fire` (4) | `pSys, renderDist` | Step 8E controller / Step 9A adapter | typed on/off/toggle control supported; visual presentation delegated 9A |
+| `light` (20) | `castShadows, dist, name, type` | named Step 9B lighting adapter | delegated with definitions preserved and typed visibility control live |
+| `colourDiffuse` (20), `colourSpecular` (20) | `b, g, r` | named Step 9B lighting adapter | delegated |
+| `lightAttenuation` (20) | `range` | named Step 9B lighting adapter | delegated |
+| `lightRange` (20) | `inner, outer` | named Step 9B lighting adapter | delegated |
+| `dynamic` (1) | `b, g, r` | named Step 9B lighting adapter | delegated authored light color |
+| `normal` (20) | `x, y, z` | named Step 9B lighting adapter | delegated authored light direction |
 | `aiNodes` (14), `npcnode` (210) | npcnode: `drawNPCNode, m, x, y, z` | NpcSystem/AIR3 | supported Step 8D path graph input |
 | `environment` (18) | none | Parser | supported container |
-| `player` (17) | `fov, mpr, startFreeze, x, y, z` | StaticMap/player | spawn supported; remaining fields deferred 8C/9A |
+| `player` (17) | `fov, mpr, startFreeze, x, y, z` | StaticMap/player / Step 9A UI | spawn, camera and runtime freeze implemented; legacy presentation-only `mpr` delegated to Step 9A |
 | `newtonWorld` (16) | `x1, x2, y1, y2, z1, z2` | Step 6 physics | retired as Newton config; preserved for bounds comparison |
-| `fog` (17) | `mode` | rendering | required/deferred 9A/9B |
-| `skyBox` (15) | `material` | rendering | required/deferred 9A |
-| `colourAmbient` (17) | `a, b, g, r` | rendering | required/deferred 9B |
-| `fade` (17) | `duration, material, overlay, speed, startFade` | UI/presentation | required/deferred 8E/9A |
-| `hud` (4) | `show` | UI | required/deferred 9A |
-| `farClip` (1) | `dist` | camera | required/deferred 9A |
+| `fog` (17) | `mode` | named Step 9A environment / Step 9B lighting adapters | delegated |
+| `skyBox` (15) | `material` | named Step 9A environment adapter | delegated |
+| `colourAmbient` (17) | `a, b, g, r` | named Step 9B lighting adapter | delegated; dark-zone multiplier control is live |
+| `fade` (17) | `duration, material, overlay, speed, startFade` | named Step 9A UI adapter | delegated; cutscene/player restoration is functional now |
+| `hud` (4) | `show` | named Step 9A UI adapter | delegated drawing with typed visibility control live |
+| `farClip` (1) | `dist` | named Step 9A camera/environment adapter | delegated |
 | `sounds` (5) | none | Step 7 audio | supported container |
-| `ambient` (67) | `distance, id, loop, m, maxDistance, minGain, name, objname, x, y, z` | Step 7 audio | supported/deferred named control |
-| `portal` (5) | `farClip` | map/presentation | required/deferred 8E/9A |
-| `sunColor` (1), `sunPos` (1) | `x, y, z` | rendering | required/deferred 9B |
-| `pos` (1) | `x, y, z` | Parser | preserved; content-specific child, deferred with owner |
+| `ambient` (67) | `distance, id, loop, m, maxDistance, minGain, name, objname, x, y, z` | Step 7 audio | implemented, including typed named enable/disable control |
+| `portal` (5) | `farClip` | named Step 9A environment adapter | delegated; selected data is presentation-only far-clip state |
+| `sunColor` (1), `sunPos` (1) | `x, y, z` | named Step 9B lighting adapter | delegated |
+| `pos` (1) | `x, y, z` | none | retired child of disabled exact tag `waterv`; preserved byte-for-byte |
 | `nodes1` (1), `nodev` (114), `npcnoded` (3), `playerd` (9), `ambientd` (5), `soundd` (1), `clippingd` (1), `colourAmbientd` (1), `colourAmbientf` (1), `waterv` (1) | same family attributes shown by inventory output | none | retired disabled variants; legacy exact dispatch ignored them |
 | `ohrana` (1), `rocketworker` (1), `rocketworkers` (1), `suicide` (1) | none | none | unused content markers; preserved/diagnosed |
 | `taxist` (1) | `comment` | none | unused content marker; preserved/diagnosed |
@@ -216,20 +237,20 @@ none occurs in the selected variant, there is no invented attribute count.
 
 | Direct tag | Count | Implementing owner | Status/evidence |
 |---|---:|---|---|
-| `button` | 48 | SequenceRuntime + Step 6C | required/deferred 8C |
-| `computer` | 31 | Computer system | required/deferred 8E |
-| `cutscene` | 23 | Cutscene system | required/deferred 8E |
-| `darkzone` | 10 | SequenceRuntime/presentation | required/deferred 8C/9B |
-| `door` | 171 | SequenceRuntime + Step 6C | required/deferred 8C |
-| `ladder` | 4 | SequenceRuntime/player | required/deferred 8C |
-| `lua` | 18 | SequenceRuntime/ScriptEngine | required/deferred 8C |
+| `button` | 48 | SequenceRuntime + Step 6C | supported Step 8C |
+| `computer` | 31 | SequenceRuntime + `IComputerPresentation` | supported Step 8E; final display/button visuals delegated 9A |
+| `cutscene` | 23 | SequenceRuntime / Run3App camera | supported Step 8E |
+| `darkzone` | 10 | SequenceRuntime / named Step 9B lighting adapter | gameplay state supported; final lighting presentation delegated 9B |
+| `door` | 171 | SequenceRuntime + Step 6C | supported Step 8C |
+| `ladder` | 4 | SequenceRuntime/player | supported Step 8C |
+| `lua` | 18 | SequenceRuntime/ScriptEngine | supported Step 8C |
 | `npc` | 154 | NpcSystem | supported Step 8D neutral/enemy construction and typed runtime; presentation parity gaps documented |
-| `onexit` | 5 | SequenceRuntime/ScriptEngine | required/deferred 8C |
-| `pendulum` | 68 | SequenceRuntime + Step 6C | required/deferred 8C |
-| `rot` | 166 | SequenceRuntime + Step 6C | required/deferred 8C |
-| `timer` | 70 | SequenceRuntime | required/deferred 8C |
-| `train` | 80 | SequenceRuntime + Step 6C | required/deferred 8C |
-| `trigger` | 91 | SequenceRuntime + Step 6C | required/deferred 8C |
+| `onexit` | 5 | SequenceRuntime/ScriptEngine | supported Step 8C/8E lifecycle |
+| `pendulum` | 68 | SequenceRuntime + Step 6C | supported Step 8C |
+| `rot` | 166 | SequenceRuntime + Step 6C | supported Step 8C |
+| `timer` | 70 | SequenceRuntime | supported Step 8C |
+| `train` | 80 | SequenceRuntime + Step 6C | supported Step 8C, including terminal stop and player parenting |
+| `trigger` | 91 | SequenceRuntime + Step 6C | supported Step 8C |
 | `blockboxes` | 1 | none | retired unknown legacy-dispatch tag |
 | `buttonv`, `cutscened`, `doord`, `npcd`, `npcold`, `npcv`, `pendulumd`, `rodt`, `rotd`, `timerv`, `traind`, `trainv`, `triggerd`, `triggerv` | 38 total | none | retired disabled/alternate spellings; preserved, never auto-aliased |
 
@@ -308,13 +329,13 @@ Renamed `triggerd=1` and `triggerv=2` are retired. Nested event actions are:
 
 | Tag (count) | Observed attributes | Owner/status |
 |---|---|---|
-| `trigger` (65) | `name, sec` | 8C required/deferred |
-| `cutscene` (20) | `name, wait` | 8E required/deferred |
-| `run` (112) | `script, sec` | ScriptEngine/8C-8E required/deferred |
-| `lua` (61) | `script` | ScriptEngine/8C required/deferred |
-| `changelevel` (3) | `map` | map transition/8E required/deferred |
-| `hurt` (4) | `damage` | player gameplay/8C required/deferred |
-| `rudn` (1) | `script, sec` | none; preserved unknown content typo |
+| `trigger` (65) | `name, sec` | supported Step 8C fixed-tick binding |
+| `cutscene` (20) | `name, wait` | supported Step 8E deterministic binding |
+| `run` (112) | `script, sec` | supported Step 8E ordered fixed-tick cutscene hook |
+| `lua` (61) | `script` | supported Step 8C typed script action |
+| `changelevel` (3) | `map` | supported Step 8E safe deferred map replacement |
+| `hurt` (4) | `damage` | supported Step 8C typed player-damage action |
+| `rudn` (1) | `script, sec` | retired exact-name typo; the legacy dispatcher did not execute it |
 | `changeleveld` (1) | `map` | retired disabled variant |
 | `rund` (6) | `script, sec` | retired disabled variant |
 | `triggerd` (1), `triggerv` (2) | `name, sec` | retired disabled variants |
@@ -368,7 +389,9 @@ each behavior becomes live.
 ## Step boundary
 
 Step 8B proves parsing, inventory, construction identity, cross-reference
-resolution, and map-scoped lifetime. Steps 8C and 8D now consume those models
-for tested sequence/NPC slices. Cutscenes still do not take the camera and
-computers do not capture input; those remain Step 8E. Exact remaining NPC
-presentation/behavior differences are in `NPC_RUNTIME.md`.
+resolution, and map-scoped lifetime. Steps 8C-8E now consume those models for
+tested sequence, NPC, cutscene, computer, and transition slices. Final HUD,
+subtitle, virtual-display, button, and effects rendering is delegated to the
+named Step 9A adapters through typed controls; lighting/material output is
+delegated to Step 9B. Exact remaining NPC presentation/behavior differences
+are in `NPC_RUNTIME.md`.

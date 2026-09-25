@@ -5,6 +5,7 @@
 #include <run3/gameplay/SequenceRuntime.hpp>
 #include <run3/scripting/ScriptEngine.hpp>
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
@@ -30,6 +31,7 @@ struct FakeServices final : gameplay::IGameServices {
   std::string failScript;
   bool standingOnTrain{};
   bool fixtureLightVisible{};
+  double fovDegrees{75.0};
 
   void submit(const gameplay::GameCommand &command) override {
     if (const auto *script = std::get_if<gameplay::RunRuntimeScript>(&command);
@@ -49,6 +51,9 @@ struct FakeServices final : gameplay::IGameServices {
   lightVisible(std::string_view name) const override {
     return name == "fixture-light" ? std::optional<bool>{fixtureLightVisible}
                                    : std::nullopt;
+  }
+  [[nodiscard]] double runtimeFovDegrees() const override {
+    return fovDegrees;
   }
 
   template <class T> std::size_t count() const {
@@ -103,7 +108,7 @@ TEST_CASE("Step 8C lifecycle constructs in authored order and cancels queued wor
   FixtureRuntime fixture;
   fixture.runtime->start();
   CHECK(fixture.runtime->started());
-  CHECK(fixture.services.count<gameplay::SpawnRuntimeEntity>() == 10);
+  CHECK(fixture.services.count<gameplay::SpawnRuntimeEntity>() == 11);
   CHECK(fixture.services.count<gameplay::RunRuntimeScript>() == 1);
 
   fixture.runtime->fixedUpdate(); // enter the one-shot trigger
@@ -248,6 +253,74 @@ TEST_CASE("Step 8C train stops at its last key point and door keeps legacy rate"
   CHECK(fixture.services.count<gameplay::StopRuntimeSound>() == 1);
 }
 
+TEST_CASE("Step 8C rotating doors and func rotators preserve legacy activation and rate",
+          "[step8c][door][rotator]") {
+  FixtureRuntime fixture;
+  fixture.services.player = {1000.0, 1000.0, 1000.0};
+  fixture.runtime->start();
+
+  const auto rotator = fixture.registry.findFirst("rot");
+  REQUIRE(rotator.has_value());
+  REQUIRE(fixture.runtime->state("rot").has_value());
+  CHECK_FALSE(fixture.runtime->state("rot")->active);
+  CHECK(fixture.runtime->state("rot")->transform.rotation ==
+        physics::Quaternion{});
+  fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->state("rot")->transform.rotation ==
+        physics::Quaternion{});
+  REQUIRE(fixture.runtime->interact(*rotator));
+  fixture.runtime->fixedUpdate();
+  const auto spinning = fixture.runtime->state("rot");
+  REQUIRE(spinning.has_value());
+  CHECK(spinning->active);
+  // 90 authored degrees/s * legacy factor 5 / 60 Hz = -7.5 degrees.
+  CHECK(spinning->transform.rotation.y ==
+        Catch::Approx(-std::sin(3.75 * 3.14159265358979323846 / 180.0)));
+
+  REQUIRE(fixture.runtime->setDoorOpen("rotDoor", true));
+  fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->state("rotDoor")->transform.rotation.x ==
+        Catch::Approx(std::sin(0.5 * 3.14159265358979323846 / 180.0)));
+  fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->state("rotDoor")->transform.rotation.x ==
+        Catch::Approx(std::sin(1.0 * 3.14159265358979323846 / 180.0)));
+  REQUIRE(fixture.runtime->setDoorOpen("rotDoor", false));
+  fixture.runtime->fixedUpdate();
+  fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->state("rotDoor")->transform.rotation ==
+        physics::Quaternion{});
+}
+
+TEST_CASE("Step 8C legacy FOV bindings return a number and drive the camera service",
+          "[step8c][lua][fov]") {
+  FixtureRuntime fixture;
+  fixture.services.fovDegrees = 86.0;
+  const scripting::ScriptValue queried = fixture.runtime->dispatchScriptCall(
+      {"world", "getFov", {}});
+  REQUIRE(std::holds_alternative<double>(queried));
+  CHECK(std::get<double>(queried) == 86.0);
+
+  scripting::ScriptEngine scripts(
+      {fixture.paths.contentRoot(), fixture.paths.userRoot(), 10000},
+      [&fixture](const scripting::ScriptCall &call) {
+        return fixture.runtime->dispatchScriptCall(call);
+      });
+  CHECK_NOTHROW(scripts.executeText(
+      "goalf=getFov(); epict=170; epict=epict+(goalf-epict)/20; "
+      "setFov(epict); resetFov()",
+      "fov-compat.lua"));
+  std::vector<gameplay::SetRuntimeFov> commands;
+  for (const auto &command : fixture.services.commands) {
+    if (const auto *fov = std::get_if<gameplay::SetRuntimeFov>(&command)) {
+      commands.push_back(*fov);
+    }
+  }
+  REQUIRE(commands.size() == 2);
+  REQUIRE(commands[0].degrees.has_value());
+  CHECK(*commands[0].degrees == Catch::Approx(165.8));
+  CHECK_FALSE(commands[1].degrees.has_value());
+}
+
 TEST_CASE("Step 8C closed-door completion requires a real close transition",
           "[step8c][door][lua]") {
   FixtureRuntime fixture;
@@ -276,6 +349,7 @@ TEST_CASE("Step 8C snapshot restores delayed actions and timer phase",
   fixture.runtime->start();
   fixture.runtime->fixedUpdate();
   const auto saved = fixture.runtime->saveState();
+  const std::string serialized = fixture.runtime->serializeState();
   REQUIRE_FALSE(saved.pending.empty());
   fixture.runtime->fixedUpdate();
   fixture.runtime->fixedUpdate();
@@ -286,6 +360,10 @@ TEST_CASE("Step 8C snapshot restores delayed actions and timer phase",
   fixture.runtime->fixedUpdate();
   CHECK(fixture.runtime->state("door")->active);
   CHECK(fixture.runtime->state("pulse")->activationCount == 1);
+  fixture.runtime->fixedUpdate();
+  REQUIRE_NOTHROW(fixture.runtime->restoreSerializedState(serialized));
+  CHECK(fixture.runtime->tick() == saved.tick);
+  CHECK_FALSE(fixture.runtime->state("door")->active);
 }
 
 TEST_CASE("Step 8C onexit failure is contextual and still releases ownership",
@@ -333,10 +411,20 @@ TEST_CASE("Step 8C inventories selected TLW maps and constructs live slices",
     FakeServices services;
     gameplay::SequenceRuntime runtime(definition, registry, services);
     CHECK_FALSE(runtime.states().empty());
-    if (map == "tlwcao") CHECK(runtime.states().size() == 110);
-    if (map == "tlwhome02") CHECK(runtime.states().size() == 143);
+    if (map == "tlwcao") CHECK(runtime.states().size() == 114);
+    if (map == "tlwhome02") CHECK(runtime.states().size() == 148);
     runtime.start();
     if (map == "tlwcao") {
+      const auto fake = runtime.state("fake1");
+      REQUIRE(fake.has_value());
+      CHECK(fake->tag == "rot");
+      CHECK_FALSE(fake->active);
+      const physics::Quaternion initialRotation = fake->transform.rotation;
+      REQUIRE(runtime.interact(fake->handle));
+      runtime.fixedUpdate();
+      CHECK_FALSE(runtime.state("fake1")->transform.rotation ==
+                  initialRotation);
+
       scripting::ScriptEngine scripts(
           {paths.contentRoot(), paths.userRoot(), 10000},
           [&runtime](const scripting::ScriptCall &call) {
@@ -344,6 +432,10 @@ TEST_CASE("Step 8C inventories selected TLW maps and constructs live slices",
           });
       CHECK_NOTHROW(scripts.executeFile(
           "run3/lua/chapters/tlwcao/close_turnik.lua"));
+      CHECK_NOTHROW(scripts.executeText(
+          "goalf=getFov(); epict=170; sb=0", "tlwoutro-fov-setup.lua"));
+      CHECK_NOTHROW(scripts.executeFile(
+          "run3/lua/chapters/tlwoutro/epictimer2.lua"));
       CHECK(std::any_of(services.commands.begin(), services.commands.end(),
                         [](const gameplay::GameCommand &command) {
         const auto *message = std::get_if<gameplay::RuntimeLog>(&command);

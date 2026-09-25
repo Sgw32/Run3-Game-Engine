@@ -462,6 +462,16 @@ if(RUN3_BUILD_TESTS)
     catch_discover_tests(run3_step8d_tests
         TEST_PREFIX "run3_step8d."
         PROPERTIES LABELS "step8d;npc;entities")
+
+    add_executable(run3_step8e_tests tests/step8e_presentation_tests.cpp)
+    target_compile_features(run3_step8e_tests PRIVATE cxx_std_17)
+    target_compile_definitions(run3_step8e_tests
+        PRIVATE RUN3_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(run3_step8e_tests
+        PRIVATE run3::warnings run3::sequence Catch2::Catch2WithMain)
+    catch_discover_tests(run3_step8e_tests
+        TEST_PREFIX "run3_step8e."
+        PROPERTIES LABELS "step8e;presentation;entities")
     add_test(
         NAME run3_step8.legacy-boundary
         COMMAND

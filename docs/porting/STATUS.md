@@ -1,6 +1,6 @@
 # Run3 porting status
 
-Last updated: 2026-09-22
+Last updated: 2026-09-25
 
 ## Milestones
 
@@ -20,6 +20,73 @@ Last updated: 2026-09-22
 | 8B — gameplay scene schema, entity inventory, and ownership | Completed | Side-effect-free map/sequence definitions, exact-case AppPaths resolution, generation-safe map ownership, deferred name resolution, definition-driven StaticMap loading, and all 18 attached low-variant map/sequence inventories pass on MSVC/GCC. |
 | 8C — fixed-tick Sequence runtime and interactive entities | Partial, verified slice | Typed map-owned runtime and selected interactions pass four Step 8C build/test workflows; full campaign behavior remains deferred as detailed below. |
 | 8D — map-owned NPC runtime | Partial, verified slice | Typed neutral/enemy construction, AIR3 movement, Lua events, Ogre/Bullet/audio adapters, content counts, and a real `tlwcao` smoke pass; remaining parity gaps are documented. |
+| 8E — cutscenes, computers, and authored presentation state | Completed with named Step 9 adapters | Deterministic cutscene/computer control, stable sequence/NPC state, safe live transitions, station train binding/event 26, and complete reviewed tag dispositions pass; final HUD/computer/effect drawing is delegated to Step 9A and lighting/material output to Step 9B. |
+
+## 2026-09-25 — rotator, FOV-script, and map teardown regressions
+
+Three interactive campaign regressions were repaired in engine code without
+modifying The Long Way. The port had treated `<rot rotating="true">` as an
+instruction to start immediately and had interpreted `rotspeed` as degrees per
+second. Legacy `func_door` instead used `rotating` to select angular motion,
+started stopped until `Fire`, applied pitch/yaw/roll as independent local
+channels, and multiplied the authored angular speed by five. The map-owned
+runtime now preserves those semantics. Rotating `<door>` declarations use the
+same legacy rate but remain bounded between the initial orientation and the
+authored pitch/yaw/roll target. Their in-progress angles are included in
+sequence-state format version 2; version 1 snapshots remain readable.
+
+The `tlwoutro/epictimer2.lua` failure was an API regression: legacy `getFov()`
+returned the active Ogre camera FOV, while the compatibility dispatcher
+returned Lua `nil`. `getFov`, `setFov`, and `resetFov` now use a typed camera
+service; reset restores the configured `--fov` value. The regression test runs
+the real `epictimer2.lua` after its expected globals are initialized and does
+not require a content edit.
+
+Map replacement left `Run3Step6BMapRoot` registered because `StaticMap::Impl`
+owned Ogre objects through raw pointers but its destructor never called the
+existing idempotent `unload()`. Destruction now performs that teardown before
+the next map constructs its root. An installed Debug D3D11 three-frame
+`tlwcao` run loaded the real map and dynamic entities and exited through clean
+Ogre shutdown.
+
+Verification: all 13 Step 8C cases pass in Windows MSVC Debug and Release,
+including the real attached `tlwcao/fake1` declaration and the real outro Lua
+file. All 22 Step 8C/8E cases pass in both configurations. The Debug suite's
+114 non-packaging tests passed; its four install/shell/asset smoke cases also
+passed when invoked in the required Visual Studio developer environment (118
+tests total). No The Long Way file was modified.
+
+## 2026-09-23 — Step 8E authored-presentation closure
+
+`SequenceRuntime` now owns deterministic cutscene tracks and ordered hooks,
+computer focus/input/script/display state, HUD/subtitle controls, explicit
+player-to-train parenting, effect-controller state, and cancellation on skip,
+failure, transition, and unload. `Run3App` consumes camera/freeze state and
+performs deferred map replacement only after the fixed update returns. Stable
+versioned text snapshots cover persistent sequence/entity/NPC state and reject
+map or authored-identity drift. Full semantics and every remaining tag
+disposition are documented in
+[PRESENTATION_RUNTIME.md](PRESENTATION_RUNTIME.md) and the updated
+[ENTITY_COMPATIBILITY.md](ENTITY_COMPATIBILITY.md).
+
+The reported `tlwstations01` blockers are corrected without changing content.
+NPC event 26 now sets typed gravity state, and `setCameraParent` binds the
+player to the authored train delta after train movement on the same fixed tick.
+The content-proven `setNPCManagerStep` command now changes the map-owned NPC
+scheduler interval (`0` means every fixed tick) instead of being deferred.
+Legacy material definitions are published before dynamic mesh deserialization,
+so `air01.mesh` retains its resolved textures and no longer emits missing
+`ALLMILmaterial_*` diagnostics. Its old MeshSerializer-v1.40 warning remains
+informational.
+
+The Step 8B-8E focused suite passes 38/38 under Windows MSVC Debug and Release;
+the full suite passes 116/116 in both configurations. Installed Debug D3D11
+two-frame smokes for `tlwstations01` and `tlwstations03` ran startup, train
+binding, typed NPC scheduling/event 26, and textured `air01.mesh`, then exited
+cleanly. The Ogre RTSS X3205 conversion warnings are non-fatal and are left for
+the Step 9 shader pass. Linux could not be rerun: the WSL preset still
+references removed `/tmp/run3-vcpkg-step7-src2`, and `$HOME/dev/vcpkg` is
+absent. No The Long Way file was modified.
 
 ## 2026-09-22 — NPC placement, dynamic materials, display quality, and Doppler
 

@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace Ogre {
@@ -82,6 +83,9 @@ private:
   void updateAspectRatio();
   void setGameplayMouseCapture(bool enabled);
   void handleInput(const std::vector<InputEvent> &events);
+  void loadMap(const std::string &mapName);
+  void unloadMap(bool runOnExit);
+  void requestMapChange(std::string mapName);
   void requestQuit();
 
   Run3AppOptions options_;
@@ -109,6 +113,7 @@ private:
   std::uint64_t simulatedSteps_{};
   bool quitRequested_{};
   bool validationFailed_{};
+  std::optional<std::string> pendingMapChange_;
 };
 
 } // namespace run3

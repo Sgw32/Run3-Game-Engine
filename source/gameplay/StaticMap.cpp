@@ -280,6 +280,7 @@ class StaticMap::Impl {
 public:
   Impl(Ogre::SceneManager &sceneManager, physics::PhysicsWorld &world)
       : sceneManager_(&sceneManager), world_(&world) {}
+  ~Impl() { unload(); }
 
   StaticMapStats load(const StaticMapOptions &options) {
     unload();
@@ -314,6 +315,20 @@ public:
     materialCatalog_.scan(options.paths->contentRoot(),
                           options.paths->contentRoot() / "run3" / "mats" /
                               materialDirectory);
+    // Dynamic sequence meshes are deserialized after the static-map listener
+    // is gone. Publish each resolvable legacy material name as an Ogre alias
+    // now, so MeshSerializer can resolve it without noisy/fatal missing-
+    // material diagnostics (notably air01.mesh on tlwstations01/03).
+    for (const std::string &legacyName : materialCatalog_.names()) {
+      const Ogre::MaterialPtr compatible = compatibleMaterial(
+          legacyName, true, true, false);
+      if (compatible &&
+          !Ogre::MaterialManager::getSingleton().resourceExists(
+              legacyName, resourceGroup_)) {
+        Ogre::MaterialPtr alias = compatible->clone(legacyName);
+        alias->changeGroupOwnership(resourceGroup_);
+      }
+    }
     class CompatibilityListener final : public Ogre::MeshSerializerListener {
     public:
       explicit CompatibilityListener(Impl &owner) : owner_(&owner) {}

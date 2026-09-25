@@ -21,7 +21,8 @@ enum class RuntimeEntityKind {
   Ladder,
   Pickup,
   DarkZone,
-  Npc
+  Npc,
+  Computer
 };
 
 struct RuntimeEntitySpec {
@@ -94,6 +95,49 @@ struct ChangeRuntimeMap { std::string map; };
 struct DamageRuntimePlayer { double amount{}; };
 struct TeleportRuntimePlayer { physics::Vec3 position; };
 struct ApplyRuntimeParentMotion { physics::Vec3 translation; };
+struct SetRuntimeHudVisible { bool visible{true}; };
+struct SetRuntimeSubtitle { std::string text; double seconds{}; };
+struct SetRuntimeInventoryEnabled { bool enabled{true}; };
+struct SetRuntimeFlashlightAllowed { bool allowed{true}; };
+struct SetRuntimeFov {
+  // An empty value restores the configured gameplay FOV.
+  std::optional<double> degrees;
+};
+struct SetRuntimeCompositor {
+  std::string name;
+  bool enabled{};
+};
+struct SetRuntimeShaderParameter {
+  std::string program;
+  std::string parameter;
+  std::string value;
+};
+struct SetRuntimeEffectEnabled {
+  std::string name;
+  std::optional<bool> enabled;
+};
+struct SetComputerPresentation {
+  EntityHandle owner;
+  std::string material;
+  bool focused{};
+  bool allowVirtualDisplay{true};
+};
+struct SendComputerInput {
+  EntityHandle owner;
+  std::string text;
+  int key{};
+  bool pressed{};
+};
+
+// Step 9 may replace this presentation-only adapter. Gameplay communicates
+// solely in backend-neutral handles, material keys, text and Run3 keys.
+class IComputerPresentation {
+public:
+  virtual ~IComputerPresentation() = default;
+  virtual void setComputerPresentation(
+      const SetComputerPresentation &state) = 0;
+  virtual void sendComputerInput(const SendComputerInput &input) = 0;
+};
 struct SetRuntimeDarkness { double factor{1.0}; };
 struct PlayRuntimeAnimation {
   EntityHandle owner;
@@ -123,6 +167,7 @@ struct SpawnRuntimeRagdoll {
   EntityHandle owner;
   physics::Transform transform;
 };
+struct SetNpcUpdateInterval { double seconds{}; };
 struct TickRuntimeNpcPhysics { double seconds{}; };
 struct DeferredLegacyCommand {
   std::string name;
@@ -138,11 +183,18 @@ using GameCommand =
                  StopRuntimeSound, PlayRuntimeEffect, SetRuntimeMusicGain,
                  SetRuntimeAmbientEnabled, RunRuntimeScript, ChangeRuntimeMap,
                  DamageRuntimePlayer, TeleportRuntimePlayer,
-                 ApplyRuntimeParentMotion, SetRuntimeDarkness,
+                 ApplyRuntimeParentMotion, SetRuntimeHudVisible,
+                  SetRuntimeSubtitle, SetRuntimeInventoryEnabled,
+                  SetRuntimeFlashlightAllowed, SetRuntimeFov,
+                  SetRuntimeCompositor,
+                 SetRuntimeShaderParameter, SetRuntimeEffectEnabled,
+                 SetComputerPresentation,
+                 SendComputerInput, SetRuntimeDarkness,
                  PlayRuntimeAnimation, NpcRuntimeCommand,
                  DestroyNpcRuntimeCommand,
                  SetNpcAttachment,
                  PlayRuntimeFacial, SpawnRuntimeRagdoll,
+                 SetNpcUpdateInterval,
                  TickRuntimeNpcPhysics,
                  DeferredLegacyCommand, RuntimeLog>;
 
@@ -157,6 +209,7 @@ public:
   lightVisible(std::string_view name) const = 0;
   [[nodiscard]] virtual std::optional<physics::Transform>
   runtimeTransform(std::string_view) const { return std::nullopt; }
+  [[nodiscard]] virtual double runtimeFovDegrees() const { return 75.0; }
 };
 
 } // namespace run3::gameplay

@@ -4,7 +4,9 @@
 #include <cmath>
 #include <cstdlib>
 #include <exception>
+#include <iomanip>
 #include <limits>
+#include <locale>
 #include <map>
 #include <sstream>
 #include <unordered_map>
@@ -135,6 +137,44 @@ physics::Quaternion axisAngle(physics::Vec3 axis, double radians) {
   return {std::cos(half), axis.x * sine, axis.y * sine, axis.z * sine};
 }
 
+double approach(double current, double target, double amount) {
+  if (current < target) return std::min(current + amount, target);
+  if (current > target) return std::max(current - amount, target);
+  return target;
+}
+
+physics::Quaternion applyEulerDegrees(physics::Quaternion initial,
+                                      physics::Vec3 degrees) {
+  constexpr double radiansPerDegree = 3.14159265358979323846 / 180.0;
+  physics::Quaternion result = initial;
+  result = multiply(result, axisAngle({1.0, 0.0, 0.0},
+                                      degrees.x * radiansPerDegree));
+  result = multiply(result, axisAngle({0.0, 1.0, 0.0},
+                                      degrees.y * radiansPerDegree));
+  result = multiply(result, axisAngle({0.0, 0.0, 1.0},
+                                      degrees.z * radiansPerDegree));
+  return result;
+}
+
+physics::Quaternion normalized(physics::Quaternion value) {
+  const double magnitude = std::sqrt(value.w * value.w + value.x * value.x +
+                                     value.y * value.y + value.z * value.z);
+  if (magnitude <= 1e-12) return {};
+  return {value.w / magnitude, value.x / magnitude, value.y / magnitude,
+          value.z / magnitude};
+}
+
+physics::Quaternion interpolate(physics::Quaternion from,
+                                physics::Quaternion to, double amount) {
+  const double dot = from.w * to.w + from.x * to.x + from.y * to.y +
+                     from.z * to.z;
+  if (dot < 0.0) to = {-to.w, -to.x, -to.y, -to.z};
+  return normalized({from.w + (to.w - from.w) * amount,
+                     from.x + (to.x - from.x) * amount,
+                     from.y + (to.y - from.y) * amount,
+                     from.z + (to.z - from.z) * amount});
+}
+
 std::uint64_t secondsToTicks(double seconds) {
   if (!std::isfinite(seconds) || seconds < 0.0) {
     throw std::invalid_argument("delay must be finite and non-negative");
@@ -182,6 +222,39 @@ physics::Vec3 argumentVector(const scripting::ScriptCall &call) {
   return value;
 }
 
+void writeElement(std::ostream &output, const AuthoredElement &element) {
+  output << std::quoted(element.tag) << ' '
+         << std::quoted(element.source.file.generic_string()) << ' '
+         << element.source.line << ' ' << element.source.column << ' '
+         << element.order << ' ' << std::quoted(element.text) << ' '
+         << element.attributes.size() << ' ' << element.children.size() << '\n';
+  for (const auto &[name, value] : element.attributes)
+    output << std::quoted(name) << ' ' << std::quoted(value) << '\n';
+  for (const AuthoredElement &child : element.children)
+    writeElement(output, child);
+}
+
+bool readElement(std::istream &input, AuthoredElement &element) {
+  std::string file;
+  std::size_t attributeCount{}, childCount{};
+  if (!(input >> std::quoted(element.tag) >> std::quoted(file) >>
+        element.source.line >> element.source.column >> element.order >>
+        std::quoted(element.text) >> attributeCount >> childCount))
+    return false;
+  element.source.file = std::move(file);
+  element.attributes.clear();
+  element.children.clear();
+  for (std::size_t index = 0; index < attributeCount; ++index) {
+    std::string name, value;
+    if (!(input >> std::quoted(name) >> std::quoted(value))) return false;
+    element.attributes.emplace_back(std::move(name), std::move(value));
+  }
+  element.children.resize(childCount);
+  for (AuthoredElement &child : element.children)
+    if (!readElement(input, child)) return false;
+  return true;
+}
+
 } // namespace
 
 SequenceRuntimeError::SequenceRuntimeError(content::SourceLocation source,
@@ -199,6 +272,8 @@ public:
     physics::Vec3 scale{1.0, 1.0, 1.0};
     physics::Vec3 halfExtents{1.0, 1.0, 1.0};
     physics::Vec3 direction{0.0, 0.0, 1.0};
+    physics::Vec3 rotationTarget{};
+    physics::Vec3 rotationProgress{};
     std::vector<physics::Vec3> keyPoints;
     std::vector<const AuthoredElement *> authoredKeyPoints;
     std::size_t keyPoint{};
@@ -214,12 +289,19 @@ public:
     bool completionFired{};
     bool reverse{};
     bool infinite{};
+    bool rotational{};
     std::string callback;
     std::string enterCallback;
     std::string leaveCallback;
     std::string openSound;
     std::string closeSound;
     std::string movingSound;
+    std::string initScript;
+    std::string nearScript;
+    std::string shutdownScript;
+    std::string displayMaterial;
+    bool allowVirtualDisplay{true};
+    bool nearFired{};
     std::vector<std::pair<std::string, bool>> previousLights;
   };
 
@@ -227,6 +309,35 @@ public:
     std::uint64_t dueTick{};
     std::uint64_t order{};
     AuthoredElement action;
+  };
+
+  struct CutsceneFrame {
+    std::uint64_t tick{};
+    physics::Transform transform;
+    std::string lookTarget;
+  };
+  struct CutsceneRun {
+    std::uint64_t tick{};
+    content::SourceLocation source;
+    std::string script;
+    bool fired{};
+  };
+  struct Cutscene {
+    const AuthoredElement *definition{};
+    std::string name;
+    std::vector<CutsceneFrame> frames;
+    std::vector<CutsceneRun> runs;
+    std::uint64_t lengthTicks{};
+    std::uint64_t waitTicks{};
+    std::uint64_t elapsedTicks{};
+    double skipMultiplier{10.0};
+    bool freeze{true};
+    bool hideHud{true};
+    bool infinite{};
+    bool scheduled{};
+    bool active{};
+    bool skipping{};
+    std::string music;
   };
 
   Impl(const content::MapDefinition &mapDefinition, EntityRegistry &entityRegistry,
@@ -321,14 +432,33 @@ public:
       }
       record.publicState.active = boolean(element, "start", false);
     }
-    if (kind == RuntimeEntityKind::Rotator || kind == RuntimeEntityKind::Pendulum) {
-      record.publicState.active = boolean(element, "rotating", false) ||
-                                  kind == RuntimeEntityKind::Pendulum;
+    if (kind == RuntimeEntityKind::Computer) {
+      record.useInteract = true;
+      record.initScript = attribute(element, "script", "run3/lua/c64.lua");
+      record.nearScript = attribute(element, "cNearScript", "");
+      record.shutdownScript = attribute(element, "cShutScript", "");
+      record.displayMaterial = attribute(element, "dispMat", "BLACK");
+      record.allowVirtualDisplay = boolean(element, "allowVirtualDisplay", true);
+    }
+    if (kind == RuntimeEntityKind::Door || kind == RuntimeEntityKind::Rotator ||
+        kind == RuntimeEntityKind::Pendulum) {
+      record.rotational = boolean(element, "rotating", false);
       record.speed = number(element, "rotspeed", record.speed);
-      record.direction = {number(element, "pitch", 0.0),
-                          number(element, "yaw", 0.0),
-                          number(element, "roll", 0.0)};
-      if (length(record.direction) <= 1e-12) {
+      record.rotationTarget = {number(element, "pitch", 0.0),
+                               number(element, "yaw", 0.0),
+                               number(element, "roll", 0.0)};
+      if (kind == RuntimeEntityKind::Pendulum) {
+        record.publicState.active = true;
+        record.direction = record.rotationTarget;
+      } else if (kind == RuntimeEntityKind::Rotator) {
+        // In the legacy func_door implementation `rotating` selected angular
+        // motion; it did not call Fire(). Rotators therefore start stopped and
+        // are toggled by use/script commands.
+        record.publicState.active = false;
+        record.direction = record.rotationTarget;
+      }
+      if (kind == RuntimeEntityKind::Pendulum &&
+          length(record.direction) <= 1e-12) {
         record.direction = {1.0, 0.0, 0.0};
       }
     }
@@ -348,6 +478,8 @@ public:
       else if (tag == "ladder") addRecord(*declaration, RuntimeEntityKind::Ladder);
       else if (tag == "pickup") addRecord(*declaration, RuntimeEntityKind::Pickup);
       else if (tag == "darkzone") addRecord(*declaration, RuntimeEntityKind::DarkZone);
+      else if (tag == "computer") addRecord(*declaration, RuntimeEntityKind::Computer);
+      else if (tag == "cutscene") addCutscene(*declaration);
       else if (tag == "timer") {
         Record timer;
         timer.definition = declaration;
@@ -371,9 +503,151 @@ public:
     for (const AuthoredElement *event : content::sequenceEvents(*definition)) {
       if (event->tag == "trigger") {
         triggerEvents[attribute(*event, "name", "")].push_back(event);
+      } else if (event->tag == "cutscene") {
+        Cutscene *scene = findCutscene(attribute(*event, "name", ""));
+        if (scene == nullptr) {
+          services->submit(RuntimeLog{"warning: cutscene event skipped missing cutscene '" +
+                                      attribute(*event, "name", "") + "'"});
+          continue;
+        }
+        const double wait = number(*event, "wait", 0.0);
+        scene->scheduled = wait >= 0.0;
+        scene->waitTicks = wait >= 0.0 ? secondsToTicks(wait) : 0;
+        for (const AuthoredElement &run : event->children) {
+          if (run.tag != "run") continue;
+          scene->runs.push_back({secondsToTicks(number(run, "sec", 0.0)),
+                                 run.source, attribute(run, "script", ""),
+                                 false});
+        }
       }
     }
     refreshPublicStates();
+  }
+
+  void addCutscene(const AuthoredElement &element) {
+    Cutscene scene;
+    scene.definition = &element;
+    scene.name = attribute(element, "name", "undefined");
+    scene.lengthTicks = std::max<std::uint64_t>(
+        1, secondsToTicks(number(element, "length", 20.0)));
+    scene.skipMultiplier = number(element, "skipAnimSpeed", 10.0);
+    scene.freeze = boolean(element, "freezeb", true);
+    scene.hideHud = boolean(element, "hideHUD", true);
+    scene.infinite = boolean(element, "inf", false);
+    if (boolean(element, "music", false))
+      scene.music = attribute(element, "musicFile", "");
+    for (const AuthoredElement &frame : element.children) {
+      if (frame.tag != "frame") continue;
+      physics::Transform pose;
+      if (boolean(frame, "p", false)) {
+        std::istringstream values(attribute(frame, "pos", "0 0 0"));
+        if (!(values >> pose.position.x >> pose.position.y >> pose.position.z))
+          throw SequenceRuntimeError(frame.source, "invalid cutscene frame pos");
+      } else {
+        pose.position = vector(frame);
+      }
+      if (boolean(frame, "or", false)) {
+        std::istringstream values(attribute(frame, "orient", "1 0 0 0"));
+        if (!(values >> pose.rotation.w >> pose.rotation.x >> pose.rotation.y >>
+              pose.rotation.z))
+          throw SequenceRuntimeError(frame.source,
+                                     "invalid cutscene frame orient");
+      } else {
+        pose.rotation = transform(frame).rotation;
+      }
+      scene.frames.push_back({secondsToTicks(number(frame, "second", 1.0)),
+                              pose, attribute(frame, "lookTarget", "")});
+    }
+    if (scene.frames.empty()) {
+      scene.frames.push_back({0, transform(element), {}});
+    }
+    std::stable_sort(scene.frames.begin(), scene.frames.end(),
+                     [](const CutsceneFrame &a, const CutsceneFrame &b) {
+                       return a.tick < b.tick;
+                     });
+    cutscenes.push_back(std::move(scene));
+  }
+
+  Cutscene *findCutscene(std::string_view name) {
+    const auto found = std::find_if(cutscenes.begin(), cutscenes.end(),
+                                    [name](const Cutscene &value) {
+                                      return value.name == name;
+                                    });
+    return found == cutscenes.end() ? nullptr : &*found;
+  }
+
+  bool startCutscene(std::string_view name) {
+    Cutscene *scene = findCutscene(name);
+    if (scene == nullptr) return false;
+    finishCutscene();
+    for (CutsceneRun &run : scene->runs) run.fired = false;
+    scene->elapsedTicks = 0;
+    scene->active = true;
+    scene->scheduled = false;
+    activeCutscene = scene;
+    presentationState.activeCutscene = scene->name;
+    presentationState.playerFrozen = scene->freeze;
+    presentationState.hudVisible = !scene->hideHud;
+    services->submit(SetRuntimeHudVisible{presentationState.hudVisible});
+    try {
+      if (!scene->music.empty())
+        services->submit(PlayRuntimeSound{{}, scene->music, {}, false, 1.0F});
+    } catch (...) {
+      finishCutscene();
+      throw;
+    }
+    updateCutsceneCamera(*scene);
+    return true;
+  }
+
+  void finishCutscene() {
+    if (activeCutscene == nullptr) return;
+    activeCutscene->active = false;
+    activeCutscene->skipping = false;
+    activeCutscene = nullptr;
+    presentationState.activeCutscene.clear();
+    presentationState.camera.reset();
+    presentationState.playerFrozen = activeComputer != nullptr;
+    presentationState.hudVisible = true;
+    services->submit(SetRuntimeHudVisible{true});
+  }
+
+  void updateCutsceneCamera(Cutscene &scene) {
+    const CutsceneFrame *before = &scene.frames.front();
+    const CutsceneFrame *after = before;
+    for (const CutsceneFrame &frame : scene.frames) {
+      if (frame.tick <= scene.elapsedTicks) before = &frame;
+      if (frame.tick >= scene.elapsedTicks) { after = &frame; break; }
+      after = &frame;
+    }
+    double amount{};
+    if (after->tick > before->tick)
+      amount = static_cast<double>(scene.elapsedTicks - before->tick) /
+               static_cast<double>(after->tick - before->tick);
+    physics::Transform pose;
+    pose.position = add(before->transform.position,
+                        multiply(subtract(after->transform.position,
+                                          before->transform.position), amount));
+    pose.rotation = interpolate(before->transform.rotation,
+                                after->transform.rotation, amount);
+    const std::string &lookTarget = after->lookTarget.empty()
+                                        ? before->lookTarget
+                                        : after->lookTarget;
+    if (!lookTarget.empty()) {
+      if (const auto target = services->runtimeTransform(lookTarget)) {
+        const physics::Vec3 direction = normalized(
+            subtract(target->position, pose.position));
+        const double yaw = std::atan2(-direction.x, -direction.z);
+        const double pitch = std::asin(std::clamp(direction.y, -1.0, 1.0));
+        pose.rotation = multiply(axisAngle({0, 1, 0}, yaw),
+                                 axisAngle({1, 0, 0}, pitch));
+      } else {
+        services->submit(RuntimeLog{"warning: cutscene '" + scene.name +
+                                    "' look target '" + lookTarget +
+                                    "' is missing"});
+      }
+    }
+    presentationState.camera = pose;
   }
 
   void refreshPublicStates() {
@@ -470,6 +744,9 @@ public:
     if (record.kind == RuntimeEntityKind::Button ||
         record.kind == RuntimeEntityKind::Ladder) {
       result.mesh = attribute(*record.definition, "meshName", "box.mesh");
+    } else if (record.kind == RuntimeEntityKind::Computer) {
+      result.mesh = attribute(*record.definition, "meshFile",
+                              "pcomputer_01.mesh");
     } else if (record.kind == RuntimeEntityKind::Train) {
       if (const AuthoredElement *entity = record.definition->firstChild("entity")) {
         result.mesh = attribute(*entity, "meshFile", "box.mesh");
@@ -500,6 +777,12 @@ public:
     }
     for (const auto &[source, script] : startupScripts) {
       submitScript(source, script);
+    }
+    for (Cutscene &scene : cutscenes) {
+      if (scene.scheduled && scene.waitTicks == 0) {
+        static_cast<void>(startCutscene(scene.name));
+        break;
+      }
     }
     refreshPublicStates();
   }
@@ -590,7 +873,51 @@ public:
       if (!event.empty()) {
         services->submit(DeferredLegacyCommand{"pickup-event", event});
       }
+    } else if (record.kind == RuntimeEntityKind::Computer) {
+      enterComputer(record);
     }
+  }
+
+  void enterComputer(Record &record) {
+    if (activeComputer == &record) return;
+    exitComputer();
+    activeComputer = &record;
+    presentationState.activeComputer = record.publicState.name;
+    presentationState.computerFocused = true;
+    presentationState.playerFrozen = true;
+    presentationState.hudVisible = false;
+    services->submit(SetRuntimeHudVisible{false});
+    services->submit(SetComputerPresentation{record.publicState.handle,
+                                              record.displayMaterial, true,
+                                              record.allowVirtualDisplay});
+    try {
+      submitScript(record.definition->source, record.initScript);
+    } catch (...) {
+      static_cast<void>(exitComputer());
+      throw;
+    }
+  }
+
+  bool exitComputer() {
+    if (activeComputer == nullptr) return false;
+    Record *record = activeComputer;
+    activeComputer = nullptr;
+    std::exception_ptr failure;
+    try {
+      services->submit(SetComputerPresentation{record->publicState.handle,
+                                                record->displayMaterial, false,
+                                                record->allowVirtualDisplay});
+    } catch (...) { failure = std::current_exception(); }
+    try { submitScript(record->definition->source, record->shutdownScript); }
+    catch (...) { if (!failure) failure = std::current_exception(); }
+    presentationState.activeComputer.clear();
+    presentationState.computerFocused = false;
+    presentationState.playerFrozen = activeCutscene != nullptr &&
+                                     activeCutscene->freeze;
+    presentationState.hudVisible = activeCutscene == nullptr;
+    services->submit(SetRuntimeHudVisible{presentationState.hudVisible});
+    if (failure) std::rethrow_exception(failure);
+    return true;
   }
 
   void setDoor(Record &record, bool open) {
@@ -632,6 +959,8 @@ public:
                      : !door->publicState.active);
     } else if (action.tag == "changelevel") {
       queue.clear();
+      finishCutscene();
+      static_cast<void>(exitComputer());
       services->submit(ChangeRuntimeMap{attribute(action, "map", "")});
     } else if (action.tag == "hurt") {
       services->submit(DamageRuntimePlayer{number(action, "damage", 1.0)});
@@ -664,6 +993,30 @@ public:
   }
 
   void updateDoor(Record &record) {
+    if (record.rotational) {
+      const physics::Vec3 target = record.publicState.active
+          ? record.rotationTarget : physics::Vec3{};
+      const physics::Vec3 before = record.rotationProgress;
+      const double step = std::abs(record.speed) * 5.0 * fixedStepSeconds;
+      record.rotationProgress = {
+          approach(before.x, target.x, step),
+          approach(before.y, target.y, step),
+          approach(before.z, target.z, step)};
+      if (!(before == record.rotationProgress)) {
+        record.publicState.transform.rotation = applyEulerDegrees(
+            record.initial.rotation, record.rotationProgress);
+        services->submit(SetRuntimeTransform{record.publicState.handle,
+                                              record.publicState.transform});
+      }
+      if (record.rotationProgress == target && !record.completionFired) {
+        record.completionFired = true;
+        submitScript(record.definition->source,
+                     attribute(*record.definition,
+                               record.publicState.active ? "lOnOpen"
+                                                         : "lOnClosed", ""));
+      }
+      return;
+    }
     physics::Vec3 target = record.initial.position;
     if (record.publicState.active) {
       target = add(target, multiply(record.direction, record.distance));
@@ -686,11 +1039,20 @@ public:
   }
 
   void updateRotator(Record &record) {
-    if (!record.publicState.active) return;
-    const double radians = record.speed * fixedStepSeconds *
-                           3.14159265358979323846 / 180.0;
+    if (!record.rotational || !record.publicState.active) return;
+    // Legacy func_door applied each authored Euler channel independently at
+    // -rotspeed * dt * 5 * sign(channel), without normalising the vector.
+    const double degrees = -record.speed * fixedStepSeconds * 5.0;
+    const auto signedStep = [degrees](double channel) {
+      return channel < 0.0 ? -degrees : channel > 0.0 ? degrees : 0.0;
+    };
     record.publicState.transform.rotation = multiply(
-        record.publicState.transform.rotation, axisAngle(record.direction, radians));
+        record.publicState.transform.rotation,
+        applyEulerDegrees({}, {signedStep(record.direction.x),
+                               signedStep(record.direction.y),
+                               signedStep(record.direction.z)}));
+    record.publicState.transform.rotation = normalized(
+        record.publicState.transform.rotation);
     services->submit(SetRuntimeTransform{record.publicState.handle,
                                           record.publicState.transform});
   }
@@ -714,7 +1076,8 @@ public:
       record.keyPoint = record.reverse ? record.keyPoints.size() - 1 : 1;
     }
     const physics::Vec3 before = record.publicState.transform.position;
-    const bool carriesPlayer = services->playerStandingOn(record.publicState.handle);
+    const bool carriesPlayer = playerParent != record.publicState.name &&
+                               services->playerStandingOn(record.publicState.handle);
     const physics::Vec3 target = record.keyPoints[record.keyPoint];
     record.publicState.transform.position =
         approach(before, target, std::abs(record.speed) * fixedStepSeconds);
@@ -758,6 +1121,37 @@ public:
       throw std::logic_error("SequenceRuntime fixedUpdate outside active lifecycle");
     }
     ++tickNumber;
+    for (Cutscene &scene : cutscenes) {
+      if (scene.scheduled && tickNumber >= scene.waitTicks) {
+        static_cast<void>(startCutscene(scene.name));
+        break;
+      }
+    }
+    if (activeCutscene != nullptr) {
+      Cutscene &scene = *activeCutscene;
+      const std::uint64_t advance = scene.skipping
+          ? std::max<std::uint64_t>(1, static_cast<std::uint64_t>(
+                std::floor(scene.skipMultiplier)))
+          : 1;
+      scene.elapsedTicks = std::min(scene.lengthTicks,
+                                    scene.elapsedTicks + advance);
+      for (CutsceneRun &run : scene.runs) {
+        if (!run.fired && run.tick <= scene.elapsedTicks) {
+          run.fired = true;
+          try {
+            submitScript(run.source, run.script);
+          } catch (...) {
+            finishCutscene();
+            throw;
+          }
+        }
+      }
+      updateCutsceneCamera(scene);
+      if (scene.elapsedTicks >= scene.lengthTicks) {
+        if (scene.infinite) scene.elapsedTicks = 0;
+        else finishCutscene();
+      }
+    }
     const physics::Vec3 player = services->playerPosition();
     double darkness = 1.0;
     for (Record &record : records) {
@@ -783,6 +1177,12 @@ public:
                  contains(record.publicState.transform.position,
                           {25.0, 25.0, 25.0}, player)) {
         fire(record);
+      } else if (record.kind == RuntimeEntityKind::Computer &&
+                 !record.nearFired && !record.nearScript.empty() &&
+                 length(subtract(player, record.publicState.transform.position)) <
+                     200.0) {
+        record.nearFired = true;
+        submitScript(record.definition->source, record.nearScript);
       } else if (record.kind == RuntimeEntityKind::DarkZone) {
         const physics::Vec3 displacement = subtract(
             player, record.publicState.transform.position);
@@ -800,6 +1200,23 @@ public:
         darkness *= std::clamp(factor, 0.0, 4.0);
       }
     }
+    // Script-authored train parenting is evaluated after train transforms so
+    // the player receives the same fixed-tick delta without a frame of lag.
+    if (!playerParent.empty()) {
+      const auto parent = services->runtimeTransform(playerParent);
+      if (parent) {
+        if (lastPlayerParentTransform) {
+          services->submit(ApplyRuntimeParentMotion{
+              subtract(parent->position, lastPlayerParentTransform->position)});
+        }
+        lastPlayerParentTransform = parent;
+      } else {
+        services->submit(RuntimeLog{"warning: player parent '" + playerParent +
+                                    "' disappeared; binding released"});
+        playerParent.clear();
+        lastPlayerParentTransform.reset();
+      }
+    }
     services->submit(SetRuntimeDarkness{darkness});
     while (!queue.empty() && queue.front().dueTick <= tickNumber) {
       const QueuedAction action = queue.front();
@@ -812,6 +1229,10 @@ public:
   void unload(bool runOnExit) {
     if (isUnloaded) return;
     queue.clear();
+    finishCutscene();
+    static_cast<void>(exitComputer());
+    playerParent.clear();
+    lastPlayerParentTransform.reset();
     std::exception_ptr failure;
     if (runOnExit && isStarted) {
       for (const auto &[source, script] : exitScripts) {
@@ -841,6 +1262,12 @@ public:
   std::vector<std::pair<content::SourceLocation, std::string>> startupScripts;
   std::vector<std::pair<content::SourceLocation, std::string>> exitScripts;
   std::vector<QueuedAction> queue;
+  std::vector<Cutscene> cutscenes;
+  Cutscene *activeCutscene{};
+  Record *activeComputer{};
+  SequencePresentationState presentationState;
+  std::string playerParent;
+  std::optional<physics::Transform> lastPlayerParentTransform;
   std::uint64_t tickNumber{};
   std::uint64_t nextQueueOrder{};
   bool isStarted{};
@@ -855,6 +1282,42 @@ SequenceRuntime::~SequenceRuntime() = default;
 void SequenceRuntime::start() { impl_->start(); }
 void SequenceRuntime::fixedUpdate() { impl_->fixedUpdate(); }
 void SequenceRuntime::unload(bool runOnExit) { impl_->unload(runOnExit); }
+
+bool SequenceRuntime::handleInput(const InputEvent &event) {
+  if (impl_->activeComputer != nullptr) {
+    if (event.type == InputEventType::KeyPressed && event.key == Key::Escape)
+      return impl_->exitComputer();
+    if (event.type == InputEventType::KeyPressed ||
+        event.type == InputEventType::KeyReleased ||
+        event.type == InputEventType::TextEntered) {
+      impl_->services->submit(SendComputerInput{
+          impl_->activeComputer->publicState.handle, event.text,
+          static_cast<int>(event.key),
+          event.type != InputEventType::KeyReleased});
+      return true;
+    }
+    return event.type == InputEventType::MouseMoved ||
+           event.type == InputEventType::MousePressed ||
+           event.type == InputEventType::MouseReleased;
+  }
+  if (impl_->activeCutscene != nullptr &&
+      event.type == InputEventType::KeyPressed && !event.repeated &&
+      (event.key == Key::Escape || event.key == Key::Space)) {
+    impl_->activeCutscene->skipping = true;
+    return true;
+  }
+  return false;
+}
+
+bool SequenceRuntime::startCutscene(std::string_view name) {
+  return impl_->startCutscene(name);
+}
+bool SequenceRuntime::skipCutscene() {
+  if (impl_->activeCutscene == nullptr) return false;
+  impl_->activeCutscene->skipping = true;
+  return true;
+}
+bool SequenceRuntime::exitComputer() { return impl_->exitComputer(); }
 
 bool SequenceRuntime::interact(EntityHandle handle) {
   const auto found = std::find_if(
@@ -985,6 +1448,87 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
     } else if (call.name == "startEvent") {
       const std::string &name = requireName();
       if (!impl_->queueStandaloneEvent(name)) warnMissing("event", name);
+    } else if (call.name == "startCutScene" ||
+               call.name == "runCutScene") {
+      const std::string &name = requireName();
+      if (!startCutscene(name)) warnMissing("cutscene", name);
+    } else if (call.name == "stopCutScene" ||
+               call.name == "removeCutScene") {
+      impl_->finishCutscene();
+    } else if (call.name == "powerComputer") {
+      const std::string &name = requireName();
+      Impl::Record *computer = impl_->findKind(name, RuntimeEntityKind::Computer);
+      if (computer == nullptr) warnMissing("computer", name);
+      else impl_->enterComputer(*computer);
+    } else if (call.name == "logoffComputer" || call.name == "logoff") {
+      static_cast<void>(exitComputer());
+    } else if (call.name == "setCameraParent") {
+      const std::string &name = requireName();
+      const auto transform = impl_->services->runtimeTransform(name);
+      if (!transform) warnMissing("player parent", name);
+      else {
+        impl_->playerParent = name;
+        impl_->lastPlayerParentTransform = transform;
+      }
+    } else if (call.name == "resetCameraParent") {
+      impl_->playerParent.clear();
+      impl_->lastPlayerParentTransform.reset();
+    } else if (call.name == "HUDHide" || call.name == "HUDDisable") {
+      impl_->presentationState.hudVisible = false;
+      impl_->services->submit(SetRuntimeHudVisible{false});
+    } else if (call.name == "HUDShow" || call.name == "HUDEnable") {
+      impl_->presentationState.hudVisible = true;
+      impl_->services->submit(SetRuntimeHudVisible{true});
+    } else if (call.name == "gameText") {
+      const std::string text = requireName();
+      const double seconds = call.arguments.size() >= 3
+          ? argumentNumber(call, 2) : 3.0;
+      impl_->services->submit(SetRuntimeSubtitle{text, seconds});
+    } else if (call.name == "enableInventory" ||
+               call.name == "disableInventory") {
+      impl_->services->submit(SetRuntimeInventoryEnabled{
+          call.name == "enableInventory"});
+    } else if (call.name == "player__allowFlash") {
+      const std::string value = requireName();
+      impl_->services->submit(SetRuntimeFlashlightAllowed{
+          value == "true" || value == "1"});
+    } else if (call.name == "getFov") {
+      return impl_->services->runtimeFovDegrees();
+    } else if (call.name == "setFov") {
+      impl_->services->submit(SetRuntimeFov{argumentNumber(call, 0)});
+    } else if (call.name == "resetFov") {
+      impl_->services->submit(SetRuntimeFov{std::nullopt});
+    } else if (call.name == "setCompositorEnabled") {
+      if (call.arguments.size() < 2)
+        throw std::invalid_argument("expected enabled and compositor name");
+      impl_->services->submit(SetRuntimeCompositor{
+          call.arguments[1], call.arguments[0] == "true" ||
+                                 call.arguments[0] == "1"});
+    } else if (call.name == "fragmentGPUProgramParams") {
+      if (call.arguments.size() < 3)
+        throw std::invalid_argument("expected program, parameter and value");
+      impl_->services->submit(SetRuntimeShaderParameter{
+          call.arguments[0], call.arguments[1], call.arguments[2]});
+    } else if (call.name == "dMaterialSet") {
+      if (impl_->activeComputer == nullptr) {
+        impl_->services->submit(RuntimeLog{
+            "warning: dMaterialSet ignored outside computer focus"});
+      } else {
+        impl_->activeComputer->displayMaterial = requireName();
+        impl_->services->submit(SetComputerPresentation{
+            impl_->activeComputer->publicState.handle,
+            impl_->activeComputer->displayMaterial, true,
+            impl_->activeComputer->allowVirtualDisplay});
+      }
+    } else if (call.name == "exitAllComputers") {
+      static_cast<void>(exitComputer());
+    } else if (call.name == "fireFire" ||
+               call.name == "fireExtinguish" ||
+               call.name == "fireToggle") {
+      impl_->services->submit(SetRuntimeEffectEnabled{
+          requireName(), call.name == "fireToggle"
+                             ? std::nullopt
+                             : std::optional<bool>{call.name == "fireFire"}});
     } else if (call.name == "playMusic") {
       const bool loop = call.arguments.size() < 2 ||
                         call.arguments[1] == "true" ||
@@ -1029,6 +1573,9 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
           call.name == "__all_npcEvent"});
     } else if (call.name == "destroyNPC") {
       impl_->services->submit(DestroyNpcRuntimeCommand{requireName()});
+    } else if (call.name == "setNPCManagerStep") {
+      impl_->services->submit(SetNpcUpdateInterval{
+          std::max(0.0, argumentNumber(call, 0))});
     } else if (call.name == "setSpeedTrain" ||
                call.name == "setRotSpeed") {
       const std::string &name = requireName();
@@ -1036,6 +1583,8 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
       Impl::Record *record = call.name == "setSpeedTrain"
           ? impl_->findKind(name, RuntimeEntityKind::Train)
           : impl_->findKind(name, RuntimeEntityKind::Rotator);
+      if (record == nullptr && call.name == "setRotSpeed")
+        record = impl_->findKind(name, RuntimeEntityKind::Door);
       if (record == nullptr && call.name == "setRotSpeed")
         record = impl_->findKind(name, RuntimeEntityKind::Pendulum);
       if (record == nullptr) warnMissing("movement target", name);
@@ -1079,8 +1628,16 @@ PersistentSequenceState SequenceRuntime::saveState() const {
   saved.tick = impl_->tickNumber;
   saved.entities = impl_->publicStates;
   saved.nextQueueOrder = impl_->nextQueueOrder;
+  saved.playerParent = impl_->playerParent;
+  if (impl_->activeCutscene != nullptr) {
+    saved.activeCutscene = impl_->activeCutscene->name;
+    saved.cutsceneTick = impl_->activeCutscene->elapsedTicks;
+  }
+  if (impl_->activeComputer != nullptr)
+    saved.activeComputer = impl_->activeComputer->publicState.name;
   for (const Impl::Record &record : impl_->records) {
     saved.internals.push_back({record.nextTick, record.keyPoint, record.phase,
+                               record.rotationProgress,
                                record.oneShotFired, record.completionFired,
                                record.reverse});
   }
@@ -1109,6 +1666,9 @@ void SequenceRuntime::restoreState(const PersistentSequenceState &state) {
   }
   impl_->tickNumber = state.tick;
   impl_->nextQueueOrder = state.nextQueueOrder;
+  impl_->playerParent = state.playerParent;
+  impl_->lastPlayerParentTransform = state.playerParent.empty()
+      ? std::nullopt : impl_->services->runtimeTransform(state.playerParent);
   impl_->queue.clear();
   for (const PersistentSequenceState::PendingAction &action : state.pending) {
     impl_->queue.push_back({action.dueTick, action.order, action.action});
@@ -1122,6 +1682,7 @@ void SequenceRuntime::restoreState(const PersistentSequenceState &state) {
     record.nextTick = internals.nextTick;
     record.keyPoint = internals.keyPoint;
     record.phase = internals.phase;
+    record.rotationProgress = internals.rotationProgress;
     record.oneShotFired = internals.oneShotFired;
     record.completionFired = internals.completionFired;
     record.reverse = internals.reverse;
@@ -1133,6 +1694,21 @@ void SequenceRuntime::restoreState(const PersistentSequenceState &state) {
     }
   }
   impl_->refreshPublicStates();
+  impl_->finishCutscene();
+  static_cast<void>(impl_->exitComputer());
+  if (!state.activeCutscene.empty()) {
+    if (!impl_->startCutscene(state.activeCutscene))
+      throw std::invalid_argument("sequence save references missing cutscene");
+    impl_->activeCutscene->elapsedTicks = state.cutsceneTick;
+    impl_->updateCutsceneCamera(*impl_->activeCutscene);
+  }
+  if (!state.activeComputer.empty()) {
+    Impl::Record *computer = impl_->findKind(state.activeComputer,
+                                             RuntimeEntityKind::Computer);
+    if (computer == nullptr)
+      throw std::invalid_argument("sequence save references missing computer");
+    impl_->enterComputer(*computer);
+  }
 }
 
 std::uint64_t SequenceRuntime::tick() const noexcept { return impl_->tickNumber; }
@@ -1158,6 +1734,106 @@ bool SequenceRuntime::playerOnLadder() const {
                                         std::max(25.0, std::abs(record.scale.z))},
                                        player);
                      });
+}
+
+const SequencePresentationState &
+SequenceRuntime::presentation() const noexcept {
+  return impl_->presentationState;
+}
+
+std::string SequenceRuntime::serializeState() const {
+  const PersistentSequenceState saved = saveState();
+  std::ostringstream output;
+  output.imbue(std::locale::classic());
+  output << std::setprecision(17);
+  output << "RUN3_SEQUENCE_STATE 2\n" << std::quoted(saved.mapName) << ' '
+         << saved.tick << ' ' << saved.nextQueueOrder << '\n'
+         << std::quoted(saved.playerParent) << ' '
+         << std::quoted(saved.activeCutscene) << ' ' << saved.cutsceneTick << ' '
+         << std::quoted(saved.activeComputer) << '\n'
+         << saved.entities.size() << '\n';
+  for (const auto &entity : saved.entities) {
+    output << std::quoted(entity.name) << ' ' << std::quoted(entity.tag) << ' '
+           << entity.transform.position.x << ' ' << entity.transform.position.y
+           << ' ' << entity.transform.position.z << ' '
+           << entity.transform.rotation.w << ' ' << entity.transform.rotation.x
+           << ' ' << entity.transform.rotation.y << ' '
+           << entity.transform.rotation.z << ' ' << entity.enabled << ' '
+           << entity.visible << ' ' << entity.active << ' ' << entity.inside
+           << ' ' << entity.activationCount << '\n';
+  }
+  output << saved.internals.size() << '\n';
+  for (const auto &internal : saved.internals)
+    output << internal.nextTick << ' ' << internal.keyPoint << ' '
+           << internal.phase << ' ' << internal.rotationProgress.x << ' '
+           << internal.rotationProgress.y << ' '
+           << internal.rotationProgress.z << ' ' << internal.oneShotFired << ' '
+           << internal.completionFired << ' ' << internal.reverse << '\n';
+  output << saved.pending.size() << '\n';
+  for (const auto &pending : saved.pending) {
+    output << pending.dueTick << ' ' << pending.order << '\n';
+    writeElement(output, pending.action);
+  }
+  return output.str();
+}
+
+void SequenceRuntime::restoreSerializedState(std::string_view state) {
+  std::istringstream input{std::string(state)};
+  input.imbue(std::locale::classic());
+  std::string magic;
+  int version{};
+  if (!(input >> magic >> version) || magic != "RUN3_SEQUENCE_STATE" ||
+      (version != 1 && version != 2))
+    throw std::invalid_argument("unsupported sequence state format");
+  PersistentSequenceState saved = saveState();
+  std::size_t count{};
+  if (!(input >> std::quoted(saved.mapName) >> saved.tick >>
+        saved.nextQueueOrder >> std::quoted(saved.playerParent) >>
+        std::quoted(saved.activeCutscene) >> saved.cutsceneTick >>
+        std::quoted(saved.activeComputer) >> count) ||
+      count != saved.entities.size())
+    throw std::invalid_argument("invalid sequence state header");
+  for (std::size_t index = 0; index < count; ++index) {
+    auto &entity = saved.entities[index];
+    std::string name, tag;
+    if (!(input >> std::quoted(name) >> std::quoted(tag) >>
+          entity.transform.position.x >> entity.transform.position.y >>
+          entity.transform.position.z >> entity.transform.rotation.w >>
+          entity.transform.rotation.x >> entity.transform.rotation.y >>
+          entity.transform.rotation.z >> entity.enabled >> entity.visible >>
+          entity.active >> entity.inside >> entity.activationCount) ||
+        name != entity.name || tag != entity.tag)
+      throw std::invalid_argument("invalid sequence entity state");
+  }
+  std::size_t internalCount{};
+  if (!(input >> internalCount) || internalCount != saved.internals.size())
+    throw std::invalid_argument("invalid sequence internals count");
+  for (auto &internal : saved.internals) {
+    if (!(input >> internal.nextTick >> internal.keyPoint >> internal.phase))
+      throw std::invalid_argument("invalid sequence internals record");
+    if (version == 2) {
+      if (!(input >> internal.rotationProgress.x >>
+            internal.rotationProgress.y >> internal.rotationProgress.z))
+        throw std::invalid_argument("invalid sequence rotation state");
+    } else {
+      internal.rotationProgress = {};
+    }
+    if (!(input >> internal.oneShotFired >> internal.completionFired >>
+          internal.reverse))
+      throw std::invalid_argument("invalid sequence internals record");
+  }
+  std::size_t pendingCount{};
+  if (!(input >> pendingCount))
+    throw std::invalid_argument("invalid sequence pending count");
+  saved.pending.clear();
+  for (std::size_t index = 0; index < pendingCount; ++index) {
+    PersistentSequenceState::PendingAction pending;
+    if (!(input >> pending.dueTick >> pending.order) ||
+        !readElement(input, pending.action))
+      throw std::invalid_argument("invalid sequence pending action");
+    saved.pending.push_back(std::move(pending));
+  }
+  restoreState(saved);
 }
 
 } // namespace run3::gameplay

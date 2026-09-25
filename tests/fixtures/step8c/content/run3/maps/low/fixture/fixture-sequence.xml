@@ -19,6 +19,9 @@
           distance="6" speed="60" dirX="1" dirY="0" dirZ="0"
           useInteract="true" openSound="run3/sounds/open.wav"
           lOnClosed="run3/lua/closed.lua"/>
+    <door name="rotDoor" mesh="door.mesh" x="0" y="0" z="0"
+          rotating="true" rotspeed="12" pitch="2" yaw="0" roll="0"
+          useInteract="true"/>
     <rot name="rot" mesh="rot.mesh" rotating="true" rotspeed="90"
          pitch="0" yaw="1" roll="0" useInteract="true"/>
     <pendulum name="pend" mesh="pend.mesh" rotating="true"

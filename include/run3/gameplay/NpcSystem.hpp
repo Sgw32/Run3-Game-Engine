@@ -38,6 +38,8 @@ struct NpcSnapshot {
   physics::Vec3 goal;
   double health{30.0};
   std::string animation;
+  std::string parent;
+  bool gravityEnabled{true};
 };
 
 // A map-owned deterministic state machine. Presentation, scripts, sound and
@@ -52,6 +54,7 @@ public:
 
   void start();
   void fixedUpdate(double seconds = 1.0 / 60.0);
+  void setUpdateInterval(double seconds);
   void dispatch(const NpcRuntimeCommand &command);
   bool damage(EntityHandle handle, double amount, bool headshot = false);
   bool damage(EntityHandle handle, double amount,
@@ -62,6 +65,8 @@ public:
   [[nodiscard]] std::optional<NpcSnapshot> state(std::string_view name) const;
   [[nodiscard]] const std::vector<NpcSnapshot> &states() const noexcept;
   [[nodiscard]] std::size_t size() const noexcept;
+  [[nodiscard]] std::string serializeState() const;
+  void restoreSerializedState(std::string_view state);
 
 private:
   struct Impl;

@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <locale>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
@@ -127,6 +129,7 @@ struct NpcSystem::Impl {
     bool stopAtDistance{}, animated{true}, ragdoll{}, spawned{};
     bool headshotEnabled{}, suspended{}, nearFired{};
     bool flashlight{};
+    bool gravityEnabled{true};
     std::uint64_t perceptionTick{}, attackTick{};
     std::vector<air3::PathNode> path;
     std::size_t waypoint{1};
@@ -165,6 +168,7 @@ struct NpcSystem::Impl {
       npc.stopAtDistance = boolean(*element, "stopAtDist", false);
       npc.animated = boolean(*element, "animated", true);
       npc.ragdoll = boolean(*element, "ragdoll", false);
+      npc.gravityEnabled = boolean(*element, "applyGravity", true);
       npc.headshotEnabled = boolean(*element, "headshot", false);
       if (npc.speed < 0 || npc.stopDistance < 0 || npc.publicState.health <= 0)
         throw std::runtime_error(origin(*element) + ": negative movement or invalid health");
@@ -210,7 +214,11 @@ struct NpcSystem::Impl {
 
   void refresh() {
     publicStates.clear();
-    for (const auto &npc : records) publicStates.push_back(npc.publicState);
+    for (auto &npc : records) {
+      npc.publicState.parent = npc.parent;
+      npc.publicState.gravityEnabled = npc.gravityEnabled;
+      publicStates.push_back(npc.publicState);
+    }
   }
   Record *find(std::string_view name) {
     auto it = std::find_if(records.begin(), records.end(), [name](const Record &record) {
@@ -260,6 +268,8 @@ struct NpcSystem::Impl {
   std::vector<Record> records;
   std::vector<physics::Vec3> scales;
   std::vector<NpcSnapshot> publicStates;
+  double updateInterval{};
+  double updateAccumulator{};
   bool started{}, unloaded{};
 };
 
@@ -308,7 +318,15 @@ void NpcSystem::fixedUpdate(double seconds) {
   if (!impl_->started || impl_->unloaded) return;
   if (!std::isfinite(seconds) || seconds < 0 || seconds > 1.0)
     throw std::invalid_argument("invalid NPC fixed step");
-  impl_->services->submit(TickRuntimeNpcPhysics{seconds});
+  double updateSeconds = seconds;
+  if (impl_->updateInterval > 0.0) {
+    impl_->updateAccumulator += seconds;
+    if (impl_->updateAccumulator + 1.0e-9 < impl_->updateInterval) return;
+    updateSeconds = impl_->updateInterval;
+    impl_->updateAccumulator =
+        std::fmod(impl_->updateAccumulator, impl_->updateInterval);
+  }
+  impl_->services->submit(TickRuntimeNpcPhysics{updateSeconds});
   for (auto &npc : impl_->records) {
     if (!npc.nearFired && !npc.nearScript.empty() &&
         separation(npc.publicState.transform.position,
@@ -353,7 +371,7 @@ void NpcSystem::fixedUpdate(double seconds) {
       const physics::Vec3 target = npc.path[npc.waypoint].position;
       auto &position = npc.publicState.transform.position;
       const double gap = separation(position, target);
-      const double move = npc.speed * npc.movementMultiplier * seconds;
+      const double move = npc.speed * npc.movementMultiplier * updateSeconds;
       const double arrival = npc.waypoint + 1 == npc.path.size() &&
                              npc.stopAtDistance ? npc.stopDistance : 0.0;
       if (gap <= arrival + move) {
@@ -388,6 +406,13 @@ void NpcSystem::fixedUpdate(double seconds) {
     }
   }
   impl_->refresh();
+}
+
+void NpcSystem::setUpdateInterval(double seconds) {
+  if (!std::isfinite(seconds) || seconds < 0.0 || seconds > 1.0)
+    throw std::invalid_argument("invalid NPC update interval");
+  impl_->updateInterval = seconds;
+  impl_->updateAccumulator = 0.0;
 }
 
 void NpcSystem::dispatch(const NpcRuntimeCommand &command) {
@@ -435,6 +460,13 @@ void NpcSystem::dispatch(const NpcRuntimeCommand &command) {
       npc.movementMultiplier = value;
       break;
     }
+    case NpcEvent::ToggleGravity:
+      npc.gravityEnabled = !npc.gravityEnabled;
+      break;
+    case NpcEvent::SetGravity:
+      npc.gravityEnabled = command.argument != "0" &&
+                           command.argument != "false";
+      break;
     case NpcEvent::Teleport: npc.publicState.transform.position = parseVector(command.argument);
       impl_->services->submit(SetRuntimeTransform{npc.publicState.handle,
                                                    npc.publicState.transform}); break;
@@ -566,5 +598,71 @@ const std::vector<NpcSnapshot> &NpcSystem::states() const noexcept {
   return impl_->publicStates;
 }
 std::size_t NpcSystem::size() const noexcept { return impl_->records.size(); }
+
+std::string NpcSystem::serializeState() const {
+  std::ostringstream output;
+  output.imbue(std::locale::classic());
+  output << std::setprecision(17);
+  output << "RUN3_NPC_STATE 1\n" << impl_->records.size() << '\n';
+  for (const auto &npc : impl_->records) {
+    output << std::quoted(npc.publicState.name) << ' '
+           << static_cast<int>(npc.publicState.state) << ' '
+           << npc.publicState.transform.position.x << ' '
+           << npc.publicState.transform.position.y << ' '
+           << npc.publicState.transform.position.z << ' '
+           << npc.publicState.transform.rotation.w << ' '
+           << npc.publicState.transform.rotation.x << ' '
+           << npc.publicState.transform.rotation.y << ' '
+           << npc.publicState.transform.rotation.z << ' '
+           << npc.publicState.goal.x << ' ' << npc.publicState.goal.y << ' '
+           << npc.publicState.goal.z << ' ' << npc.publicState.health << ' '
+           << std::quoted(npc.publicState.animation) << ' '
+           << std::quoted(npc.parent) << ' ' << npc.gravityEnabled << '\n';
+  }
+  return output.str();
+}
+
+void NpcSystem::restoreSerializedState(std::string_view state) {
+  if (!impl_->started || impl_->unloaded)
+    throw std::logic_error("NPC restore requires an active map");
+  std::istringstream input{std::string(state)};
+  input.imbue(std::locale::classic());
+  std::string magic;
+  int version{};
+  std::size_t count{};
+  if (!(input >> magic >> version >> count) || magic != "RUN3_NPC_STATE" ||
+      version != 1 || count != impl_->records.size())
+    throw std::invalid_argument("NPC save does not match loaded map");
+  for (auto &npc : impl_->records) {
+    std::string name, animation, parent;
+    int stateValue{};
+    if (!(input >> std::quoted(name) >> stateValue >>
+          npc.publicState.transform.position.x >>
+          npc.publicState.transform.position.y >>
+          npc.publicState.transform.position.z >>
+          npc.publicState.transform.rotation.w >>
+          npc.publicState.transform.rotation.x >>
+          npc.publicState.transform.rotation.y >>
+          npc.publicState.transform.rotation.z >> npc.publicState.goal.x >>
+          npc.publicState.goal.y >> npc.publicState.goal.z >>
+          npc.publicState.health >> std::quoted(animation) >>
+          std::quoted(parent) >> npc.gravityEnabled) ||
+        name != npc.publicState.name || stateValue < 0 ||
+        stateValue > static_cast<int>(NpcState::Dead))
+      throw std::invalid_argument("invalid NPC save record");
+    npc.publicState.state = static_cast<NpcState>(stateValue);
+    npc.publicState.animation = std::move(animation);
+    npc.parent = std::move(parent);
+    impl_->services->submit(SetRuntimeTransform{npc.publicState.handle,
+                                                npc.publicState.transform});
+    const bool alive = npc.publicState.state != NpcState::Dead;
+    impl_->services->submit(SetRuntimeVisible{npc.publicState.handle, alive});
+    impl_->services->submit(SetRuntimeCollision{npc.publicState.handle, alive});
+    if (!npc.publicState.animation.empty())
+      impl_->services->submit(PlayRuntimeAnimation{
+          npc.publicState.handle, npc.publicState.animation, true});
+  }
+  impl_->refresh();
+}
 
 } // namespace run3::gameplay

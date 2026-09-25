@@ -11,6 +11,7 @@
 
 #include <OgreAnimationState.h>
 #include <OgreAxisAlignedBox.h>
+#include <OgreCamera.h>
 #include <OgreEntity.h>
 #include <OgreLight.h>
 #include <OgreLogManager.h>
@@ -55,6 +56,7 @@ physics::BodyType bodyType(RuntimeEntityKind kind) {
   case RuntimeEntityKind::Pendulum: return physics::BodyType::Door;
   case RuntimeEntityKind::Train: return physics::BodyType::Train;
   case RuntimeEntityKind::Npc: return physics::BodyType::Npc;
+  case RuntimeEntityKind::Computer: return physics::BodyType::PhysicalObject;
   case RuntimeEntityKind::Trigger: return physics::BodyType::Trigger;
   case RuntimeEntityKind::Pickup: return physics::BodyType::Pickup;
   case RuntimeEntityKind::Ladder:
@@ -73,6 +75,7 @@ physics::CollisionGroup collisionGroup(RuntimeEntityKind kind) {
   case RuntimeEntityKind::Trigger: return physics::CollisionGroup::Trigger;
   case RuntimeEntityKind::Pickup: return physics::CollisionGroup::Pickup;
   case RuntimeEntityKind::Npc: return physics::CollisionGroup::Npc;
+  case RuntimeEntityKind::Computer: return physics::CollisionGroup::Button;
   case RuntimeEntityKind::Ladder:
   case RuntimeEntityKind::DarkZone: return physics::CollisionGroup::None;
   }
@@ -101,15 +104,18 @@ public:
   };
 
   Impl(const AppPaths &appPaths, Ogre::SceneManager &manager,
+       Ogre::Camera &gameCamera,
        physics::PhysicsWorld &world, StaticMap &loadedMap,
        PlayerController &playerController,
        audio::IAudioEngine &audioEngine, MapChangeRequest changeRequest,
-       double lodBias)
-      : paths(appPaths), sceneManager(&manager), physicsWorld(&world),
+       double lodBias, double configuredFovDegrees)
+      : paths(appPaths), sceneManager(&manager), camera(&gameCamera),
+        physicsWorld(&world),
         staticMap(&loadedMap),
         player(&playerController),
         audio(&audioEngine), oneShots(audioEngine), dynamicPhysics(world),
         mapChangeRequest(std::move(changeRequest)), meshLodBias(lodBias),
+        defaultFovDegrees(configuredFovDegrees),
         scripts({paths.contentRoot(), paths.userRoot(), 1'000'000},
                 [this](const scripting::ScriptCall &call) {
                   if (runtime == nullptr) {
@@ -356,6 +362,27 @@ public:
     else sounds.insert_or_assign(command.owner.id.value, std::move(sound));
   }
 
+  void setComputerPresentation(const SetComputerPresentation &command) {
+    Presentation &entry = require(command.owner);
+    computerMaterials[command.owner.id.value] = command.material;
+    log("computer '" + entry.spec.name +
+        (command.focused ? "' focused" : "' released"));
+  }
+
+  void sendComputerInput(const SendComputerInput &command) {
+    const Presentation &entry = require(command.owner);
+    log("computer input for '" + entry.spec.name + "': key=" +
+        std::to_string(command.key) +
+        (command.text.empty() ? "" : " text=" + command.text));
+  }
+
+  void setEffectEnabled(const SetRuntimeEffectEnabled &command) {
+    const bool enabled = command.enabled.value_or(!effectStates[command.name]);
+    effectStates[command.name] = enabled;
+    log("effect controller '" + command.name + "'=" +
+        (enabled ? "on" : "off") + " (Step 9 visual adapter pending)");
+  }
+
   void destroyAll() noexcept {
     for (auto &[id, attached] : attachments) {
       auto owner = presentations.find(id);
@@ -399,7 +426,11 @@ public:
   }
 
   void destroy(EntityHandle handle) {
-    Presentation &entry = require(handle);
+    const auto found = presentations.find(handle.id.value);
+    // Bulk map teardown removes every presentation before individual map-owned
+    // systems release their handles. Treat that second release as idempotent.
+    if (found == presentations.end()) return;
+    Presentation &entry = found->second;
     auto attached = attachments.find(handle.id.value);
     if (attached != attachments.end()) {
       for (auto &item : attached->second) {
@@ -504,6 +535,7 @@ public:
 
   AppPaths paths;
   Ogre::SceneManager *sceneManager{};
+  Ogre::Camera *camera{};
   physics::PhysicsWorld *physicsWorld{};
   StaticMap *staticMap{};
   PlayerController *player{};
@@ -525,20 +557,25 @@ public:
   std::unordered_map<std::uint64_t, std::vector<Attachment>> attachments;
   audio::SoundHandle music;
   std::set<std::string> reportedDeferred;
+  std::unordered_map<std::string, bool> effectStates;
+  std::unordered_map<std::uint64_t, std::string> computerMaterials;
   double meshLodBias{1.0};
+  double defaultFovDegrees{75.0};
   Ogre::ColourValue baseAmbient{0.25F, 0.25F, 0.25F};
 };
 
 OgreSequenceServices::OgreSequenceServices(
     const AppPaths &paths, Ogre::SceneManager &sceneManager,
+    Ogre::Camera &camera,
     physics::PhysicsWorld &physicsWorld, StaticMap &staticMap,
     PlayerController &player,
     audio::IAudioEngine &audio, MapChangeRequest mapChangeRequest,
-    double meshLodBias)
-    : impl_(std::make_unique<Impl>(paths, sceneManager, physicsWorld, staticMap,
+    double meshLodBias, double defaultFovDegrees)
+    : impl_(std::make_unique<Impl>(paths, sceneManager, camera, physicsWorld,
+                                   staticMap,
                                    player,
                                    audio, std::move(mapChangeRequest),
-                                   meshLodBias)) {}
+                                   meshLodBias, defaultFovDegrees)) {}
 OgreSequenceServices::~OgreSequenceServices() = default;
 
 void OgreSequenceServices::attach(SequenceRuntime &runtime) noexcept {
@@ -660,6 +697,52 @@ void OgreSequenceServices::submit(const GameCommand &command) {
           [this](const ApplyRuntimeParentMotion &value) {
             impl_->player->applyParentMotion(value.translation);
           },
+          [this](const SetRuntimeHudVisible &value) {
+            impl_->log(std::string("HUD ") +
+                       (value.visible ? "shown" : "hidden") +
+                       " (Step 9 adapter pending)");
+          },
+          [this](const SetRuntimeSubtitle &value) {
+            impl_->log("subtitle (Step 9 adapter pending): " + value.text);
+          },
+          [this](const SetRuntimeInventoryEnabled &value) {
+            impl_->log(std::string("inventory ") +
+                       (value.enabled ? "enabled" : "disabled") +
+                       " (Step 9 adapter pending)");
+          },
+          [this](const SetRuntimeFlashlightAllowed &value) {
+            impl_->log(std::string("flashlight ") +
+                        (value.allowed ? "allowed" : "blocked"));
+          },
+          [this](const SetRuntimeFov &value) {
+            const double degrees = value.degrees.value_or(
+                impl_->defaultFovDegrees);
+            if (!std::isfinite(degrees) || degrees <= 0.0 || degrees >= 180.0) {
+              throw std::invalid_argument(
+                  "camera FOV must be finite and between 0 and 180 degrees");
+            }
+            impl_->camera->setFOVy(Ogre::Degree(
+                static_cast<Ogre::Real>(degrees)));
+          },
+          [this](const SetRuntimeCompositor &value) {
+            impl_->log("compositor '" + value.name + "' requested " +
+                       (value.enabled ? "on" : "off") +
+                       " (Step 9 adapter pending)");
+          },
+          [this](const SetRuntimeShaderParameter &value) {
+            impl_->log("shader parameter '" + value.program + "/" +
+                       value.parameter + "'=" + value.value +
+                       " (Step 9 adapter pending)");
+          },
+          [this](const SetRuntimeEffectEnabled &value) {
+            impl_->setEffectEnabled(value);
+          },
+          [this](const SetComputerPresentation &value) {
+            setComputerPresentation(value);
+          },
+          [this](const SendComputerInput &value) {
+            sendComputerInput(value);
+          },
           [this](const SetRuntimeDarkness &value) {
             const float factor = static_cast<float>(std::clamp(value.factor, 0.0, 4.0));
             impl_->sceneManager->setAmbientLight(impl_->baseAmbient * factor);
@@ -714,6 +797,11 @@ void OgreSequenceServices::submit(const GameCommand &command) {
                 impl_->dynamicPhysics.createRagdoll(
                     {owner.spec.name + "/ragdoll", value.transform, 70.0, 10.0}));
           },
+          [this](const SetNpcUpdateInterval &value) {
+            if (impl_->npcs == nullptr)
+              throw std::logic_error("NPC interval before NpcSystem attach");
+            impl_->npcs->setUpdateInterval(value.seconds);
+          },
           [this](const TickRuntimeNpcPhysics &value) {
             impl_->dynamicPhysics.update(value.seconds);
           },
@@ -725,6 +813,16 @@ void OgreSequenceServices::submit(const GameCommand &command) {
           },
           [this](const RuntimeLog &value) { impl_->log(value.message); }},
       command);
+}
+
+void OgreSequenceServices::setComputerPresentation(
+    const SetComputerPresentation &state) {
+  impl_->setComputerPresentation(state);
+}
+
+void OgreSequenceServices::sendComputerInput(
+    const SendComputerInput &input) {
+  impl_->sendComputerInput(input);
 }
 
 physics::Vec3 OgreSequenceServices::playerPosition() const {
@@ -774,6 +872,10 @@ OgreSequenceServices::runtimeTransform(std::string_view name) const {
                               fromOgre(node->_getDerivedOrientation())};
   }
   return std::nullopt;
+}
+
+double OgreSequenceServices::runtimeFovDegrees() const {
+  return static_cast<double>(impl_->camera->getFOVy().valueDegrees());
 }
 
 std::optional<EntityHandle>

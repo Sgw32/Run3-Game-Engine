@@ -178,6 +178,20 @@ TEST_CASE("Step 8D navigation and reach callback follow fixed ticks", "[step8d][
   CHECK(replayAt(60).x == replayAt(144).x);
 }
 
+TEST_CASE("Step 8E NPC scheduler interval retains fixed-tick determinism",
+          "[step8d][step8e][npc][scheduler]") {
+  RuntimeFixture fixture;
+  fixture.npcs->setUpdateInterval(0.05);
+  fixture.npcs->dispatch({"guide", 10, "10 0 0", {}, false});
+  fixture.npcs->fixedUpdate();
+  fixture.npcs->fixedUpdate();
+  CHECK(fixture.npcs->state("guide")->transform.position.x == 0.0);
+  fixture.npcs->fixedUpdate();
+  CHECK(fixture.npcs->state("guide")->transform.position.x > 0.0);
+  CHECK_THROWS(fixture.npcs->setUpdateInterval(-0.1));
+  CHECK_THROWS(fixture.npcs->setUpdateInterval(2.0));
+}
+
 TEST_CASE("Step 8D blocked path and invalid commands are visible", "[step8d][npc][navigation]") {
   RuntimeFixture fixture;
   fixture.query.blockEverything = true;
@@ -262,4 +276,18 @@ TEST_CASE("Step 8D selected NPC Lua targets exist", "[step8d][npc][content]") {
     }
   }
   CHECK(referenced > 0);
+}
+
+TEST_CASE("Step 8E NPC gravity event and stable state round trip",
+          "[step8e][npc][save]") {
+  RuntimeFixture fixture;
+  CHECK_NOTHROW(fixture.npcs->dispatch({"guide", 26, "0", {}, false}));
+  REQUIRE(fixture.npcs->state("guide").has_value());
+  CHECK_FALSE(fixture.npcs->state("guide")->gravityEnabled);
+  const std::string saved = fixture.npcs->serializeState();
+  CHECK(saved.rfind("RUN3_NPC_STATE 1", 0) == 0);
+  CHECK_NOTHROW(fixture.npcs->dispatch({"guide", 26, "1", {}, false}));
+  CHECK(fixture.npcs->state("guide")->gravityEnabled);
+  CHECK_NOTHROW(fixture.npcs->restoreSerializedState(saved));
+  CHECK_FALSE(fixture.npcs->state("guide")->gravityEnabled);
 }

@@ -51,11 +51,11 @@ The numeric values are content ABI and must never be renumbered.
 | 18 / 19 | `SetGoalScript` / `SetUseScript` | replaces the active Lua callback |
 | 20 | `RotateOverride` | absolute quaternion |
 | 21 | `TeleportParent` | parent-relative teleport |
-| 22 | `ToggleGravity` | rejected; legacy implementation was empty |
+| 22 | `ToggleGravity` | toggles the typed authored gravity state; physical vertical response remains bounded by the current NPC controller |
 | 23 | `TransitAnimation` | switches through the animation service; blend parity pending |
 | 24 | `SetMoveActivity` | validated non-negative multiplier |
 | 25 | `ResetParent` | releases parent transform following |
-| 26 | `SetGravity` | rejected; dynamic-character gravity parity pending |
+| 26 | `SetGravity` | implemented; live `tlwstations01` inspector calls accept `0` without aborting startup |
 | 27 | `FacialActivity` | parses the facial XML and plays its voice as positional audio; pose morphs/subtitles pending |
 | 28 | `ToggleFlashlight` | rejected; light presentation belongs to the later lighting step |
 | 29-32 | attach/detach physical object variants | typed bone attachment with shared map physics disabled while attached |
@@ -65,6 +65,11 @@ typed operations. Broadcast exists because `__all_npcEvent` is present in the
 955-script API and content, even though selected map startup does not require
 it. No `npcgroup` declaration exists in the selected variant, so the unused
 experimental group machinery was not revived.
+
+The two campaign calls to `setNPCManagerStep` use the map-owned fixed-tick
+scheduler. Positive intervals accumulate 60 Hz gameplay ticks and advance NPC
+behavior at that cadence; zero advances on every fixed tick. This retains the
+authored station timing control without reviving `NPCManager`.
 
 ## Implemented legacy data and behavior
 
@@ -82,6 +87,9 @@ experimental group machinery was not revived.
 - Destruction is reverse-order and map scoped. It detaches physical objects,
   removes NPC/ragdoll bodies and voices, destroys presentation, invalidates
   explicitly destroyed registry handles, and cannot survive a map unload.
+- NPC identity, state, transform, goal, health, animation, parent name, and
+  gravity state serialize through the stable `RUN3_NPC_STATE 1` format.
+  Handles are rebuilt by the new map registry and are never persisted raw.
 
 ## Intentional/incomplete differences
 

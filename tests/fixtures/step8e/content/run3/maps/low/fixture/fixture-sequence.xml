@@ -1,0 +1,25 @@
+<sequence>
+  <adents>
+    <computer name="terminal" meshFile="terminal.mesh"
+              script="run3/lua/computer-init.lua"
+              cNearScript="run3/lua/computer-near.lua"
+              cShutScript="run3/lua/computer-shutdown.lua"
+              dispMat="Fixture/Display" allowVirtualDisplay="false">
+      <position x="5" y="0" z="0"/>
+      <scale x="1" y="1" z="1"/>
+    </computer>
+    <cutscene name="intro" length="2" freezeb="true" hideHUD="true"
+              skipAnimSpeed="20">
+      <frame p="true" pos="0 1 0" or="true" orient="1 0 0 0" second="0"/>
+      <frame p="true" pos="20 1 0" or="true" orient="0.707 0 0.707 0" second="2"/>
+    </cutscene>
+    <event name="transition">
+      <changelevel map="nextchapter" secs="0"/>
+    </event>
+  </adents>
+  <events>
+    <cutscene name="intro" wait="-1">
+      <run script="run3/lua/cutscene-hook.lua" sec="1"/>
+    </cutscene>
+  </events>
+</sequence>

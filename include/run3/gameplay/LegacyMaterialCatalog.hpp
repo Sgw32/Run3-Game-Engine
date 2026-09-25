@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace run3::gameplay {
 
@@ -21,6 +22,7 @@ public:
   [[nodiscard]] std::optional<LegacyMaterialInfo>
   find(const std::string &materialName) const;
   [[nodiscard]] std::size_t size() const noexcept;
+  [[nodiscard]] std::vector<std::string> names() const;
 
 private:
   struct Impl;

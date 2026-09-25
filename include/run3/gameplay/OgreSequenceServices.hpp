@@ -11,6 +11,7 @@
 #include <string>
 
 namespace Ogre {
+class Camera;
 class SceneManager;
 }
 
@@ -25,16 +26,19 @@ class MapAudioRuntime;
 }
 namespace run3::gameplay {
 
-class OgreSequenceServices final : public IGameServices {
+class OgreSequenceServices final : public IGameServices,
+                                   public IComputerPresentation {
 public:
   using MapChangeRequest = std::function<void(std::string)>;
 
   OgreSequenceServices(const AppPaths &paths, Ogre::SceneManager &sceneManager,
+                       Ogre::Camera &camera,
                        physics::PhysicsWorld &physicsWorld,
                        StaticMap &staticMap, PlayerController &player,
                        audio::IAudioEngine &audio,
                        MapChangeRequest mapChangeRequest = {},
-                       double meshLodBias = 1.0);
+                       double meshLodBias = 1.0,
+                       double defaultFovDegrees = 75.0);
   ~OgreSequenceServices() override;
   OgreSequenceServices(const OgreSequenceServices &) = delete;
   OgreSequenceServices &operator=(const OgreSequenceServices &) = delete;
@@ -44,6 +48,9 @@ public:
   void attachMapAudio(audio::MapAudioRuntime &mapAudio) noexcept;
   void updateAudio(float seconds);
   void submit(const GameCommand &command) override;
+  void setComputerPresentation(
+      const SetComputerPresentation &state) override;
+  void sendComputerInput(const SendComputerInput &input) override;
   [[nodiscard]] physics::Vec3 playerPosition() const override;
   [[nodiscard]] physics::Vec3 playerHalfExtents() const override;
   [[nodiscard]] bool playerStandingOn(EntityHandle handle) const override;
@@ -51,6 +58,7 @@ public:
   lightVisible(std::string_view name) const override;
   [[nodiscard]] std::optional<physics::Transform>
   runtimeTransform(std::string_view name) const override;
+  [[nodiscard]] double runtimeFovDegrees() const override;
   [[nodiscard]] std::optional<EntityHandle>
   handleForPhysicsEntity(std::uint64_t physicsEntity) const;
 

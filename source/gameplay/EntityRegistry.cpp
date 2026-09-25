@@ -39,9 +39,8 @@ EntityOwner ownerFor(const std::string &tag) {
   if (tag == "flare" || tag == "darkzone") {
     return EntityOwner::Presentation;
   }
-  if (tag == "computer" || tag == "cutscene") {
-    return EntityOwner::Deferred;
-  }
+  if (tag == "computer" || tag == "cutscene")
+    return EntityOwner::Presentation;
   return EntityOwner::Sequence;
 }
 

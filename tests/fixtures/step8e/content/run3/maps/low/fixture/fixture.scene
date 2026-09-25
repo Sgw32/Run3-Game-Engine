@@ -1,0 +1,6 @@
+<scene>
+  <nodes>
+    <player x="0" y="0" z="0"/>
+    <node name="platform"><position x="10" y="0" z="0"/></node>
+  </nodes>
+</scene>

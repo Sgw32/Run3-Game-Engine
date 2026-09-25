@@ -3,6 +3,7 @@
 #include <run3/content/MapDefinition.hpp>
 #include <run3/gameplay/EntityRegistry.hpp>
 #include <run3/gameplay/GameCommands.hpp>
+#include <run3/input/Input.hpp>
 #include <run3/scripting/ScriptEngine.hpp>
 
 #include <cstdint>
@@ -42,6 +43,7 @@ struct PersistentSequenceState {
     std::uint64_t nextTick{};
     std::size_t keyPoint{};
     double phase{};
+    physics::Vec3 rotationProgress{};
     bool oneShotFired{};
     bool completionFired{};
     bool reverse{};
@@ -58,6 +60,19 @@ struct PersistentSequenceState {
   std::vector<Internals> internals;
   std::vector<PendingAction> pending;
   std::uint64_t nextQueueOrder{};
+  std::string playerParent;
+  std::string activeCutscene;
+  std::uint64_t cutsceneTick{};
+  std::string activeComputer;
+};
+
+struct SequencePresentationState {
+  bool playerFrozen{};
+  bool hudVisible{true};
+  bool computerFocused{};
+  std::string activeCutscene;
+  std::string activeComputer;
+  std::optional<physics::Transform> camera;
 };
 
 class SequenceRuntime final {
@@ -72,6 +87,10 @@ public:
 
   void start();
   void fixedUpdate();
+  bool handleInput(const InputEvent &event);
+  bool startCutscene(std::string_view name);
+  bool skipCutscene();
+  bool exitComputer();
   void unload(bool runOnExit = true);
 
   bool interact(EntityHandle handle);
@@ -93,6 +112,9 @@ public:
   [[nodiscard]] std::optional<SequenceEntityState>
   state(std::string_view name) const;
   [[nodiscard]] bool playerOnLadder() const;
+  [[nodiscard]] const SequencePresentationState &presentation() const noexcept;
+  [[nodiscard]] std::string serializeState() const;
+  void restoreSerializedState(std::string_view state);
 
 private:
   class Impl;

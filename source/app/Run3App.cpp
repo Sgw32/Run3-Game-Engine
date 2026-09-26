@@ -10,6 +10,8 @@
 #include <run3/gameplay/SequenceRuntime.hpp>
 #include <run3/gameplay/StaticMap.hpp>
 #include <run3/physics/Physics.hpp>
+#include <run3/ui/OgreMyGui.hpp>
+#include <run3/ui/Ui.hpp>
 
 #include <OgreCamera.h>
 #include <OgreColourValue.h>
@@ -283,6 +285,14 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
   options.fullscreen = configuredBool(configuration, "fullscreen");
   options.startNoclip = configuredBool(configuration, "noclip");
   options.physicsDebug = configuredBool(configuration, "physics-debug");
+  options.introEnabled = configuredBool(configuration, "intro", false);
+  options.uiScale = static_cast<float>(
+      configuredDouble(configuration, "ui-scale", 1.0));
+  if (options.uiScale < 0.75F || options.uiScale > 3.0F)
+    throw std::runtime_error("ui-scale must be between 0.75 and 3.0");
+  options.newGameMap = configuration.valueOr("new-game-map", "tlwintro");
+  if (options.newGameMap.empty())
+    throw std::runtime_error("new-game-map must not be empty");
   return options;
 }
 
@@ -298,6 +308,8 @@ void printRun3AppUsage() {
       << "       [--resource-profile FILE] [--player-height-cm N]\n"
       << "       [--fov 35..120] [--resolution WIDTHxHEIGHT]\n"
       << "       [--fullscreen|--windowed] [--noclip] [--physics-debug]\n"
+      << "       [--intro|--skip-intro] [--ui-scale 0.75..3]\n"
+      << "       [--new-game-map NAME]\n"
       << "       [--audio-backend auto|miniaudio|null]\n"
       << "       [--render-hz 30|60|144]\n"
       << "Precedence: command line > user config > content defaults.\n"
@@ -451,6 +463,10 @@ int Run3App::run() {
         }
         audioEngine_->update(static_cast<float>(frame.elapsed.count()));
       }
+      if (ui_) {
+        ui_->update(static_cast<float>(frame.elapsed.count()));
+        ui_->renderComputerSurface();
+      }
       if (!getRoot()->renderOneFrame(
               static_cast<Ogre::Real>(frame.elapsed.count()))) {
         break;
@@ -482,6 +498,7 @@ int Run3App::run() {
     } catch (...) {
       logError("Run3 cleanup error after main-loop failure: unknown exception");
     }
+    ui_.reset();
     audioEngine_.reset();
     closeApp();
     return 1;
@@ -503,6 +520,7 @@ int Run3App::run() {
   } catch (...) {
     exitFailure = std::current_exception();
   }
+  ui_.reset();
   audioEngine_.reset();
   closeApp();
   if (exitFailure) {
@@ -593,6 +611,8 @@ void Run3App::locateResources() {
                                 Ogre::RGN_INTERNAL);
   resources.addResourceLocation((media / "RTShaderLib").string(), "FileSystem",
                                 Ogre::RGN_INTERNAL);
+  resources.addResourceLocation((media / "MyGUI_Media").string(), "FileSystem",
+                                "Run3MyGUI");
   // Content validation registers only the locations selected by resource.cfg
   // in its own temporary group. Registering the root here as well makes Ogre's
   // archive manager reject the same filesystem archive under two groups.
@@ -642,6 +662,10 @@ void Run3App::setup() {
   Ogre::Viewport *viewport = getRenderWindow()->addViewport(camera_);
   viewport->setBackgroundColour(Ogre::ColourValue(0.04F, 0.06F, 0.1F));
   updateAspectRatio();
+  ui_ = ui::createMyGuiUiSystem(
+      *getRenderWindow(), *sceneManager_, options_.paths.logDir(),
+      [this](const ui::MenuAction &action) { handleMenuAction(action); },
+      options_.uiScale);
   Ogre::LogManager::getSingleton().logMessage(
       "Run3 display: " + std::to_string(options_.windowWidth) + "x" +
       std::to_string(options_.windowHeight) +
@@ -671,10 +695,14 @@ void Run3App::setup() {
     loadMap(options_.mapName);
   }
 
-  gameplayMouseCapture_ = player_ != nullptr && options_.frameLimit == 0;
-  if (gameplayMouseCapture_) {
-    setGameplayMouseCapture(true);
+  ui_->showMenu(options_.mapName.empty());
+  if (options_.introEnabled) {
+    Ogre::LogManager::getSingleton().logMessage(
+        "Intro video requested, but DirectShow/WMV is retired from the portable "
+        "runtime; continuing immediately (intro is disabled by default)");
   }
+
+  refreshMouseCapture();
 
   Ogre::LogManager::getSingleton().logMessage(
       "Run3 shell pinned Ogre version: " + std::string(ogreVersion));
@@ -751,7 +779,7 @@ void Run3App::loadMap(const std::string &mapName) {
 
     sequenceServices_ = std::make_unique<gameplay::OgreSequenceServices>(
         options_.paths, *sceneManager_, *camera_, *physicsWorld_, *staticMap_,
-        *player_, *audioEngine_,
+        *player_, *audioEngine_, *ui_,
         [this](std::string map) { requestMapChange(std::move(map)); },
         meshLodBias(options_.modelQuality), options_.verticalFovDegrees);
     if (mapAudio_) {
@@ -823,6 +851,7 @@ void Run3App::unloadMap(const bool runOnExit) {
   }
   staticMap_.reset();
   physicsWorld_.reset();
+  if (ui_) ui_->resetMapState();
   if (failure) std::rethrow_exception(failure);
 }
 
@@ -868,9 +897,7 @@ void Run3App::setGameplayMouseCapture(const bool enabled) {
     return;
   }
   setWindowGrab(enabled);
-  if (!enabled) {
-    gameplayMouseCapture_ = false;
-  }
+  gameplayMouseCapture_ = enabled;
 }
 
 void Run3App::updateAspectRatio() {
@@ -884,15 +911,34 @@ void Run3App::updateAspectRatio() {
 
 void Run3App::handleInput(const std::vector<InputEvent> &events) {
   for (const InputEvent &event : events) {
-    if (sequenceRuntime_ && sequenceRuntime_->handleInput(event)) {
+    if (event.type == InputEventType::Quit) {
+      requestQuit();
       continue;
     }
-    if (event.type == InputEventType::Quit ||
-        (event.type == InputEventType::KeyPressed && event.key == Key::Escape)) {
-      requestQuit();
-    } else if (player_ && event.type == InputEventType::MouseMoved &&
-               !(sequenceRuntime_ &&
-                 sequenceRuntime_->presentation().playerFrozen)) {
+    const bool escape = event.type == InputEventType::KeyPressed &&
+                        !event.repeated && event.key == Key::Escape;
+    if (ui_ && ui_->computerActive() && !escape) {
+      static_cast<void>(ui_->handleInput(event));
+      if (sequenceRuntime_) static_cast<void>(sequenceRuntime_->handleInput(event));
+      refreshMouseCapture();
+      continue;
+    }
+    if (sequenceRuntime_ && sequenceRuntime_->handleInput(event)) {
+      refreshMouseCapture();
+      continue;
+    }
+    if (escape) {
+      if (ui_) ui_->showMenu(!ui_->menuVisible());
+      else requestQuit();
+      refreshMouseCapture();
+      continue;
+    }
+    if (ui_ && ui_->handleInput(event)) {
+      refreshMouseCapture();
+      continue;
+    }
+    if (player_ && event.type == InputEventType::MouseMoved &&
+        !(sequenceRuntime_ && sequenceRuntime_->presentation().playerFrozen)) {
       constexpr double sensitivity = 0.0025;
       yawRadians_ -= static_cast<double>(event.deltaX) * sensitivity;
       pitchRadians_ = std::clamp(
@@ -935,7 +981,68 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
           hit ? "Weapon ray hit body " + std::to_string(hit->body)
               : "Weapon ray missed");
     }
+    refreshMouseCapture();
   }
+}
+
+void Run3App::handleMenuAction(const ui::MenuAction &action) {
+  switch (action.kind) {
+  case ui::MenuActionKind::Resume:
+    ui_->showMenu(false);
+    break;
+  case ui::MenuActionKind::NewGame:
+    ui_->showMenu(false);
+    requestMapChange(options_.newGameMap);
+    break;
+  case ui::MenuActionKind::SelectChapter:
+    if (action.chapter.empty()) {
+      ui_->appendConsole("Chapter name must not be empty");
+      ui_->setConsoleVisible(true);
+    } else {
+      ui_->showMenu(false);
+      requestMapChange(action.chapter);
+    }
+    break;
+  case ui::MenuActionKind::ApplySettings: {
+    if (action.verticalFov < 35.0 || action.verticalFov > 120.0) {
+      ui_->appendConsole("FOV must be between 35 and 120 degrees");
+      ui_->setConsoleVisible(true);
+      break;
+    }
+    const std::size_t separator = action.resolution.find_first_of("xX");
+    try {
+      if (separator == std::string::npos) throw std::invalid_argument("format");
+      const unsigned width = static_cast<unsigned>(
+          std::stoul(action.resolution.substr(0, separator)));
+      const unsigned height = static_cast<unsigned>(
+          std::stoul(action.resolution.substr(separator + 1)));
+      if (width < 640 || height < 480 || width > 16384 || height > 16384)
+        throw std::out_of_range("range");
+      options_.windowWidth = width;
+      options_.windowHeight = height;
+      options_.verticalFovDegrees = action.verticalFov;
+      camera_->setFOVy(Ogre::Degree(static_cast<Ogre::Real>(action.verticalFov)));
+      getRenderWindow()->resize(width, height);
+      updateAspectRatio();
+      ui_->appendConsole("Settings applied for this session");
+    } catch (...) {
+      ui_->appendConsole("Resolution must be WIDTHxHEIGHT (minimum 640x480)");
+      ui_->setConsoleVisible(true);
+    }
+    break;
+  }
+  case ui::MenuActionKind::Quit:
+    requestQuit();
+    break;
+  }
+  refreshMouseCapture();
+}
+
+void Run3App::refreshMouseCapture() {
+  const bool capture = player_ != nullptr && options_.frameLimit == 0 &&
+                       ui_ != nullptr && !ui_->menuVisible() &&
+                       !ui_->computerActive();
+  if (capture != gameplayMouseCapture_) setGameplayMouseCapture(capture);
 }
 
 void Run3App::requestQuit() {

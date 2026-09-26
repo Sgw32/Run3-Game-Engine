@@ -13,7 +13,11 @@ and concrete footsteps. Step 8 will bind the remaining named/event-controlled
 sequence and Lua sounds. Step 8D now constructs map NPCs, routes their Lua
 events, and provides deterministic movement, collision, animation, voice,
 parenting, damage/death, and generic ragdoll slices. NPC head-look/facial pose,
-complete sound/combat parity, and final materials remain later work.
+complete sound/combat parity, and final materials remain later work. Step 9A
+uses pinned MyGUI for the main menu, HUD, subtitles, console, loading and
+inventory presentation, and isolated virtual-computer render textures. CEGUI,
+DirectShow, Hydrax, SkyX, Cg, and shader-model-2 programs are not required by
+the portable runtime.
 Legacy `physPosit` visual offsets and `physSize` collision multipliers are
 honoured independently, and sequence-spawned doors, trains, buttons, and NPCs
 use the same textured compatibility-material path as static geometry.
@@ -105,7 +109,9 @@ available with GL3+.
 - Left mouse button: cast the weapon ray (the hit is logged)
 - `N`: toggle noclip
 - `F3`: toggle collision-section bounds
-- Escape or window close: quit cleanly
+- Escape: open/close the MyGUI menu; while connected to a computer or playing
+  a cutscene, disconnect/skip first
+- Window close or **Quit** in the menu: quit cleanly
 
 For a playable map, the mouse is captured in SDL relative mode and the OS
 cursor is hidden. Relative motion allows unlimited yaw in windowed and
@@ -139,6 +145,8 @@ run3_shell [--renderer d3d11|gl3plus] [--frames N]
            [--resource-profile FILE] [--player-height-cm N]
            [--fov 35..120] [--resolution WIDTHxHEIGHT]
            [--fullscreen|--windowed] [--noclip] [--physics-debug]
+           [--ui-scale 0.75..3] [--new-game-map NAME]
+           [--intro|--skip-intro]
            [--audio-backend auto|miniaudio|null]
            [--render-hz 30|60|144]
            [--validate-content] [--manifest PATH] [--report PATH]
@@ -181,6 +189,30 @@ modern wider view with:
 default is 75. `--resolution` uses `WIDTHxHEIGHT`, defaults to 1280x720, and
 must be a mode exposed by the selected renderer/display. Both options work in
 windowed and fullscreen modes.
+
+## MyGUI menu, HUD, and computer controls
+
+Start `run3_shell` without `--map` to open the MyGUI main menu immediately, or
+press Escape while exploring a map. **Continue** returns to the current map;
+**New game** opens `tlwintro` by default; **Chapters** accepts an explicit map
+name; **Options** applies resolution and vertical FOV for the current session;
+and **Quit** shuts down cleanly. Override the New game destination with
+`--new-game-map NAME` or `new-game-map=NAME` in `run3.cfg`.
+
+Use `--ui-scale 1.25` (valid range 0.75 through 3) or persist
+`ui-scale=1.25` for high-DPI displays. Layout math is tested at 16:9, 16:10,
+4:3, and 2x DPI. The `--intro` flag does not restore DirectShow/WMV: it logs
+that the retired intro was skipped and continues. Intro playback remains
+disabled by default; `--skip-intro` makes that choice explicit.
+
+To use an authored virtual computer, aim at its use surface and press `E`.
+Only that computer receives keyboard/mouse input; its MyGUI layer is rendered
+to the attached screen without the main HUD. Press Escape to disconnect. The
+engine restores the authored screen material, camera/player state, UI focus,
+and first-person mouse capture on exit, failure, map transition, or unload.
+Legacy `buttonGUI` computer scripts and the typed `mygui` Lua facade share this
+single scoped backend. See [UI_RUNTIME.md](porting/UI_RUNTIME.md) for the API
+and teardown contract.
 
 Audio defaults to `auto`: Run3 opens the pinned miniaudio backend and falls
 back to the bounded null backend if device initialization fails. Force silent,
@@ -276,6 +308,9 @@ resolution=1920x1080
 texture-quality=high
 model-quality=high
 scene-quality=high
+ui-scale=1.25
+new-game-map=tlwintro
+intro=false
 ```
 
 Configuration uses `key=value` lines and this precedence:
@@ -287,8 +322,8 @@ Configuration uses `key=value` lines and this precedence:
 The recognized runtime keys are `renderer`, `frames`, `content-root`,
 `user-root`, `map`, `scene-quality` (and legacy `map-quality`),
 `texture-quality`, `model-quality`, `resource-profile`, `player-height-cm`,
-`fov`, `resolution`, `render-hz`, `audio-backend`, `fullscreen`, `noclip`, and
-`physics-debug`.
+`fov`, `resolution`, `render-hz`, `audio-backend`, `fullscreen`, `noclip`,
+`physics-debug`, `ui-scale`, `new-game-map`, and `intro`.
 Relative paths resolve from the executable directory, not the process working
 directory.
 

@@ -1,7 +1,9 @@
 # Ogre + MyGUI demo
 
-This asset-independent demo builds the pinned `mygui` submodule against the
-same pinned Ogre classic 14.5.2 package as Run3. It displays a rotating Ogre
+This asset-independent demo builds the `mygui` submodule at the exact Run3
+gitlink (`8629ea76896fba2d837cffde9fce9f32935a1d11`) against the same pinned
+Ogre classic 14.5.2 package as Run3. Configuration rejects another MyGUI
+revision. It displays a rotating Ogre
 cube behind an interactive MyGUI window and button. Escape closes the demo;
 the button pauses/resumes the cube.
 
@@ -17,7 +19,7 @@ and never update it.
 
 ## Windows (MSVC x64, Ninja)
 
-Run these commands in an **x64 Native Tools Command Prompt for VS 2022**:
+Run these commands in an **x64 Native Tools Command Prompt for Visual Studio**:
 
 ```powershell
 $env:VCPKG_ROOT = 'C:\dev\vcpkg'
@@ -32,7 +34,7 @@ Set-Location build/demos/mygui-ogre-windows-debug/bin
 ./run3_mygui_ogre_demo.exe --renderer d3d11
 ```
 
-For a bounded automated run, replace the final command with:
+For bounded automated D3D11 and GL3+ runs, replace the final command with:
 
 ```powershell
 ctest --test-dir build/demos/mygui-ogre-windows-debug -C Debug --output-on-failure
@@ -60,4 +62,3 @@ cd build/demos/mygui-ogre-linux-debug/bin
 WSLg or another working X11/Wayland display is required to open the window.
 Use `--smoke-test` or `ctest --test-dir ... --output-on-failure` for a bounded
 12-frame run.
-

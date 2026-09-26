@@ -9,6 +9,10 @@
 #include <variant>
 #include <vector>
 
+namespace run3::ui {
+class IScriptUiFacade;
+}
+
 namespace run3::scripting {
 
 struct BindingSpec {
@@ -33,6 +37,7 @@ struct ScriptEngineConfig {
   std::filesystem::path contentRoot;
   std::filesystem::path userRoot;
   std::size_t instructionBudget{1'000'000};
+  ui::IScriptUiFacade *uiFacade{};
 };
 
 struct ScriptCheckResult {
@@ -58,6 +63,7 @@ private:
 // registers these in named groups, while gameplay can inject typed dispatch.
 [[nodiscard]] const std::vector<BindingSpec> &legacyBindingCatalog();
 [[nodiscard]] std::string exportedApiSnapshot();
+[[nodiscard]] std::string myGuiApiSnapshot();
 [[nodiscard]] std::string luaRuntimeVersion();
 
 class ScriptEngine final {

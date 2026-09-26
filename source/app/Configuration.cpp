@@ -41,6 +41,7 @@ fs::path cliPath(const std::string &value, const fs::path &executableDir) {
       " [--player-height-cm N] [--fov DEGREES]"
       " [--resolution WIDTHxHEIGHT]"
       " [--fullscreen|--windowed] [--noclip] [--physics-debug]"
+      " [--intro|--skip-intro] [--ui-scale N] [--new-game-map NAME]"
       " [--audio-backend auto|miniaudio|null]"
       " [--render-hz 30|60|144]");
 }
@@ -147,6 +148,10 @@ CommandLine parseCommandLine(const std::vector<std::string> &arguments,
       result.values[argument.substr(2)] = "true";
       continue;
     }
+    if (argument == "--intro" || argument == "--skip-intro") {
+      result.values["intro"] = argument == "--intro" ? "true" : "false";
+      continue;
+    }
     if (index + 1 >= arguments.size()) {
       argumentError("Missing value for " + argument);
     }
@@ -184,6 +189,10 @@ CommandLine parseCommandLine(const std::vector<std::string> &arguments,
       result.values["render-hz"] = value;
     } else if (argument == "--audio-backend") {
       result.values["audio-backend"] = value;
+    } else if (argument == "--ui-scale") {
+      result.values["ui-scale"] = value;
+    } else if (argument == "--new-game-map") {
+      result.values["new-game-map"] = value;
     } else {
       argumentError("Unknown argument: " + argument);
     }

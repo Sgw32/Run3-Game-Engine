@@ -1,5 +1,7 @@
 #include <run3/scripting/ScriptEngine.hpp>
 
+#include <run3/ui/Ui.hpp>
+
 #include <lua.hpp>
 #include <sol/sol.hpp>
 
@@ -10,6 +12,7 @@
 #include <system_error>
 #include <type_traits>
 #include <utility>
+#include <unordered_map>
 
 namespace run3::scripting {
 namespace fs = std::filesystem;
@@ -151,6 +154,26 @@ std::string exportedApiSnapshot() {
   return output.str();
 }
 
+std::string myGuiApiSnapshot() {
+  static constexpr std::pair<std::string_view, std::string_view> functions[]{
+      {"load_layout", "(scope:string, key:string) -> WidgetHandle"},
+      {"create", "(scope:string, parent:WidgetHandle|nil, type:string, name:string, x:number, y:number, width:number, height:number) -> WidgetHandle"},
+      {"find", "(scope:string, name:string) -> WidgetHandle|nil"},
+      {"destroy", "(handle:WidgetHandle)"},
+      {"set_text", "(handle:WidgetHandle, text:string)"},
+      {"set_visible", "(handle:WidgetHandle, visible:boolean)"},
+      {"set_enabled", "(handle:WidgetHandle, enabled:boolean)"},
+      {"set_property", "(handle:WidgetHandle, property:string, value:string)"},
+      {"focus", "(handle:WidgetHandle)"},
+      {"on", "(handle:WidgetHandle, event:click|change|submit, callback:function) -> CallbackHandle"},
+      {"clear_callback", "(callback:CallbackHandle)"}};
+  std::ostringstream output;
+  output << "# Run3 typed MyGUI facade v1\ncount=" << std::size(functions) << '\n';
+  for (const auto &[name, signature] : functions)
+    output << "mygui." << name << " | " << signature << '\n';
+  return output.str();
+}
+
 std::string luaRuntimeVersion() {
   return std::string(LUA_VERSION_MAJOR) + "." + LUA_VERSION_MINOR + "." +
          LUA_VERSION_RELEASE;
@@ -199,11 +222,244 @@ public:
               call.arguments.push_back(argumentString(argument));
             }
             calls_.push_back(call);
+            if (config_.uiFacade != nullptr) {
+              if (const auto result = dispatchButtonGuiCompatibility(calls_.back()))
+                return toObject(state, *result);
+            }
             if (dispatch_) {
               return toObject(state, dispatch_(calls_.back()));
             }
             return sol::make_object(state, sol::nil);
           });
+    }
+    registerMyGuiFacade();
+  }
+
+  ~Impl() {
+    if (config_.uiFacade != nullptr) {
+      for (const auto &[scriptId, facadeId] : uiCallbackIds_) {
+        static_cast<void>(scriptId);
+        config_.uiFacade->clearCallback(facadeId);
+      }
+      for (const auto &[handle, callback] : legacyButtons_) {
+        static_cast<void>(handle);
+        if (callback != 0) config_.uiFacade->clearCallback(callback);
+      }
+    }
+  }
+
+  ui::IScriptUiFacade &uiFacade() const {
+    if (config_.uiFacade == nullptr)
+      throw std::runtime_error("MyGUI facade is unavailable in this runtime");
+    return *config_.uiFacade;
+  }
+
+  static ui::Context uiContext(const std::string &name) {
+    const auto value = ui::parseContext(name);
+    if (!value) throw std::invalid_argument("unknown UI scope '" + name + "'");
+    return *value;
+  }
+
+  static ui::WidgetHandle uiHandle(const std::string &token) {
+    const auto value = ui::WidgetHandle::parse(token);
+    if (!value) throw std::invalid_argument("invalid UI handle '" + token + "'");
+    return *value;
+  }
+
+  void registerMyGuiFacade() {
+    sol::table facade = lua_.create_named_table("mygui");
+    facade.set_function("load_layout", [this](const std::string &scope,
+                                               const std::string &key) {
+      return uiFacade().loadLayout(uiContext(scope), key).token();
+    });
+    facade.set_function(
+        "create", [this](const std::string &scope, const sol::object &parent,
+                          const std::string &type, const std::string &name,
+                          double x, double y, double width, double height) {
+          const auto widgetType = ui::parseWidgetType(type);
+          if (!widgetType)
+            throw std::invalid_argument("unknown UI widget type '" + type + "'");
+          ui::WidgetHandle parentHandle;
+          if (parent.valid() && parent.get_type() != sol::type::nil)
+            parentHandle = uiHandle(parent.as<std::string>());
+          return uiFacade()
+              .createWidget({uiContext(scope), parentHandle, *widgetType, name,
+                             {static_cast<float>(x), static_cast<float>(y),
+                              static_cast<float>(width), static_cast<float>(height)},
+                             {}})
+              .token();
+        });
+    facade.set_function("find", [this](const std::string &scope,
+                                        const std::string &name,
+                                        sol::this_state state) -> sol::object {
+      const auto handle = uiFacade().findWidget(uiContext(scope), name);
+      return handle ? sol::make_object(state, handle->token())
+                    : sol::make_object(state, sol::nil);
+    });
+    facade.set_function("destroy", [this](const std::string &handle) {
+      uiFacade().destroyWidget(uiHandle(handle));
+    });
+    facade.set_function("set_text", [this](const std::string &handle,
+                                            std::string text) {
+      uiFacade().setText(uiHandle(handle), std::move(text));
+    });
+    facade.set_function("set_visible", [this](const std::string &handle,
+                                               bool visible) {
+      uiFacade().setVisible(uiHandle(handle), visible);
+    });
+    facade.set_function("set_enabled", [this](const std::string &handle,
+                                               bool enabled) {
+      uiFacade().setEnabled(uiHandle(handle), enabled);
+    });
+    facade.set_function("set_property", [this](const std::string &handle,
+                                                const std::string &property,
+                                                std::string value) {
+      uiFacade().setProperty(uiHandle(handle), property, std::move(value));
+    });
+    facade.set_function("focus", [this](const std::string &handle) {
+      uiFacade().focus(uiHandle(handle));
+    });
+    facade.set_function("on", [this](const std::string &handle,
+                                      const std::string &event,
+                                      sol::protected_function callback) {
+      const auto parsedEvent = ui::parseUiEvent(event);
+      if (!parsedEvent)
+        throw std::invalid_argument("unknown UI callback event '" + event + "'");
+      const std::uint64_t scriptId = nextUiCallbackId_++;
+      callback.set_error_handler(traceback_);
+      uiCallbacks_.emplace(scriptId, std::move(callback));
+      const std::uint64_t facadeId = uiFacade().setCallback(
+          uiHandle(handle), *parsedEvent,
+          [this, scriptId](std::string value) {
+            invokeUiCallback(scriptId, std::move(value));
+          });
+      uiCallbackIds_.emplace(scriptId, facadeId);
+      return scriptId;
+    });
+    facade.set_function("clear_callback", [this](std::uint64_t scriptId) {
+      const auto found = uiCallbackIds_.find(scriptId);
+      if (found == uiCallbackIds_.end()) return;
+      uiFacade().clearCallback(found->second);
+      uiCallbackIds_.erase(found);
+      uiCallbacks_.erase(scriptId);
+    });
+  }
+
+  static std::pair<float, float> legacyPair(const std::string &value) {
+    std::istringstream input(value);
+    float first{};
+    float second{};
+    if (!(input >> first >> second))
+      throw std::invalid_argument("buttonGUI expected a numeric pair, got '" +
+                                  value + "'");
+    return {first, second};
+  }
+
+  std::optional<ScriptValue>
+  dispatchButtonGuiCompatibility(const ScriptCall &call) {
+    if (call.name.rfind("buttonGUI_", 0) != 0) return std::nullopt;
+    auto &facade = uiFacade();
+    if (call.name == "buttonGUI_activateCenter640") {
+      legacyButtonTransform_ = 1;
+      return ScriptValue{};
+    }
+    if (call.name == "buttonGUI_activateTopLeft640") {
+      legacyButtonTransform_ = 2;
+      return ScriptValue{};
+    }
+    if (call.name == "buttonGUI_activateTopLeftComp640") {
+      legacyButtonTransform_ = 3;
+      return ScriptValue{};
+    }
+    if (call.name == "buttonGUI_deactivateCenter640" ||
+        call.name == "buttonGUI_deactivate640") {
+      legacyButtonTransform_ = 0;
+      return ScriptValue{};
+    }
+    if (call.name == "buttonGUI_deleteAllButtons") {
+      for (const auto &[handle, callback] : legacyButtons_) {
+        facade.clearCallback(callback);
+        try { facade.destroyWidget(handle); } catch (...) {}
+      }
+      legacyButtons_.clear();
+      return ScriptValue{};
+    }
+    if (call.name == "buttonGUI_hideCursor" ||
+        call.name == "buttonGUI_showCursor") return ScriptValue{};
+    if (call.name == "buttonGUI_getCursX" ||
+        call.name == "buttonGUI_getCursY" || call.name == "buttonGUI_getX" ||
+        call.name == "buttonGUI_getY") return ScriptValue{0.0};
+    if (call.name == "buttonGUI_setPos") {
+      if (call.arguments.size() != 3) return ScriptValue{};
+      const auto handle = facade.findWidget(ui::Context::Computer,
+                                             "buttonGUI." + call.arguments[0]);
+      if (handle)
+        facade.setProperty(*handle, "Position",
+                           call.arguments[1] + " " + call.arguments[2]);
+      return ScriptValue{};
+    }
+    if (call.name != "buttonGUI_createButton" &&
+        call.name != "buttonGUI_createButtonS" &&
+        call.name != "buttonGUI_createDummy") return std::nullopt;
+    if (call.arguments.size() != 5)
+      throw std::invalid_argument(call.name + " expects five string arguments");
+    const std::string safeName = "buttonGUI." + call.arguments[0];
+    if (const auto existing = facade.findWidget(ui::Context::Computer, safeName)) {
+      facade.setVisible(*existing, true);
+      return ScriptValue{existing->token()};
+    }
+    auto [x, y] = legacyPair(call.arguments[2]);
+    auto [width, height] = legacyPair(call.arguments[3]);
+    if (legacyButtonTransform_ == 3) {
+      x *= 1024.0F / 640.0F;
+      y *= 768.0F / 480.0F;
+      width *= 1024.0F / 640.0F;
+      height *= 768.0F / 480.0F;
+    } else if (legacyButtonTransform_ == 1) {
+      x += (1024.0F - 640.0F) * 0.5F;
+      y += (768.0F - 480.0F) * 0.5F;
+    }
+    const ui::WidgetHandle root =
+        facade.loadLayout(ui::Context::Computer, "default");
+    const ui::WidgetType type = call.name == "buttonGUI_createDummy"
+                                    ? ui::WidgetType::Panel
+                                    : ui::WidgetType::Button;
+    const ui::WidgetHandle handle = facade.createWidget(
+        {ui::Context::Computer, root, type, safeName,
+         {x, y, width, height}, call.arguments[0]});
+    std::uint64_t callback{};
+    if (type == ui::WidgetType::Button && !call.arguments[4].empty()) {
+      const fs::path script = call.arguments[4];
+      callback = facade.setCallback(
+          handle, ui::UiEvent::Click,
+          [this, script](std::string) {
+            const fs::path approved = approvedPath(script);
+            auto [loaded, shims] =
+                load(readText(approved), approved.generic_string());
+            static_cast<void>(shims);
+            executeLoaded(std::move(loaded), approved);
+          });
+    }
+    legacyButtons_.emplace_back(handle, callback);
+    return ScriptValue{handle.token()};
+  }
+
+  void invokeUiCallback(const std::uint64_t id, std::string value) {
+    const auto found = uiCallbacks_.find(id);
+    if (found == uiCallbacks_.end()) return;
+    lua_State *state = lua_.lua_state();
+    const lua_Integer capped = static_cast<lua_Integer>(std::min<std::size_t>(
+        config_.instructionBudget,
+        static_cast<std::size_t>(std::numeric_limits<lua_Integer>::max())));
+    lua_pushinteger(state, capped);
+    lua_setfield(state, LUA_REGISTRYINDEX, "run3.instruction-budget");
+    lua_sethook(state, instructionHook, LUA_MASKCOUNT,
+                static_cast<int>(std::min<lua_Integer>(1000, capped)));
+    const sol::protected_function_result result = found->second(std::move(value));
+    lua_sethook(state, nullptr, 0, 0);
+    if (!result.valid()) {
+      const sol::error error = result;
+      throw ScriptError("<mygui-callback>", error.what());
     }
   }
 
@@ -275,6 +531,11 @@ public:
   sol::state lua_;
   sol::protected_function traceback_;
   std::vector<ScriptCall> calls_;
+  std::unordered_map<std::uint64_t, sol::protected_function> uiCallbacks_;
+  std::unordered_map<std::uint64_t, std::uint64_t> uiCallbackIds_;
+  std::uint64_t nextUiCallbackId_{1};
+  std::vector<std::pair<ui::WidgetHandle, std::uint64_t>> legacyButtons_;
+  int legacyButtonTransform_{};
 
   [[nodiscard]] const std::vector<ScriptCall> &calls() const noexcept {
     return calls_;

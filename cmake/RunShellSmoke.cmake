@@ -37,6 +37,11 @@ endif()
 if(NOT _run3_log_text MATCHES "Run3 shell selected render system:")
     message(FATAL_ERROR "run3_shell log does not identify its render system")
 endif()
+string(TOLOWER "${_run3_log_text}" _run3_log_lower)
+if(_run3_log_lower MATCHES "(error compiling|shader compile error|cannot compile.*(shader|program)|high-level program.*error)")
+    message(FATAL_ERROR
+            "Required shader compilation error found in ${_run3_log}")
+endif()
 if(DEFINED RUN3_AUDIO_BACKEND AND RUN3_AUDIO_BACKEND STREQUAL "null" AND
    NOT _run3_log_text MATCHES "Run3 audio backend: null")
     message(FATAL_ERROR "run3_shell did not select the requested null audio backend")

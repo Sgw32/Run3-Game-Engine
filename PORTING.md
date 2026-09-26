@@ -23,7 +23,7 @@ Progress checklist (mark a step only when its exit criteria pass):
 - [x] 8C — sequence runtime and core interactive entities
 - [ ] 8D — legacy NPCs, AI nodes, and character events
 - [x] 8E — cutscenes, computers, and remaining authored entities
-- [ ] 9A — UI and visual portability
+- [x] 9A — UI and visual portability
 - [ ] 9B — modern lighting and material pipelines
 - [ ] 10 — complete campaign pass
 - [ ] 11 — modularity and code-quality ratchet

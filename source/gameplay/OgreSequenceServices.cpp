@@ -8,6 +8,7 @@
 #include <run3/gameplay/NpcSystem.hpp>
 #include <run3/gameplay/StaticMap.hpp>
 #include <run3/scripting/ScriptEngine.hpp>
+#include <run3/ui/Ui.hpp>
 
 #include <OgreAnimationState.h>
 #include <OgreAxisAlignedBox.h>
@@ -16,6 +17,10 @@
 #include <OgreLight.h>
 #include <OgreLogManager.h>
 #include <OgreMaterialManager.h>
+#include <OgrePass.h>
+#include <OgreSubEntity.h>
+#include <OgreTechnique.h>
+#include <OgreTextureUnitState.h>
 #include <OgreMesh.h>
 #include <OgreParticleSystem.h>
 #include <OgreResourceGroupManager.h>
@@ -122,23 +127,24 @@ public:
        Ogre::Camera &gameCamera,
        physics::PhysicsWorld &world, StaticMap &loadedMap,
        PlayerController &playerController,
-       audio::IAudioEngine &audioEngine, MapChangeRequest changeRequest,
+       audio::IAudioEngine &audioEngine, ui::IUiSystem &uiSystem,
+       MapChangeRequest changeRequest,
        double lodBias, double configuredFovDegrees)
       : paths(appPaths), sceneManager(&manager), camera(&gameCamera),
         physicsWorld(&world),
         staticMap(&loadedMap),
         player(&playerController),
-        audio(&audioEngine), oneShots(audioEngine), dynamicPhysics(world),
-        mapChangeRequest(std::move(changeRequest)), meshLodBias(lodBias),
-        defaultFovDegrees(configuredFovDegrees),
-        scripts({paths.contentRoot(), paths.userRoot(), 1'000'000},
+        audio(&audioEngine), ui(&uiSystem), oneShots(audioEngine), dynamicPhysics(world),
+        mapChangeRequest(std::move(changeRequest)),
+        scripts({paths.contentRoot(), paths.userRoot(), 1'000'000, &uiSystem},
                 [this](const scripting::ScriptCall &call) {
                   if (runtime == nullptr) {
                     throw std::runtime_error(
                         "Script command arrived before SequenceRuntime attach");
                   }
                   return runtime->dispatchScriptCall(call);
-                }) {
+                }),
+        meshLodBias(lodBias), defaultFovDegrees(configuredFovDegrees) {
     root = sceneManager->getRootSceneNode()->createChildSceneNode(
         "Run3Step8CSequenceRoot");
   }
@@ -496,9 +502,20 @@ public:
 
   void setComputerPresentation(const SetComputerPresentation &command) {
     Presentation &entry = require(command.owner);
-    computerMaterials[command.owner.id.value] = command.material;
+    const std::string ownerKey = entry.spec.name + "#" +
+                                 std::to_string(command.owner.id.value) + ":" +
+                                 std::to_string(command.owner.generation);
+    if (!command.focused) {
+      ui->deactivateComputer(ownerKey);
+      restoreComputerMaterial(command.owner.id.value);
+      log("computer '" + entry.spec.name + "' released");
+      return;
+    }
+    const std::string textureName = ui->activateComputer(ownerKey);
+    bindComputerMaterial(entry, command.owner.id.value, command.material,
+                         textureName);
     log("computer '" + entry.spec.name +
-        (command.focused ? "' focused" : "' released"));
+        "' focused on MyGUI RTT '" + textureName + "'");
   }
 
   void sendComputerInput(const SendComputerInput &command) {
@@ -506,6 +523,74 @@ public:
     log("computer input for '" + entry.spec.name + "': key=" +
         std::to_string(command.key) +
         (command.text.empty() ? "" : " text=" + command.text));
+  }
+
+  struct ComputerMaterialBinding {
+    struct Item { Ogre::SubEntity *subEntity{}; std::string material; };
+    std::vector<Item> items;
+    std::string generatedMaterial;
+  };
+
+  void bindComputerMaterial(Presentation &entry, const std::uint64_t id,
+                            const std::string &authoredMaterial,
+                            const std::string &textureName) {
+    restoreComputerMaterial(id);
+    const std::string materialName = "Run3/ComputerSurface/" + std::to_string(id);
+    Ogre::MaterialPtr material = Ogre::MaterialManager::getSingleton().getByName(
+        materialName, "Run3Step9A");
+    if (!material) {
+      material = Ogre::MaterialManager::getSingleton().create(
+          materialName, "Run3Step9A");
+    } else {
+      material->removeAllTechniques();
+    }
+    Ogre::Pass *pass = material->createTechnique()->createPass();
+    pass->setLightingEnabled(false);
+    pass->setDepthCheckEnabled(true);
+    pass->setDepthWriteEnabled(true);
+    pass->setCullingMode(Ogre::CULL_NONE);
+    pass->createTextureUnitState(textureName);
+    material->load();
+
+    ComputerMaterialBinding binding;
+    binding.generatedMaterial = materialName;
+    const auto visit = [&](Ogre::Entity *entity) {
+      if (entity == nullptr) return;
+      bool exactMatch = false;
+      for (unsigned index = 0; index < entity->getNumSubEntities(); ++index)
+        exactMatch = exactMatch || authoredMaterial.empty() ||
+            entity->getSubEntity(index)->getMaterialName() == authoredMaterial;
+      for (unsigned index = 0; index < entity->getNumSubEntities(); ++index) {
+        Ogre::SubEntity *sub = entity->getSubEntity(index);
+        if (!exactMatch || authoredMaterial.empty() ||
+            sub->getMaterialName() == authoredMaterial) {
+          binding.items.push_back({sub, sub->getMaterialName()});
+          sub->setMaterial(material);
+        }
+      }
+    };
+    visit(entry.entity);
+    for (auto &part : entry.parts) visit(part.entity);
+    if (binding.items.empty()) {
+      log("warning: computer '" + entry.spec.name +
+          "' has no renderable screen for material '" + authoredMaterial + "'");
+    }
+    computerMaterialBindings.insert_or_assign(id, std::move(binding));
+  }
+
+  void restoreComputerMaterial(const std::uint64_t id) noexcept {
+    const auto found = computerMaterialBindings.find(id);
+    if (found == computerMaterialBindings.end()) return;
+    for (const ComputerMaterialBinding::Item &item : found->second.items) {
+      try {
+        if (item.subEntity != nullptr) item.subEntity->setMaterialName(item.material);
+      } catch (...) {}
+    }
+    try {
+      Ogre::MaterialManager::getSingleton().remove(
+          found->second.generatedMaterial, "Run3Step9A");
+    } catch (...) {}
+    computerMaterialBindings.erase(found);
   }
 
   void setEffectEnabled(const SetRuntimeEffectEnabled &command) {
@@ -525,6 +610,9 @@ public:
   }
 
   void destroyAll() noexcept {
+    if (ui != nullptr) ui->resetMapState();
+    while (!computerMaterialBindings.empty())
+      restoreComputerMaterial(computerMaterialBindings.begin()->first);
     for (auto &[id, attached] : attachments) {
       auto owner = presentations.find(id);
       for (auto &item : attached) {
@@ -701,6 +789,7 @@ public:
   StaticMap *staticMap{};
   PlayerController *player{};
   audio::IAudioEngine *audio{};
+  ui::IUiSystem *ui{};
   audio::SoundRuntime oneShots;
   DynamicPhysicsScene dynamicPhysics;
   MapChangeRequest mapChangeRequest;
@@ -722,7 +811,7 @@ public:
   audio::SoundHandle music;
   std::set<std::string> reportedDeferred;
   std::unordered_map<std::string, bool> effectStates;
-  std::unordered_map<std::uint64_t, std::string> computerMaterials;
+  std::unordered_map<std::uint64_t, ComputerMaterialBinding> computerMaterialBindings;
   double meshLodBias{1.0};
   double defaultFovDegrees{75.0};
   Ogre::ColourValue baseAmbient{0.25F, 0.25F, 0.25F};
@@ -733,12 +822,13 @@ OgreSequenceServices::OgreSequenceServices(
     Ogre::Camera &camera,
     physics::PhysicsWorld &physicsWorld, StaticMap &staticMap,
     PlayerController &player,
-    audio::IAudioEngine &audio, MapChangeRequest mapChangeRequest,
+    audio::IAudioEngine &audio, ui::IUiSystem &ui,
+    MapChangeRequest mapChangeRequest,
     double meshLodBias, double defaultFovDegrees)
     : impl_(std::make_unique<Impl>(paths, sceneManager, camera, physicsWorld,
                                    staticMap,
                                    player,
-                                   audio, std::move(mapChangeRequest),
+                                   audio, ui, std::move(mapChangeRequest),
                                    meshLodBias, defaultFovDegrees)) {}
 OgreSequenceServices::~OgreSequenceServices() = default;
 
@@ -898,17 +988,13 @@ void OgreSequenceServices::submit(const GameCommand &command) {
             impl_->player->setParented(value.parented);
           },
           [this](const SetRuntimeHudVisible &value) {
-            impl_->log(std::string("HUD ") +
-                       (value.visible ? "shown" : "hidden") +
-                       " (Step 9 adapter pending)");
+            impl_->ui->setHudVisible(value.visible);
           },
           [this](const SetRuntimeSubtitle &value) {
-            impl_->log("subtitle (Step 9 adapter pending): " + value.text);
+            impl_->ui->setSubtitle(value.text, value.seconds);
           },
           [this](const SetRuntimeInventoryEnabled &value) {
-            impl_->log(std::string("inventory ") +
-                       (value.enabled ? "enabled" : "disabled") +
-                       " (Step 9 adapter pending)");
+            impl_->ui->setInventoryEnabled(value.enabled);
           },
           [this](const SetRuntimeFlashlightAllowed &value) {
             impl_->log(std::string("flashlight ") +
@@ -927,12 +1013,12 @@ void OgreSequenceServices::submit(const GameCommand &command) {
           [this](const SetRuntimeCompositor &value) {
             impl_->log("compositor '" + value.name + "' requested " +
                        (value.enabled ? "on" : "off") +
-                       " (Step 9 adapter pending)");
+                       "; obsolete shader program retired, portable no-op used");
           },
           [this](const SetRuntimeShaderParameter &value) {
             impl_->log("shader parameter '" + value.program + "/" +
                        value.parameter + "'=" + value.value +
-                       " (Step 9 adapter pending)");
+                       "; obsolete program is outside the required shader set");
           },
           [this](const SetRuntimeEffectEnabled &value) {
             impl_->setEffectEnabled(value);

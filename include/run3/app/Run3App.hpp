@@ -30,6 +30,11 @@ class SceneNode;
 
 namespace run3 {
 
+namespace ui {
+class IUiSystem;
+struct MenuAction;
+}
+
 namespace gameplay {
 class OgreSequenceServices;
 }
@@ -57,6 +62,9 @@ struct Run3AppOptions {
   bool fullscreen{};
   bool startNoclip{};
   bool physicsDebug{};
+  bool introEnabled{};
+  float uiScale{1.0F};
+  std::string newGameMap{"tlwintro"};
 };
 
 Run3AppOptions loadRun3AppOptions(int argc, char **argv,
@@ -87,6 +95,8 @@ private:
   void unloadMap(bool runOnExit);
   void requestMapChange(std::string mapName);
   void requestQuit();
+  void handleMenuAction(const ui::MenuAction &action);
+  void refreshMouseCapture();
 
   Run3AppOptions options_;
   EventQueueInput input_;
@@ -105,6 +115,7 @@ private:
   std::unique_ptr<gameplay::NpcSystem> npcSystem_;
   std::unique_ptr<audio::IAudioEngine> audioEngine_;
   std::unique_ptr<audio::MapAudioRuntime> mapAudio_;
+  std::unique_ptr<ui::IUiSystem> ui_;
   double yawRadians_{};
   double pitchRadians_{};
   bool physicsDebug_{};

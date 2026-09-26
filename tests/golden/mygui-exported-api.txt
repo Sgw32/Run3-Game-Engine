@@ -1,0 +1,13 @@
+# Run3 typed MyGUI facade v1
+count=11
+mygui.load_layout | (scope:string, key:string) -> WidgetHandle
+mygui.create | (scope:string, parent:WidgetHandle|nil, type:string, name:string, x:number, y:number, width:number, height:number) -> WidgetHandle
+mygui.find | (scope:string, name:string) -> WidgetHandle|nil
+mygui.destroy | (handle:WidgetHandle)
+mygui.set_text | (handle:WidgetHandle, text:string)
+mygui.set_visible | (handle:WidgetHandle, visible:boolean)
+mygui.set_enabled | (handle:WidgetHandle, enabled:boolean)
+mygui.set_property | (handle:WidgetHandle, property:string, value:string)
+mygui.focus | (handle:WidgetHandle)
+mygui.on | (handle:WidgetHandle, event:click|change|submit, callback:function) -> CallbackHandle
+mygui.clear_callback | (callback:CallbackHandle)

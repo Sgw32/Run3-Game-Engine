@@ -38,6 +38,7 @@ find_package(
 find_package(Bullet 3.25 EXACT CONFIG REQUIRED)
 find_package(Lua 5.4 EXACT REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(pugixml CONFIG REQUIRED)
 # The vcpkg manifest/override is the exact version authority. sol2 3.5.0's
 # upstream config advertises its compatibility ABI as 4.0.0, so CMake's EXACT
 # package-version check cannot be used reliably here.
@@ -45,6 +46,46 @@ find_package(sol2 CONFIG REQUIRED)
 find_package(tinyxml2 CONFIG REQUIRED)
 find_package(Threads REQUIRED)
 find_path(MINIAUDIO_INCLUDE_DIR miniaudio.h REQUIRED)
+
+# Step 9A: MyGUI is source-controlled as an exact gitlink. Never search a
+# developer installation and never update the checkout from CMake.
+set(RUN3_MYGUI_REVISION "8629ea76896fba2d837cffde9fce9f32935a1d11")
+set(RUN3_MYGUI_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mygui")
+if(NOT EXISTS "${RUN3_MYGUI_SOURCE_DIR}/MyGUIEngine/CMakeLists.txt")
+    message(FATAL_ERROR
+            "Pinned MyGUI submodule is missing. Run: git submodule update --init mygui")
+endif()
+find_package(Git QUIET)
+if(Git_FOUND AND EXISTS "${RUN3_MYGUI_SOURCE_DIR}/.git")
+    execute_process(
+        COMMAND "${GIT_EXECUTABLE}" -C "${RUN3_MYGUI_SOURCE_DIR}" rev-parse HEAD
+        OUTPUT_VARIABLE _run3_mygui_head
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE _run3_mygui_revision_result)
+    if(NOT _run3_mygui_revision_result EQUAL 0 OR
+       NOT _run3_mygui_head STREQUAL RUN3_MYGUI_REVISION)
+        message(FATAL_ERROR
+                "MyGUI checkout must be ${RUN3_MYGUI_REVISION}; found '${_run3_mygui_head}'")
+    endif()
+endif()
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static project libraries" FORCE)
+set(MYGUI_RENDERSYSTEM 3 CACHE STRING "Use Ogre classic" FORCE)
+set(MYGUI_BUILD_RENDERSYSTEMS 3 CACHE STRING "Build Ogre platform only" FORCE)
+set(MYGUI_USE_FREETYPE OFF CACHE BOOL "Use MyGUI's generated font atlas" FORCE)
+set(MYGUI_USE_SYSTEM_PUGIXML ON CACHE BOOL "Use pinned vcpkg pugixml" FORCE)
+set(MYGUI_BUILD_DEMOS OFF CACHE BOOL "Disable upstream MyGUI demos" FORCE)
+set(MYGUI_BUILD_ADVANCED_DEMOS OFF CACHE BOOL "Disable upstream MyGUI demos" FORCE)
+set(MYGUI_BUILD_TOOLS OFF CACHE BOOL "Disable upstream MyGUI tools" FORCE)
+set(MYGUI_BUILD_UNITTESTS OFF CACHE BOOL "Disable upstream MyGUI tests" FORCE)
+set(MYGUI_BUILD_TEST_APP OFF CACHE BOOL "Disable upstream MyGUI test app" FORCE)
+set(MYGUI_BUILD_DOCS OFF CACHE BOOL "Disable upstream MyGUI docs" FORCE)
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL
+    "Never update pinned transitive sources" FORCE)
+add_subdirectory("${RUN3_MYGUI_SOURCE_DIR}"
+                 "${CMAKE_CURRENT_BINARY_DIR}/mygui" EXCLUDE_FROM_ALL)
+if(NOT TARGET MyGUI::MyGUI OR NOT TARGET MyGUI::OgrePlatform)
+    message(FATAL_ERROR "Pinned MyGUI did not export MyGUI::MyGUI and MyGUI::OgrePlatform")
+endif()
 
 set(_run3_required_ogre_targets
     OgreMain
@@ -171,6 +212,31 @@ target_include_directories(
     run3_entities PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 target_link_libraries(run3_entities PUBLIC run3::xml PRIVATE run3::warnings)
 
+add_library(run3_ui STATIC source/ui/UiModel.cpp)
+add_library(run3::ui ALIAS run3_ui)
+target_compile_features(run3_ui PUBLIC cxx_std_17)
+target_include_directories(
+    run3_ui PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(run3_ui PUBLIC run3::core PRIVATE run3::warnings)
+
+# MyGUI and Ogre ownership remain private to this adapter. Gameplay sees only
+# the Run3-owned run3::ui interfaces above.
+add_library(run3_ui_mygui STATIC source/ui/MyGuiUiSystem.cpp)
+add_library(run3::ui_mygui ALIAS run3_ui_mygui)
+target_compile_features(run3_ui_mygui PUBLIC cxx_std_17)
+target_include_directories(
+    run3_ui_mygui PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(
+    run3_ui_mygui PUBLIC run3::ui
+    PRIVATE run3::warnings MyGUI::MyGUI MyGUI::OgrePlatform OgreMain)
+
+add_library(run3_rendering STATIC source/rendering/OgreEnvironment.cpp)
+add_library(run3::rendering ALIAS run3_rendering)
+target_compile_features(run3_rendering PUBLIC cxx_std_17)
+target_include_directories(
+    run3_rendering PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(run3_rendering PUBLIC OgreMain PRIVATE run3::warnings)
+
 add_library(run3_gameplay STATIC
             source/gameplay/DynamicPhysicsScene.cpp
             source/gameplay/LegacyMaterialCatalog.cpp
@@ -180,7 +246,7 @@ add_library(run3::gameplay ALIAS run3_gameplay)
 target_compile_features(run3_gameplay PUBLIC cxx_std_17)
 target_include_directories(
     run3_gameplay PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
-target_link_libraries(run3_gameplay PUBLIC run3::physics run3::entities
+target_link_libraries(run3_gameplay PUBLIC run3::physics run3::entities run3::rendering
                       PRIVATE run3::warnings OgreMain OgreRTShaderSystem)
 
 # sol2 and the Lua C API are implementation details of this target. Game and
@@ -194,6 +260,7 @@ target_include_directories(
     PRIVATE ${LUA_INCLUDE_DIR})
 target_link_libraries(
     run3_scripting
+    PUBLIC run3::ui
     PRIVATE run3::warnings run3::sanitizers sol2::sol2 ${LUA_LIBRARIES})
 
 add_library(run3_sequence STATIC source/gameplay/SequenceRuntime.cpp)
@@ -255,7 +322,7 @@ target_link_libraries(
     run3_ogre_app
     PUBLIC run3::core run3::asset_validation OgreMain OgreBites OgreOverlay
            OgreRTShaderSystem run3::gameplay run3::sequence run3::npcs
-           run3::audio_miniaudio
+           run3::audio_miniaudio run3::ui_mygui
     PRIVATE run3::warnings)
 
 if(RUN3_BUILD_LEGACY)
@@ -472,6 +539,23 @@ if(RUN3_BUILD_TESTS)
     catch_discover_tests(run3_step8e_tests
         TEST_PREFIX "run3_step8e."
         PROPERTIES LABELS "step8e;presentation;entities")
+
+    add_executable(run3_step9a_tests tests/step9a_ui_tests.cpp)
+    target_compile_features(run3_step9a_tests PRIVATE cxx_std_17)
+    target_compile_definitions(run3_step9a_tests
+        PRIVATE RUN3_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(run3_step9a_tests
+        PRIVATE run3::warnings run3::ui run3::scripting Catch2::Catch2WithMain)
+    catch_discover_tests(run3_step9a_tests
+        TEST_PREFIX "run3_step9a."
+        PROPERTIES LABELS "step9a;ui;lua")
+    add_test(
+        NAME run3_step9a.shader-boundary
+        COMMAND "${CMAKE_COMMAND}"
+                "-DRUN3_SOURCE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckStep9AShaders.cmake")
+    set_tests_properties(run3_step9a.shader-boundary
+                         PROPERTIES LABELS "step9a;shaders")
     add_test(
         NAME run3_step8.legacy-boundary
         COMMAND
@@ -600,6 +684,26 @@ if(RUN3_BUILD_TESTS)
             PROPERTIES FIXTURES_REQUIRED run3_shell_installed
                        TIMEOUT 60)
 
+        # Windows packages both portable renderers. Keep GL3+ in the installed
+        # smoke matrix instead of relying on an occasional manual launch.
+        if(WIN32)
+            add_test(
+                NAME run3_shell.gl3plus-smoke
+                COMMAND
+                    "${CMAKE_COMMAND}"
+                    "-DRUN3_PROGRAM=${_run3_test_install}/bin/run3_shell${CMAKE_EXECUTABLE_SUFFIX}"
+                    "-DRUN3_RENDERER=gl3plus"
+                    "-DRUN3_WORKING_DIR=${CMAKE_BINARY_DIR}/test-gl3plus-run-cwd"
+                    "-DRUN3_USER_DIR=${CMAKE_BINARY_DIR}/test-gl3plus-user"
+                    "-DRUN3_AUDIO_BACKEND=null"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunShellSmoke.cmake")
+            set_tests_properties(
+                run3_shell.gl3plus-smoke
+                PROPERTIES FIXTURES_REQUIRED run3_shell_installed
+                           TIMEOUT 60
+                           LABELS "step9a;shaders;gl3plus")
+        endif()
+
         add_test(
             NAME run3_shell.null-audio-smoke
             COMMAND
@@ -708,6 +812,8 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/$<CONFIG>/plugins.cfg"
 install(DIRECTORY "${OGRE_MEDIA_DIR}/Main"
                   "${OGRE_MEDIA_DIR}/RTShaderLib"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/Media")
+install(DIRECTORY "${RUN3_MYGUI_SOURCE_DIR}/Media/MyGUI_Media"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/Media")
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/content/"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/validation-fixture")
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/content/manifests/"
@@ -720,3 +826,4 @@ message(STATUS "Run3 sanitizers: ${RUN3_ENABLE_SANITIZERS}")
 message(STATUS "Run3 Ogre: ${OGRE_VERSION} (${OGRE_DIR})")
 message(STATUS "Run3 Bullet: ${BULLET_VERSION_STRING} (${BULLET_ROOT_DIR})")
 message(STATUS "Run3 miniaudio: 0.11.25 (${MINIAUDIO_INCLUDE_DIR})")
+message(STATUS "Run3 MyGUI: ${RUN3_MYGUI_REVISION} (${RUN3_MYGUI_SOURCE_DIR})")

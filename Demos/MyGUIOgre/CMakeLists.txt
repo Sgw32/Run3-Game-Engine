@@ -5,11 +5,25 @@ project(Run3MyGUIOgreDemo VERSION 1.0.0 LANGUAGES CXX)
 set(RUN3_REPOSITORY_ROOT "${CMAKE_CURRENT_LIST_DIR}/../..")
 set(RUN3_MYGUI_SOURCE_DIR "${RUN3_REPOSITORY_ROOT}/mygui" CACHE PATH
     "Path to the pinned MyGUI submodule")
+set(RUN3_MYGUI_REVISION "8629ea76896fba2d837cffde9fce9f32935a1d11")
 
 if(NOT EXISTS "${RUN3_MYGUI_SOURCE_DIR}/MyGUIEngine/CMakeLists.txt")
     message(FATAL_ERROR
         "MyGUI is not initialized at '${RUN3_MYGUI_SOURCE_DIR}'. Run "
         "'git submodule update --init mygui' from the repository root.")
+endif()
+find_package(Git QUIET)
+if(Git_FOUND AND EXISTS "${RUN3_MYGUI_SOURCE_DIR}/.git")
+    execute_process(
+        COMMAND "${GIT_EXECUTABLE}" -C "${RUN3_MYGUI_SOURCE_DIR}" rev-parse HEAD
+        OUTPUT_VARIABLE _run3_mygui_head
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE _run3_mygui_revision_result)
+    if(NOT _run3_mygui_revision_result EQUAL 0 OR
+       NOT _run3_mygui_head STREQUAL RUN3_MYGUI_REVISION)
+        message(FATAL_ERROR
+            "MyGUI checkout must be ${RUN3_MYGUI_REVISION}; found '${_run3_mygui_head}'")
+    endif()
 endif()
 
 find_package(OGRE 14.5.2 EXACT CONFIG REQUIRED
@@ -109,10 +123,23 @@ endforeach()
 
 include(CTest)
 if(BUILD_TESTING)
+    if(WIN32)
+        set(_demo_renderer d3d11)
+    else()
+        set(_demo_renderer gl3plus)
+    endif()
     add_test(NAME run3_mygui_ogre_demo.smoke
-             COMMAND run3_mygui_ogre_demo --smoke-test)
+             COMMAND run3_mygui_ogre_demo --smoke-test
+                     --renderer ${_demo_renderer})
     set_tests_properties(run3_mygui_ogre_demo.smoke PROPERTIES
         WORKING_DIRECTORY "${_runtime_dir}"
         TIMEOUT 60)
+    if(WIN32)
+        add_test(NAME run3_mygui_ogre_demo.gl3plus-smoke
+                 COMMAND run3_mygui_ogre_demo --smoke-test
+                         --renderer gl3plus)
+        set_tests_properties(run3_mygui_ogre_demo.gl3plus-smoke PROPERTIES
+            WORKING_DIRECTORY "${_runtime_dir}"
+            TIMEOUT 60)
+    endif()
 endif()
-

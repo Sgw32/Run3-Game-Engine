@@ -21,6 +21,57 @@ Last updated: 2026-09-26
 | 8C — fixed-tick Sequence runtime and interactive entities | Completed | Deterministic map-owned entities, typed script/render/physics/audio hooks, explicit train parenting, selected-quality particles, stable state, and audited teardown pass the Step 8C boundary. Chapter saves and the campaign soak are Step 10 work by owner direction. |
 | 8D — map-owned NPC runtime | Partial, verified slice | Typed neutral/enemy construction, AIR3 movement, Lua events, Ogre/Bullet/audio adapters, content counts, and a real `tlwcao` smoke pass; remaining parity gaps are documented. |
 | 8E — cutscenes, computers, and authored presentation state | Completed with named Step 9 adapters | Deterministic cutscene/computer control, stable sequence/NPC state, safe live transitions, station train binding/event 26, and complete reviewed tag dispositions pass; final HUD/computer/effect drawing is delegated to Step 9A and lighting/material output to Step 9B. |
+| 9A — MyGUI UI and visual portability | Completed | Exact-gitlink MyGUI is the primary backend; menus/HUD/computer RTT, typed Lua and `buttonGUI` facades, required shader gates, portable sky/water, and intro fallback pass MSVC/GCC plus D3D11/GL3+ smokes. Step 9B owns lighting quality. |
+
+## 2026-09-26 — Step 9A MyGUI and visual-portability boundary
+
+Step 9A is complete at its documented portable-rendering boundary. The root
+build and standalone demo require MyGUI gitlink
+`8629ea76896fba2d837cffde9fce9f32935a1d11`, build its Ogre-classic platform
+through imported targets, and reject another revision. Gameplay sees only
+Run3-owned UI/context/surface interfaces and generational handles. The old
+`main.cpp` CEGUI entry point is retired; menu actions are separate from the
+MyGUI presentation. The runtime supplies Continue, New game, Chapters,
+Options, and Quit plus MyGUI HUD, subtitle, console, loading, inventory, and
+settings presentation.
+
+Virtual computers now have a single map-scoped focus owner and isolated
+1024x768 MyGUI render texture. The off-screen pass hides all main/HUD roots,
+binds the texture only to the active computer's screen material, and restores
+visibility, authored materials, callbacks, focus, input capture, camera/player
+state, and handles on exit or teardown. `ScriptEngine` exposes the versioned,
+capability-limited `mygui` namespace and retains `buttonGUI` as a tested facade
+over the same backend. Stale handles, duplicate names, layout/path confinement,
+callback cleanup, and instruction budgets are tested. Details and the exported
+surface are in [UI_RUNTIME.md](UI_RUNTIME.md).
+
+The required visual set no longer loads Cg, `ps_2_0`, or `vs_2_0`. Ordinary
+materials and ParticleFX use the existing generated RTSS-compatible path;
+MyGUI uses maintained SM4+/GLSL 1.50 shaders; missing sky programs get a visible
+skybox fallback; and a simple transparent Ogre water plane replaces the
+mandatory Hydrax/SkyX path. Legacy HDR/LSD requests remain typed portable
+no-ops rather than reloading obsolete programs; modern HDR and lighting belong
+to Step 9B. DirectShow/WMV is absent and intro is disabled/skipped by default.
+The compatibility matrix is [SHADER_COMPATIBILITY.md](SHADER_COMPATIBILITY.md).
+
+Verification on this workspace:
+
+| Build/runtime | Result |
+|---|---|
+| Windows MSVC Debug | `run3_shell` and Step 9A tests built; full suite passed 131/131; installed D3D11 and GL3+ five-frame smokes plus a read-only five-frame real `tlwcao` D3D11/null-audio integration run passed |
+| Windows MSVC Release | `run3_shell` and Step 9A tests built; 6/6 focused tests passed; installed D3D11 and GL3+ five-frame smokes passed |
+| Windows `Demos/MyGUIOgre` | exact-revision configure/build passed; rotating-cube foreground-GUI D3D11 and GL3+ smokes passed 2/2 |
+| WSL GCC Debug local-cache build | `run3_shell` and Step 9A tests built; 6/6 focused tests passed; installed WSLg GL3+ smoke passed |
+| WSL `Demos/MyGUIOgre` | exact-revision regeneration/build passed; WSLg GL3+ smoke passed 1/1 |
+
+The existing Linux preset build caches were configured with the removed
+external `/tmp/run3-vcpkg-step7-src2` checkout, and the normal WSL vcpkg
+checkout is absent. Linux verification therefore used a separate ignored
+build tree with the exact already-installed package graph and pinned utf8cpp
+source, without network access. The first reported Windows CTest exit 1 was
+also environmental: runtime-dependency scanning could not find `dumpbin`
+outside a Visual Studio developer shell; the documented developer environment
+passes. No The Long Way content was modified. Step 9B remains unstarted.
 
 ## 2026-09-26 — delayed ParticleFX renderer crash regression
 

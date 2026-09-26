@@ -54,7 +54,8 @@ TEST_CASE("Configuration precedence is CLI then user then content") {
       {"run3_shell", "--map", "tlwcao", "--player-height-cm", "180",
        "--fullscreen", "--noclip", "--fov", "80", "--resolution",
        "1920x1080", "--texture-quality", "high", "--model-quality",
-       "high", "--scene-quality", "medium"},
+       "high", "--scene-quality", "medium", "--ui-scale", "1.5",
+       "--new-game-map", "tlwintro", "--intro"},
       fs::path("bin"));
   CHECK(commandLine.values.at("map") == "tlwcao");
   CHECK(commandLine.values.at("player-height-cm") == "180");
@@ -65,10 +66,17 @@ TEST_CASE("Configuration precedence is CLI then user then content") {
   CHECK(commandLine.values.at("texture-quality") == "high");
   CHECK(commandLine.values.at("model-quality") == "high");
   CHECK(commandLine.values.at("scene-quality") == "medium");
+  CHECK(commandLine.values.at("ui-scale") == "1.5");
+  CHECK(commandLine.values.at("new-game-map") == "tlwintro");
+  CHECK(commandLine.values.at("intro") == "true");
 
   const run3::CommandLine windowedOverride = run3::parseCommandLine(
       {"run3_shell", "--fullscreen", "--windowed"}, fs::path("bin"));
   CHECK(windowedOverride.values.at("fullscreen") == "false");
+
+  const run3::CommandLine skippedIntro = run3::parseCommandLine(
+      {"run3_shell", "--intro", "--skip-intro"}, fs::path("bin"));
+  CHECK(skippedIntro.values.at("intro") == "false");
 }
 
 TEST_CASE("OgreBites key and mouse values translate at the platform edge") {

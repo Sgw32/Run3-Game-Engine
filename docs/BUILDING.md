@@ -156,7 +156,8 @@ available.
 `run3_shell` and `run3_asset_check` accept:
 
 - `--renderer d3d11|gl3plus` (D3D11 defaults on Windows; GL3+ on Linux)
-- `--frames N` (`0`, the default, runs until Escape or window close)
+- `--frames N` (`0`, the default, runs until the MyGUI Quit action or window
+  close)
 - `--user-dir PATH` for the writable user root
 - `--content-root PATH` to register an optional read-only content directory
 - `--validate-content` to run the versioned content checks from `run3_shell`
@@ -168,6 +169,11 @@ available.
 - `--player-height-cm N` to set the 120–240 cm player capsule (default `180`)
 - `--fullscreen` to create a fullscreen render window (`--windowed` overrides
   a persisted fullscreen setting)
+- `--ui-scale 0.75..3` to override MyGUI scale (default `1`)
+- `--new-game-map NAME` to select the map opened by **New game** (default
+  `tlwintro`)
+- `--intro` to request the retired intro-video slot; the portable runtime logs
+  the skip and continues (`--skip-intro`, the default, is explicit)
 - `--noclip` to start with collision and gravity disabled
 - `--physics-debug` to show collision-section bounds at startup
 - `--audio-backend auto|miniaudio|null` to select real audio, safe fallback,
@@ -189,7 +195,8 @@ from `<content-root>/config/run3.cfg`, then user settings from
 `<user-root>/config/run3.cfg`; command-line values win over both. Supported
 Step 6B keys are `renderer`, `frames`, `content-root`, `user-root`, `map`,
 `map-quality`, `resource-profile`, `player-height-cm`, `render-hz`,
-`audio-backend`, `fullscreen`, `noclip`, and `physics-debug`. Relative
+`audio-backend`, `fullscreen`, `noclip`, `physics-debug`, `ui-scale`,
+`new-game-map`, and `intro`. Relative
 configured roots and CLI paths are anchored at the executable directory.
 Persist height as
 `player-height-cm=180` and fullscreen mode as `fullscreen=true` in
@@ -220,6 +227,25 @@ For Step 5 validation and the guarded Ogre conversion commands, see
 `cmake --install` stages the executable, dependent runtime libraries, Ogre
 framework media, and `plugins.cfg`. Windows installs D3D11 and GL3+ plugins;
 Linux installs GL3+. Both install ParticleFX and STBI. D3D9 and Cg are absent.
+
+## Step 9A MyGUI and shader verification
+
+The root build compiles MyGUI from the exact `mygui` gitlink and rejects a
+different checkout. Rebuild and run the focused UI/Lua/shader checks with:
+
+```text
+cmake --build --preset <preset> --target run3_shell run3_step9a_tests
+ctest --preset <preset> -R run3_step9a --output-on-failure
+```
+
+On Windows, the installed CTest matrix contains both `run3_shell.smoke`
+(D3D11) and `run3_shell.gl3plus-smoke`. Linux uses GL3+. These tests open a
+window for five frames, so run them in a graphical session. The standalone
+rotating-cube/foreground-GUI commands are in
+[Demos/MyGUIOgre/README.md](../Demos/MyGUIOgre/README.md). UI ownership, Lua
+signatures, and shader dispositions are recorded in
+[UI_RUNTIME.md](porting/UI_RUNTIME.md) and
+[SHADER_COMPATIBILITY.md](porting/SHADER_COMPATIBILITY.md).
 
 ## Build options
 

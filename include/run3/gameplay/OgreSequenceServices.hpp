@@ -41,6 +41,9 @@ class NpcSystem;
 namespace run3::audio {
 class MapAudioRuntime;
 }
+namespace run3::ui {
+class IUiSystem;
+}
 namespace run3::gameplay {
 
 class OgreSequenceServices final : public IGameServices,
@@ -52,7 +55,7 @@ public:
                        Ogre::Camera &camera,
                        physics::PhysicsWorld &physicsWorld,
                        StaticMap &staticMap, PlayerController &player,
-                       audio::IAudioEngine &audio,
+                       audio::IAudioEngine &audio, ui::IUiSystem &ui,
                        MapChangeRequest mapChangeRequest = {},
                        double meshLodBias = 1.0,
                        double defaultFovDegrees = 75.0);

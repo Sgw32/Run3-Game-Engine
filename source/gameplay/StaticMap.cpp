@@ -1,4 +1,5 @@
 #include <run3/gameplay/StaticMap.hpp>
+#include <run3/rendering/Environment.hpp>
 
 #include <run3/content/MapDefinition.hpp>
 #include <run3/core/Log.hpp>
@@ -284,7 +285,8 @@ bool AxisAlignedVolume::contains(physics::Vec3 point) const noexcept {
 class StaticMap::Impl {
 public:
   Impl(Ogre::SceneManager &sceneManager, physics::PhysicsWorld &world)
-      : sceneManager_(&sceneManager), world_(&world) {}
+      : sceneManager_(&sceneManager), world_(&world),
+        environment_(rendering::createPortableOgreEnvironment(sceneManager)) {}
   ~Impl() { unload(); }
 
   StaticMapStats load(const StaticMapOptions &options) {
@@ -339,6 +341,7 @@ public:
     // Particle templates bind their material names while being parsed, so
     // load them only after the compatibility aliases above are published.
     loadParticleTemplates(options.paths->contentRoot(), options.textureQuality);
+    configureEnvironment(definition_->scene);
     class CompatibilityListener final : public Ogre::MeshSerializerListener {
     public:
       explicit CompatibilityListener(Impl &owner) : owner_(&owner) {}
@@ -485,6 +488,38 @@ public:
     for (const content::AuthoredElement &child : element.children) {
       processSceneElement(child, parent, parentName, sceneMultiplier,
                           firstPlayer);
+    }
+  }
+
+  void configureEnvironment(const content::AuthoredElement &root) {
+    const content::AuthoredElement *sky{};
+    const content::AuthoredElement *water{};
+    const auto visit = [&](const auto &self,
+                           const content::AuthoredElement &element) -> void {
+      if (element.tag == "skyBox" && sky == nullptr) sky = &element;
+      if (element.tag == "water" && water == nullptr) water = &element;
+      for (const auto &child : element.children) self(self, child);
+    };
+    visit(visit, root);
+    if (sky != nullptr) {
+      const auto values = attributes(*sky);
+      const auto material = values.find("material");
+      environment_->setSky({true,
+                            material == values.end() ? std::string{} : material->second,
+                            50000.0F});
+    } else {
+      environment_->setSky({});
+    }
+    if (water != nullptr) {
+      const auto values = attributes(*water);
+      rendering::WaterSettings settings;
+      settings.enabled = true;
+      settings.height = static_cast<float>(number(values, "height", 0.0));
+      settings.width = static_cast<float>(number(values, "width", 100000.0));
+      settings.depth = static_cast<float>(number(values, "depth", 100000.0));
+      environment_->setWater(settings);
+    } else {
+      environment_->setWater({});
     }
   }
 
@@ -826,6 +861,7 @@ public:
   }
 
   void unload() noexcept {
+    if (environment_) environment_->clear();
     bodies_.clear();
     registry_.clear();
     activeRenderables_.clear();
@@ -904,6 +940,7 @@ public:
 
   Ogre::SceneManager *sceneManager_{};
   physics::PhysicsWorld *world_{};
+  std::unique_ptr<rendering::IEnvironment> environment_;
   Ogre::SceneNode *rootNode_{};
   std::vector<Ogre::Entity *> entities_;
   std::vector<Ogre::ParticleSystem *> mapParticles_;

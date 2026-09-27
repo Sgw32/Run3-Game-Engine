@@ -89,6 +89,11 @@ physics::Transform transform(const AuthoredElement &element) {
   }
   const AuthoredElement *rotation = element.firstChild("rotation");
   if (rotation == nullptr) {
+    // Legacy computers use <rotate>, while trains and most other entities use
+    // <rotation>. Sequence::processComputer accepted the former explicitly.
+    rotation = element.firstChild("rotate");
+  }
+  if (rotation == nullptr) {
     rotation = &element;
   }
   result.rotation = {number(*rotation, "qw", 1.0),
@@ -162,6 +167,24 @@ physics::Quaternion normalized(physics::Quaternion value) {
   if (magnitude <= 1e-12) return {};
   return {value.w / magnitude, value.x / magnitude, value.y / magnitude,
           value.z / magnitude};
+}
+
+physics::Quaternion rotationFromTo(physics::Vec3 from, physics::Vec3 to) {
+  from = normalized(from);
+  to = normalized(to);
+  const double dot = std::clamp(from.x * to.x + from.y * to.y + from.z * to.z,
+                                -1.0, 1.0);
+  if (dot > 1.0 - 1e-9) return {};
+  if (dot < -1.0 + 1e-9) {
+    physics::Vec3 axis = std::abs(from.y) < 0.9
+                            ? physics::Vec3{-from.z, 0.0, from.x}
+                            : physics::Vec3{0.0, from.z, -from.y};
+    return axisAngle(axis, 3.14159265358979323846);
+  }
+  const physics::Vec3 cross{from.y * to.z - from.z * to.y,
+                            from.z * to.x - from.x * to.z,
+                            from.x * to.y - from.y * to.x};
+  return normalized({1.0 + dot, cross.x, cross.y, cross.z});
 }
 
 physics::Vec3 rotate(physics::Quaternion rotation, physics::Vec3 value) {
@@ -288,6 +311,7 @@ public:
     physics::Vec3 scale{1.0, 1.0, 1.0};
     physics::Vec3 halfExtents{1.0, 1.0, 1.0};
     physics::Vec3 direction{0.0, 0.0, 1.0};
+    physics::Vec3 pendulumTranslation{};
     physics::Vec3 rotationTarget{};
     physics::Vec3 rotationProgress{};
     std::vector<physics::Vec3> keyPoints;
@@ -307,6 +331,8 @@ public:
     bool reverse{};
     bool infinite{};
     bool rotational{};
+    bool orientToPath{true};
+    double trainYawDegrees{180.0};
     std::string callback;
     std::string enterCallback;
     std::string leaveCallback;
@@ -438,6 +464,8 @@ public:
     }
     if (kind == RuntimeEntityKind::Train) {
       record.infinite = boolean(element, "inf", false);
+      record.orientToPath = boolean(element, "setor", true);
+      record.trainYawDegrees = number(element, "yaw", 180.0);
       for (const AuthoredElement &child : element.children) {
         if (child.tag == "keyPoint") {
           record.keyPoints.push_back(vector(child));
@@ -466,7 +494,9 @@ public:
                                number(element, "roll", 0.0)};
       if (kind == RuntimeEntityKind::Pendulum) {
         record.publicState.active = true;
-        record.direction = record.rotationTarget;
+        if (boolean(element, "positionPend", false)) {
+          record.pendulumTranslation = record.direction;
+        }
       } else if (kind == RuntimeEntityKind::Rotator) {
         // In the legacy func_door implementation `rotating` selected angular
         // motion; it did not call Fire(). Rotators therefore start stopped and
@@ -1100,13 +1130,14 @@ public:
   }
 
   void updatePendulum(Record &record) {
-    if (!record.publicState.active) return;
+    if (!record.publicState.active || !record.rotational) return;
     record.phase += record.speed * fixedStepSeconds;
-    const double amplitude = record.angle == 0.0 ? 30.0 : record.angle;
-    const double radians = std::sin(record.phase) * amplitude *
-                           3.14159265358979323846 / 180.0;
-    record.publicState.transform.rotation =
-        multiply(record.initial.rotation, axisAngle(record.direction, radians));
+    if (record.phase > 360.0) record.phase = 0.0;
+    const double wave = std::sin(record.phase);
+    record.publicState.transform.rotation = normalized(applyEulerDegrees(
+        record.initial.rotation, multiply(record.rotationTarget, wave)));
+    record.publicState.transform.position = add(
+        record.initial.position, multiply(record.pendulumTranslation, wave));
     services->submit(SetRuntimeTransform{record.publicState.handle,
                                           record.publicState.transform});
   }
@@ -1128,6 +1159,18 @@ public:
         approach(before, target, std::abs(record.speed) * fixedStepSeconds);
     const physics::Vec3 delta = subtract(record.publicState.transform.position,
                                          before);
+    if (record.orientToPath && length(delta) > 1e-9) {
+      constexpr double radiansPerDegree = 3.14159265358979323846 / 180.0;
+      const physics::Vec3 correctedDirection = rotate(
+          axisAngle({0.0, 1.0, 0.0},
+                    -record.trainYawDegrees * radiansPerDegree),
+          normalized(delta));
+      const physics::Quaternion desired = rotationFromTo(
+          {0.0, 0.0, -1.0}, correctedDirection);
+      record.publicState.transform.rotation = interpolate(
+          record.publicState.transform.rotation, desired,
+          std::clamp(10.0 * fixedStepSeconds, 0.0, 1.0));
+    }
     services->submit(SetRuntimeTransform{record.publicState.handle,
                                           record.publicState.transform});
     if (carriesPlayer) {

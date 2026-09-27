@@ -1,6 +1,6 @@
 # Run3 porting status
 
-Last updated: 2026-09-26
+Last updated: 2026-09-27
 
 ## Milestones
 
@@ -22,6 +22,61 @@ Last updated: 2026-09-26
 | 8D — map-owned NPC runtime | Partial, verified slice | Typed neutral/enemy construction, AIR3 movement, Lua events, Ogre/Bullet/audio adapters, content counts, and a real `tlwcao` smoke pass; remaining parity gaps are documented. |
 | 8E — cutscenes, computers, and authored presentation state | Completed with named Step 9 adapters | Deterministic cutscene/computer control, stable sequence/NPC state, safe live transitions, station train binding/event 26, and complete reviewed tag dispositions pass; final HUD/computer/effect drawing is delegated to Step 9A and lighting/material output to Step 9B. |
 | 9A — MyGUI UI and visual portability | Completed | Exact-gitlink MyGUI is the primary backend; menus/HUD/computer RTT, typed Lua and `buttonGUI` facades, required shader gates, portable sky/water, and intro fallback pass MSVC/GCC plus D3D11/GL3+ smokes. Step 9B owns lighting quality. |
+
+## 2026-09-27 — UI-state and authored-motion regression repair
+
+The menu/gameplay boundary no longer leaves a MyGUI layer or pointer in the
+world. SDL's native cursor is hidden while Run3 owns the window, the MyGUI
+pointer is visible only for the menu or the isolated computer render target,
+and map load explicitly closes the menu. Non-menu roots use transparent panels
+and the HUD root is enabled only for the console, loading screen, or inventory.
+Consequently the no-map menu has the same themed dark presentation as the
+Escape menu, gameplay does not render an idle MyGUI cursor, and cutscene
+completion cannot reveal the old opaque blue HUD surface. Authored `gameText`
+uses the legacy `Run3/GameText` Ogre Overlay rather than a MyGUI label.
+
+Virtual computers now enter an empty 1024x768 off-screen UI context. Existing
+`buttonGUI_*` scripts remain the primary content API, while the capability-
+limited MyGUI Lua API can add widgets to the same scoped surface. The generic
+full-screen connection page was removed; only the computer context and its
+pointer are rendered into the material texture, with main-menu/HUD visibility
+restored after the guarded pass. The main UI theme is charcoal, dark red and
+black with orange accents. No The Long Way file was edited.
+
+Five content-motion differences were traced to omitted legacy semantics and
+fixed in engine code:
+
+- `alex_mezhin` and `alex_mezhin_sklad` were left at their authored airborne
+  spawn because the new kinematic NPC controller did not reproduce Newton's
+  initial gravity fall. Gravity-enabled NPCs now perform a deterministic floor
+  settle using their collision half-height; `physPosit` remains only the visual
+  mesh offset and `physSize` remains collision scaling.
+- Station passengers were too low because parent-relative teleport omitted the
+  train node's derived scale. The local seat offset is now scaled and then
+  rotated exactly like the legacy `TELEPORT_PARENT_NPC` path.
+- `akpp74_s.mesh` computers ignored their authored child `<rotate>` element
+  because the generic port searched only `<rotation>`. Both spellings are now
+  accepted with the legacy computer preference.
+- Pendulums had been approximated as one axis plus a default 30-degree swing.
+  They now preserve independent pitch/yaw/roll amplitudes, authored
+  `rotspeed`, initial orientation, and optional `positionPend` translation.
+- Trains with `setor="true"` now steer their local negative-Z axis toward the
+  path direction using the authored yaw correction and the legacy ten-per-
+  second response. This restores the moving `tlwdelusion05` train orientation;
+  terminal trains still stop at their final point.
+
+Verification on this workspace:
+
+| Host | Result |
+|---|---|
+| Windows MSVC Debug | Step 8C/8D and Step 9A focused tests pass; after correcting install-time `dumpbin` discovery, all five install/shell-smoke tests pass and the complete 133-test set is green. An installed assetless D3D11 menu run completed eight frames and shut down cleanly. |
+| WSL GCC Debug | Fresh configure against the pinned existing package graph succeeded; `run3_shell`, `run3_step8c_tests`, `run3_step8d_tests`, and `run3_step9a_tests` built serially (172/172 initial build actions), followed by successful 2/2 NPC-test and 3/3 Ogre-overlay incremental rebuilds. Per owner request, no Linux executable or test was run. |
+
+The real medium-quality `tlwcao` visual smoke was started read-only but did not
+finish its several-minute asset load within this verification window; it was
+stopped without modifying content. Full-content parser/runtime tests cover
+`tlwcao`, the station maps, and `tlwdelusion05`, but the placement and theme
+changes still merit an interactive Windows visual check.
 
 ## 2026-09-26 — Step 9A MyGUI and visual-portability boundary
 

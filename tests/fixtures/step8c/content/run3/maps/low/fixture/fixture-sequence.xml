@@ -25,7 +25,8 @@
     <rot name="rot" mesh="rot.mesh" rotating="true" rotspeed="90"
          pitch="0" yaw="1" roll="0" useInteract="true"/>
     <pendulum name="pend" mesh="pend.mesh" rotating="true"
-              rotspeed="2" angle="20" pitch="1" yaw="0" roll="0"/>
+              rotspeed="2" angle="20" pitch="12" yaw="4" roll="0"
+              positionPend="true" dirX="0" dirY="3" dirZ="0"/>
     <train name="train" start="true" speed="60">
       <position x="0" y="0" z="10"/>
       <scale x="100" y="10" z="100"/>

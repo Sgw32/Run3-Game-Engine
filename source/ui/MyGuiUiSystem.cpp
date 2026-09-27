@@ -152,7 +152,7 @@ std::vector<MyGUI::Char> decodeUtf8(std::string_view text) {
 
 std::string skin(const WidgetType type) {
   switch (type) {
-  case WidgetType::Panel: return "Panel";
+  case WidgetType::Panel: return "PanelEmpty";
   case WidgetType::Text: return "TextBox";
   case WidgetType::Button: return "Button";
   case WidgetType::Edit: return "EditBox";
@@ -160,6 +160,28 @@ std::string skin(const WidgetType type) {
   case WidgetType::List: return "ListBox";
   }
   return "Panel";
+}
+
+void applyRun3Theme(MyGUI::Widget &widget, const WidgetSpec &spec) {
+  const MyGUI::Colour orange{0.95F, 0.43F, 0.08F, 1.0F};
+  const MyGUI::Colour paleOrange{1.0F, 0.72F, 0.42F, 1.0F};
+  if (spec.name == "menu.root") {
+    widget.changeWidgetSkin("PanelSkin");
+    widget.setColour(MyGUI::Colour{0.12F, 0.12F, 0.13F, 0.96F});
+  } else if (spec.name == "computer.root") {
+    widget.setColour(MyGUI::Colour{0.03F, 0.03F, 0.03F, 1.0F});
+  }
+  if (widget.isType<MyGUI::Button>()) {
+    auto *button = widget.castType<MyGUI::Button>();
+    button->setColour(MyGUI::Colour{0.19F, 0.03F, 0.03F, 1.0F});
+    button->setTextColour(orange);
+  } else if (widget.isType<MyGUI::EditBox>()) {
+    auto *edit = widget.castType<MyGUI::EditBox>();
+    edit->setColour(MyGUI::Colour{0.13F, 0.13F, 0.14F, 1.0F});
+    edit->setTextColour(paleOrange);
+  } else if (widget.isType<MyGUI::TextBox>()) {
+    widget.castType<MyGUI::TextBox>()->setTextColour(paleOrange);
+  }
 }
 
 std::string className(const WidgetType type) {
@@ -224,6 +246,19 @@ private:
   std::vector<bool> visibility_;
 };
 
+class PointerVisibilityGuard final {
+public:
+  explicit PointerVisibilityGuard(const bool visible)
+      : previous_(MyGUI::PointerManager::getInstance().isVisible()) {
+    MyGUI::PointerManager::getInstance().setVisible(visible);
+  }
+  ~PointerVisibilityGuard() {
+    MyGUI::PointerManager::getInstance().setVisible(previous_);
+  }
+private:
+  bool previous_{};
+};
+
 } // namespace
 
 class MyGuiUiSystem final : public IUiSystem {
@@ -243,6 +278,7 @@ public:
     gui_ = std::make_unique<MyGUI::Gui>();
     gui_->setDpiScale(dpiScale_);
     gui_->initialise("MyGUI_Core.xml");
+    MyGUI::PointerManager::getInstance().setVisible(false);
     resize(window.getWidth(), window.getHeight(), dpiScale_);
     buildMainMenu();
     buildHud();
@@ -327,41 +363,32 @@ public:
   }
 
   void update(const float seconds) override {
-    if (subtitleSeconds_ > 0.0) {
-      subtitleSeconds_ -= seconds;
-      if (subtitleSeconds_ <= 0.0) setSubtitle({}, 0.0);
-    }
+    static_cast<void>(seconds);
   }
 
   void showMenu(const bool visible) override {
     menuVisible_ = visible;
     if (auto root = findWidget(Context::Main, "menu.root"))
       widget(*root).setVisible(visible);
+    MyGUI::PointerManager::getInstance().setVisible(visible);
     if (!visible) MyGUI::InputManager::getInstance().resetKeyFocusWidget();
   }
   bool menuVisible() const noexcept override { return menuVisible_; }
 
   void setHudVisible(const bool visible) override {
     hudVisible_ = visible;
-    for (auto &[id, entry] : entries_) {
-      static_cast<void>(id);
-      if (entry.spec.context == Context::Hud) entry.widget->setVisible(visible);
-    }
-    if (!consoleVisible_) setWidgetVisible("hud.console", false);
-    if (!loadingVisible_) setWidgetVisible("hud.loading", false);
-    if (!inventoryEnabled_) setWidgetVisible("hud.inventory", false);
+    syncHudVisibility();
   }
 
   void setSubtitle(std::string text, const double seconds) override {
-    subtitleSeconds_ = seconds;
-    if (auto handle = findWidget(Context::Hud, "hud.subtitle")) {
-      setCaption(widget(*handle), WidgetType::Text, text);
-      widget(*handle).setVisible(hudVisible_ && !text.empty());
-    }
+    // Game text belongs to the legacy Ogre Overlay presentation. Keeping it
+    // out of MyGUI prevents an otherwise idle GUI pass during gameplay.
+    static_cast<void>(text);
+    static_cast<void>(seconds);
   }
   void setConsoleVisible(const bool visible) override {
     consoleVisible_ = visible;
-    setWidgetVisible("hud.console", visible && hudVisible_);
+    syncHudVisibility();
   }
   void appendConsole(std::string line) override {
     if (!consoleText_.empty()) consoleText_ += '\n';
@@ -376,12 +403,12 @@ public:
     loadingVisible_ = visible;
     if (auto handle = findWidget(Context::Hud, "hud.loading")) {
       setCaption(widget(*handle), WidgetType::Text, text);
-      widget(*handle).setVisible(visible && hudVisible_);
     }
+    syncHudVisibility();
   }
   void setInventoryEnabled(const bool enabled) override {
     inventoryEnabled_ = enabled;
-    setWidgetVisible("hud.inventory", enabled && hudVisible_);
+    syncHudVisibility();
   }
 
   WidgetHandle loadLayout(const Context context, const std::string_view key) override {
@@ -417,6 +444,7 @@ public:
           MyGUI::Align::Default, "Main", spec.name);
     }
     setCaption(*created, spec.type, spec.text);
+    applyRun3Theme(*created, spec);
     entries_.emplace(handle.id, Entry{spec, created});
     reverse_.emplace(created, handle);
     bindNativeEvents(handle, *created);
@@ -491,12 +519,9 @@ public:
     WidgetSpec background{Context::Computer, {}, WidgetType::Panel,
                           "computer.root", {0, 0, 1024, 768}, {}};
     const WidgetHandle root = createWidget(background);
-    createWidget({Context::Computer, root, WidgetType::Text,
-                  "computer.title", {36, 28, 952, 54},
-                  "RUN3 COMPUTER / " + computerOwner_});
-    createWidget({Context::Computer, root, WidgetType::Text,
-                  "computer.status", {36, 100, 952, 600},
-                  "Computer connected. Lua UI context is ready."});
+    // Legacy buttonGUI scripts remain the primary author of a computer's
+    // contents. The MyGUI context is intentionally empty until buttonGUI or
+    // the typed MyGUI Lua facade adds scoped widgets.
     setVisible(root, false);
     return computerTexture_->getName();
   }
@@ -522,6 +547,7 @@ public:
     MyGUI::IRenderTarget *target = computerTexture_->getRenderTarget();
     const auto roots = rootWidgets();
     VisibilityGuard guard(roots, Context::Computer, reverse_);
+    PointerVisibilityGuard pointer(true);
     target->begin();
     try {
       MyGUI::LayerManager::getInstance().renderToTarget(target, true);
@@ -538,6 +564,7 @@ public:
     setSubtitle({}, 0.0);
     setInventoryEnabled(false);
     setLoading(false, {});
+    showMenu(false);
   }
 
 private:
@@ -643,6 +670,15 @@ private:
     if (const auto handle = findWidget(Context::Hud, name))
       widget(*handle).setVisible(visible);
   }
+  void syncHudVisibility() {
+    const bool active = hudVisible_ &&
+                        (consoleVisible_ || loadingVisible_ || inventoryEnabled_);
+    if (const auto root = findWidget(Context::Hud, "hud.root"))
+      widget(*root).setVisible(active);
+    setWidgetVisible("hud.console", active && consoleVisible_);
+    setWidgetVisible("hud.loading", active && loadingVisible_);
+    setWidgetVisible("hud.inventory", active && inventoryEnabled_);
+  }
   void showPage(const std::string_view page) {
     const std::array<std::string_view, 3> names{"main", "chapter", "options"};
     for (const auto name : names) {
@@ -707,17 +743,12 @@ private:
   void buildHud() {
     const WidgetHandle root = createWidget(
         {Context::Hud, {}, WidgetType::Panel, "hud.root", {0, 0, 1280, 720}, {}});
-    createWidget({Context::Hud, root, WidgetType::Text, "hud.crosshair",
-                  {627, 340, 26, 40}, "+"});
-    createWidget({Context::Hud, root, WidgetType::Text, "hud.subtitle",
-                  {180, 625, 920, 60}, {}});
     createWidget({Context::Hud, root, WidgetType::Text, "hud.console",
                   {20, 20, 800, 320}, {}});
     createWidget({Context::Hud, root, WidgetType::Text, "hud.loading",
                   {440, 330, 400, 60}, "Loading..."});
     createWidget({Context::Hud, root, WidgetType::Text, "hud.inventory",
                   {940, 70, 300, 560}, "Inventory"});
-    setSubtitle({}, 0.0);
     setConsoleVisible(false);
     setLoading(false, {});
     setInventoryEnabled(false);
@@ -735,7 +766,6 @@ private:
   float dpiScale_{1.0F};
   std::string computerOwner_;
   std::string consoleText_;
-  double subtitleSeconds_{};
   int mouseX_{};
   int mouseY_{};
   int wheel_{};

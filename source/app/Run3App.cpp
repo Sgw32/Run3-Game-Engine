@@ -28,6 +28,8 @@
 #include <OgreSceneNode.h>
 #include <OgreViewport.h>
 
+#include <SDL.h>
+
 #ifdef OGRE_BUILD_COMPONENT_RTSHADERSYSTEM
 #include <OgreRTShaderSystem.h>
 #endif
@@ -48,6 +50,13 @@ namespace run3 {
 namespace fs = std::filesystem;
 
 namespace {
+
+void showSystemCursor(const bool visible) noexcept {
+  // OgreBites toggles SDL relative mode but does not hide SDL's native
+  // cursor on Windows/Linux. Run3 always renders its own MyGUI pointer while
+  // a UI context is active, so the OS pointer must stay hidden at runtime.
+  static_cast<void>(SDL_ShowCursor(visible ? SDL_ENABLE : SDL_DISABLE));
+}
 
 constexpr char ogreVersion[] = "14.5.2";
 static_assert(OGRE_VERSION_MAJOR == 14 && OGRE_VERSION_MINOR == 5 &&
@@ -323,6 +332,7 @@ Run3App::Run3App(Run3AppOptions options)
 Run3App::~Run3App() {
   // initApp() may throw before run() reaches its cleanup block.
   try { unloadMap(false); } catch (...) {}
+  showSystemCursor(true);
 }
 
 int Run3App::run() {
@@ -500,6 +510,7 @@ int Run3App::run() {
     }
     ui_.reset();
     audioEngine_.reset();
+    showSystemCursor(true);
     closeApp();
     return 1;
   }
@@ -522,6 +533,7 @@ int Run3App::run() {
   }
   ui_.reset();
   audioEngine_.reset();
+  showSystemCursor(true);
   closeApp();
   if (exitFailure) {
     std::rethrow_exception(exitFailure);
@@ -696,6 +708,7 @@ void Run3App::setup() {
   }
 
   ui_->showMenu(options_.mapName.empty());
+  showSystemCursor(false);
   if (options_.introEnabled) {
     Ogre::LogManager::getSingleton().logMessage(
         "Intro video requested, but DirectShow/WMV is retired from the portable "
@@ -795,6 +808,9 @@ void Run3App::loadMap(const std::string &mapName) {
     sequenceServices_->attachNpcSystem(*npcSystem_);
     npcSystem_->start();
     sequenceRuntime_->start();
+    // A map load is the gameplay-state boundary. Never carry the menu layer
+    // or its pointer through a chapter transition or cutscene restoration.
+    if (ui_) ui_->showMenu(false);
 }
 
 void Run3App::unloadMap(const bool runOnExit) {
@@ -897,6 +913,7 @@ void Run3App::setGameplayMouseCapture(const bool enabled) {
     return;
   }
   setWindowGrab(enabled);
+  showSystemCursor(false);
   gameplayMouseCapture_ = enabled;
 }
 

@@ -39,6 +39,7 @@ find_package(Bullet 3.25 EXACT CONFIG REQUIRED)
 find_package(Lua 5.4 EXACT REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(pugixml CONFIG REQUIRED)
+find_package(SDL2 CONFIG REQUIRED)
 # The vcpkg manifest/override is the exact version authority. sol2 3.5.0's
 # upstream config advertises its compatibility ABI as 4.0.0, so CMake's EXACT
 # package-version check cannot be used reliably here.
@@ -323,7 +324,7 @@ target_link_libraries(
     PUBLIC run3::core run3::asset_validation OgreMain OgreBites OgreOverlay
            OgreRTShaderSystem run3::gameplay run3::sequence run3::npcs
            run3::audio_miniaudio run3::ui_mygui
-    PRIVATE run3::warnings)
+    PRIVATE run3::warnings SDL2::SDL2)
 
 if(RUN3_BUILD_LEGACY)
     include(Run3LegacySources)
@@ -774,6 +775,22 @@ if(WIN32)
     # ambiguous duplicates between app-local and vcpkg's package bin folder.
     set(_run3_dependency_search_args
         DIRECTORIES "$<TARGET_FILE_DIR:run3_shell>")
+
+    # Ninja builds are often configured from a plain PowerShell where
+    # dumpbin.exe is not on PATH during `cmake --install`. It is installed
+    # beside MSVC's linker, whose absolute path CMake already knows. Preserve
+    # that reviewed tool path in the generated install script instead of
+    # allowing file(GET_RUNTIME_DEPENDENCIES) to fall back to missing objdump.
+    get_filename_component(_run3_msvc_tool_dir "${CMAKE_LINKER}" DIRECTORY)
+    find_program(_run3_dumpbin NAMES dumpbin.exe dumpbin
+                 HINTS "${_run3_msvc_tool_dir}" NO_DEFAULT_PATH)
+    if(_run3_dumpbin)
+        string(CONCAT _run3_runtime_tool_code
+            "set(CMAKE_GET_RUNTIME_DEPENDENCIES_PLATFORM \"windows+pe\")\n"
+            "set(CMAKE_GET_RUNTIME_DEPENDENCIES_TOOL \"dumpbin\")\n"
+            "set(CMAKE_GET_RUNTIME_DEPENDENCIES_COMMAND \"${_run3_dumpbin}\")")
+        install(CODE "${_run3_runtime_tool_code}")
+    endif()
 else()
     set(_run3_system_dependency_excludes
         "^/lib/.*"

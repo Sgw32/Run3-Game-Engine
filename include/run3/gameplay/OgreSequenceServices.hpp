@@ -78,6 +78,10 @@ public:
   lightVisible(std::string_view name) const override;
   [[nodiscard]] std::optional<physics::Transform>
   runtimeTransform(std::string_view name) const override;
+  [[nodiscard]] physics::Vec3
+  runtimeScale(std::string_view name) const override;
+  [[nodiscard]] std::optional<physics::Transform>
+  settleRuntimeNpc(EntityHandle handle) override;
   [[nodiscard]] double runtimeFovDegrees() const override;
   [[nodiscard]] std::optional<EntityHandle>
   handleForPhysicsEntity(std::uint64_t physicsEntity) const;

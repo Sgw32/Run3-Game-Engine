@@ -15,8 +15,15 @@ There are three independently scoped contexts:
 | Context | Owner | Contents | Lifetime |
 |---|---|---|---|
 | `main` | application window | Continue, New game, Chapters, Options, Quit | application |
-| `hud` | main viewport | crosshair, subtitles, console, loading, inventory | application; state resets per map |
-| `computer` | one typed map entity handle | computer layout and script-created widgets | active computer only |
+| `hud` | main viewport | console, loading, inventory | application; state resets per map |
+| `computer` | one typed map entity handle | legacy `buttonGUI` and optional typed MyGUI widgets | active computer only |
+
+The main menu uses a dark charcoal/red/black theme with orange text and
+accents. Root panels in the HUD and computer contexts are transparent; an
+inactive context therefore cannot paint a full-screen rectangle. Gameplay
+crosshair and `gameText`/subtitle presentation remain Ogre Overlays for legacy
+layout compatibility and do not keep MyGUI rendering active during ordinary
+first-person play.
 
 Widget handles encode context, monotonically assigned id, and context
 generation. Re-entering a computer invalidates every old widget and callback.
@@ -32,6 +39,12 @@ focus. Gameplay mouse capture is disabled for those states and restored after
 exit. Focus loss clears MyGUI keyboard/mouse focus; resize recomputes the
 logical 1280x720 layout.
 
+SDL's native pointer is hidden for the whole application lifetime. MyGUI's
+pointer is shown only while the main menu owns input, or temporarily inside a
+computer's off-screen render pass. Loading a map always closes the menu and a
+normal gameplay frame has neither an OS cursor nor a MyGUI cursor. This avoids
+the former double-cursor state and keeps relative mouse look unbounded.
+
 Entering a computer permits only one map-scoped owner, creates a 1024x768
 MyGUI render texture, and substitutes a generated material on the matching
 computer screen submesh. Each off-screen pass temporarily hides the main menu
@@ -41,6 +54,12 @@ map change, and unload invalidate callbacks, restore original submesh
 materials, remove the generated material, clear MyGUI focus, and release the
 computer context. The existing Step 8E camera/player freeze owner remains the
 authority for camera and movement restoration.
+
+The computer context is deliberately empty when entered. Existing
+`buttonGUI_*` content is the primary authoring API and creates widgets in that
+isolated context; the typed `mygui` facade can be used beside it. The engine no
+longer creates a generic full-screen "computer connected" page, and no
+computer widget is rendered directly into the main viewport.
 
 ## Lua facade
 
@@ -60,7 +79,8 @@ namespace is intentionally smaller than native MyGUI:
 
 Lua receives opaque string handles, never a `MyGUI::Widget*`. Paths cannot be
 loaded through this API. The retained `buttonGUI_*` globals create the same
-scoped widgets and are a compatibility facade, not a second renderer.
+scoped widgets and are the primary legacy-computer compatibility facade, not a
+second renderer.
 
 ## Verification
 

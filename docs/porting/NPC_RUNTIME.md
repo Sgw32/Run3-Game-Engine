@@ -81,6 +81,16 @@ authored station timing control without reviving `NPCManager`.
   Enemy policy periodically acquires a nearby player and issues bounded damage
   at the authored attack distance. Both use the same AIR3 query and Bullet NPC
   collision path; no second navigation or collision world was introduced.
+- Gravity-enabled NPCs receive one deterministic downward floor query when
+  constructed. This reproduces the initial settling formerly supplied by the
+  Newton dynamic body while retaining the predictable kinematic navigation
+  controller. `physPosit` remains a visual mesh offset and `physSize` remains
+  the collision-box scale; neither is incorrectly added to the authored world
+  position.
+- Parent-relative NPC teleports multiply the authored local offset by the
+  parent's derived scale before applying its orientation, matching Ogre scene
+  child inheritance and the legacy `TELEPORT_PARENT_NPC` calculation. This is
+  required for the scaled passenger cars in `tlwstations01`/`02`.
 - NPC diffuse materials go through the existing legacy-material compatibility
   adapter. Animation advancement and positional voice audio remain in the Ogre
   service boundary.
@@ -96,7 +106,8 @@ authored station timing control without reviving `NPCManager`.
 This is a tested Step 8D vertical slice, not a claim of complete 1:1 combat or
 facial presentation. The legacy random animation timing, per-bone head/look
 tracking, animation cross-fade weights, subtitle/mouth-pose output, detailed
-footstep/attack/random sound set, dynamic gravity/floor resolution, blood/gib
+footstep/attack/random sound set, continuous airborne gravity/floor response
+beyond the tested initial settle, blood/gib
 effects, flashlight presentation, and attachment offsets need content-specific
 fixtures before parity can be claimed. Enemy line-of-sight/attack animation is
 currently a bounded distance policy. Ragdoll construction uses the existing
@@ -110,7 +121,8 @@ machine; it must not restore `NPCManager`, OgreNewt, or global callbacks.
 
 `run3_step8d_tests` covers neutral/enemy construction, AIR3 success and blocked
 paths, 30/60/144 deterministic replay, reach/near/use/death callbacks,
-animation changes, parent/train following and relative teleport, damage,
+animation changes, initial floor settling, scaled parent/train following and
+relative teleport, damage,
 headshot classification, enemy attack scheduling, ragdoll commands, explicit
 destruction, reverse unload, invalid/missing commands, all 19 `tlwcao` and 28
 `tlwhome02` declarations, and referenced NPC Lua target existence. Installed

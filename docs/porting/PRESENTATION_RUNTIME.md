@@ -14,9 +14,10 @@ freeze, HUD, music, and ordered `run` hooks. Positions and quaternions are
 interpolated from the same 60 Hz gameplay clock at every rendering rate.
 Space or Escape accelerates a running cutscene; normal completion, skip,
 replacement, script failure, map transition, and unload all release its camera
-override and restore player/HUD state. The Step 9 HUD adapter still owns the
-visual subtitle and HUD widgets, but their typed visibility/text commands are
-live now.
+override and restore player/HUD state. The legacy `Run3/GameText` Ogre Overlay
+owns authored game text/subtitles; MyGUI owns menus and explicit UI surfaces,
+so completing a cutscene cannot leave an opaque MyGUI HUD panel over the
+viewport.
 
 ## Computers
 
@@ -26,9 +27,10 @@ movement, hides the HUD, runs its init script, forwards backend-neutral key and
 text events, and exposes `dMaterialSet` through `IComputerPresentation`.
 Escape, `exitAllComputers`, interruption, transition, and unload release focus,
 run the shutdown script, and restore control. The proximity script runs once
-within the legacy 200-unit radius. Step 9A owns the final virtual-screen and
-buttonGUI drawing; Step 8E supplies its functional focus, input, script, and
-display-material state without reviving CEGUI.
+within the legacy 200-unit radius. Step 9A supplies the isolated MyGUI
+render-to-texture surface: legacy `buttonGUI` remains the primary computer API
+and the typed MyGUI Lua facade is optional. Step 8E supplies its functional
+focus, input, script, and display-material state without reviving CEGUI.
 
 ## Reviewed disposition of remaining authored tags
 

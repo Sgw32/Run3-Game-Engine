@@ -17,6 +17,9 @@
 #include <OgreLight.h>
 #include <OgreLogManager.h>
 #include <OgreMaterialManager.h>
+#include <OgreOverlay.h>
+#include <OgreOverlayElement.h>
+#include <OgreOverlayManager.h>
 #include <OgrePass.h>
 #include <OgreSubEntity.h>
 #include <OgreTechnique.h>
@@ -26,10 +29,13 @@
 #include <OgreResourceGroupManager.h>
 #include <OgreSceneManager.h>
 #include <OgreSceneNode.h>
+#include <OgreScriptCompiler.h>
 #include <OgreSkeletonInstance.h>
+#include <OgreDataStream.h>
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 #include <set>
 #include <stdexcept>
 #include <type_traits>
@@ -113,6 +119,7 @@ public:
     Ogre::SceneNode *visualNode{};
     Ogre::Entity *entity{};
     Ogre::Vector3 localCentre{Ogre::Vector3::ZERO};
+    physics::Vec3 collisionHalfExtents{1.0, 1.0, 1.0};
     std::optional<PhysicsEntityId> physicsEntity;
     std::vector<Part> parts;
   };
@@ -147,6 +154,7 @@ public:
         meshLodBias(lodBias), defaultFovDegrees(configuredFovDegrees) {
     root = sceneManager->getRootSceneNode()->createChildSceneNode(
         "Run3Step8CSequenceRoot");
+    setHudVisible(true);
   }
 
   ~Impl() { destroyAll(); }
@@ -426,6 +434,7 @@ public:
       names.insert_or_assign(spec.name, spec.handle.id.value);
     }
     resolveParents();
+    presentations.at(spec.handle.id.value).collisionHalfExtents = half;
     createPhysics(presentations.at(spec.handle.id.value), half);
   }
 
@@ -609,8 +618,90 @@ public:
         "' has no loaded particle presentation; state retained");
   }
 
+  void parseHudScript(const std::filesystem::path &relative) {
+    const std::filesystem::path path = paths.contentPath(relative);
+    std::ifstream source(path, std::ios::binary);
+    if (!source) {
+      throw std::runtime_error("missing legacy HUD resource '" +
+                               path.string() + "'");
+    }
+    Ogre::DataStreamPtr data(OGRE_NEW Ogre::FileStreamDataStream(
+        path.filename().string(), &source, false));
+    Ogre::ScriptCompilerManager::getSingleton().parseScript(
+        data, "Run3Step6BContent");
+  }
+
+  void setHudVisible(const bool visible) {
+    ui->setHudVisible(visible);
+    try {
+      if (crosshairOverlay == nullptr) {
+        if (Ogre::OverlayManager::getSingleton().getByName(
+                "Run3/CrosshairO") == nullptr) {
+          if (!Ogre::MaterialManager::getSingleton().resourceExists(
+                  "Run3/Crosshair", "Run3Step6BContent") ||
+              !Ogre::MaterialManager::getSingleton().resourceExists(
+                  "Run3/CrosshairRing", "Run3Step6BContent")) {
+            parseHudScript("run3/game/player/crosshair.material");
+          }
+          parseHudScript("run3/game/player/crosshair.overlay");
+        }
+        crosshairOverlay = Ogre::OverlayManager::getSingleton().getByName(
+            "Run3/CrosshairO");
+      }
+      if (crosshairOverlay == nullptr) {
+        throw std::runtime_error(
+            "legacy Run3/CrosshairO overlay was not created");
+      }
+      if (visible) crosshairOverlay->show();
+      else crosshairOverlay->hide();
+    } catch (const std::exception &error) {
+      log("warning: crosshair overlay unavailable: " +
+          std::string(error.what()));
+    }
+  }
+
+  void setGameText(const std::string &text, const double seconds) {
+    try {
+      if (gameTextOverlay == nullptr) {
+        if (Ogre::OverlayManager::getSingleton().getByName("Run3/GameText") ==
+            nullptr) {
+          parseHudScript("run3/fonts/console2.fontdef");
+          parseHudScript("run3/game/message/game_text.overlay");
+        }
+        gameTextOverlay =
+            Ogre::OverlayManager::getSingleton().getByName("Run3/GameText");
+        gameTextElement = Ogre::OverlayManager::getSingleton().getOverlayElement(
+            "Run3/TextArea", false);
+      }
+      if (gameTextOverlay == nullptr || gameTextElement == nullptr) {
+        throw std::runtime_error("legacy Run3/GameText overlay was not created");
+      }
+      gameTextElement->setCaption(text);
+      gameTextSeconds = std::max(0.0, seconds);
+      if (text.empty()) gameTextOverlay->hide();
+      else gameTextOverlay->show();
+    } catch (const std::exception &error) {
+      log("warning: gameText overlay unavailable: " +
+          std::string(error.what()));
+      gameTextSeconds = 0.0;
+    }
+  }
+
+  void updateGameText(const float seconds) {
+    if (gameTextOverlay == nullptr || gameTextSeconds <= 0.0) return;
+    gameTextSeconds -= seconds;
+    if (gameTextSeconds <= 0.0) gameTextOverlay->hide();
+  }
+
   void destroyAll() noexcept {
     if (ui != nullptr) ui->resetMapState();
+    if (gameTextOverlay != nullptr) {
+      try { gameTextOverlay->hide(); } catch (...) {}
+    }
+    if (crosshairOverlay != nullptr) {
+      try { crosshairOverlay->hide(); } catch (...) {}
+    }
+    gameTextSeconds = 0.0;
     while (!computerMaterialBindings.empty())
       restoreComputerMaterial(computerMaterialBindings.begin()->first);
     for (auto &[id, attached] : attachments) {
@@ -812,6 +903,10 @@ public:
   std::set<std::string> reportedDeferred;
   std::unordered_map<std::string, bool> effectStates;
   std::unordered_map<std::uint64_t, ComputerMaterialBinding> computerMaterialBindings;
+  Ogre::Overlay *gameTextOverlay{};
+  Ogre::OverlayElement *gameTextElement{};
+  Ogre::Overlay *crosshairOverlay{};
+  double gameTextSeconds{};
   double meshLodBias{1.0};
   double defaultFovDegrees{75.0};
   Ogre::ColourValue baseAmbient{0.25F, 0.25F, 0.25F};
@@ -843,6 +938,7 @@ void OgreSequenceServices::attachMapAudio(audio::MapAudioRuntime &mapAudio) noex
 }
 void OgreSequenceServices::updateAudio(float seconds) {
   impl_->oneShots.update(seconds);
+  impl_->updateGameText(seconds);
   for (auto &[id, presentation] : impl_->presentations) {
     static_cast<void>(id);
     if (presentation.spec.kind != RuntimeEntityKind::Npc ||
@@ -988,10 +1084,10 @@ void OgreSequenceServices::submit(const GameCommand &command) {
             impl_->player->setParented(value.parented);
           },
           [this](const SetRuntimeHudVisible &value) {
-            impl_->ui->setHudVisible(value.visible);
+            impl_->setHudVisible(value.visible);
           },
           [this](const SetRuntimeSubtitle &value) {
-            impl_->ui->setSubtitle(value.text, value.seconds);
+            impl_->setGameText(value.text, value.seconds);
           },
           [this](const SetRuntimeInventoryEnabled &value) {
             impl_->ui->setInventoryEnabled(value.enabled);
@@ -1184,6 +1280,49 @@ OgreSequenceServices::runtimeTransform(std::string_view name) const {
                               fromOgre(node->_getDerivedOrientation())};
   }
   return std::nullopt;
+}
+
+physics::Vec3 OgreSequenceServices::runtimeScale(std::string_view name) const {
+  const auto found = impl_->names.find(std::string(name));
+  if (found != impl_->names.end()) {
+    const auto &entry = impl_->presentations.at(found->second);
+    if (entry.node) {
+      entry.node->_update(true, true);
+      return fromOgre(entry.node->_getDerivedScale());
+    }
+    return entry.spec.scale;
+  }
+  if (impl_->sceneManager->hasSceneNode(std::string(name))) {
+    auto *node = impl_->sceneManager->getSceneNode(std::string(name));
+    node->_update(true, true);
+    return fromOgre(node->_getDerivedScale());
+  }
+  return {1.0, 1.0, 1.0};
+}
+
+std::optional<physics::Transform>
+OgreSequenceServices::settleRuntimeNpc(EntityHandle handle) {
+  Impl::Presentation &entry = impl_->require(handle);
+  if (entry.spec.kind != RuntimeEntityKind::Npc) return std::nullopt;
+
+  physics::RaycastQuery query;
+  query.from = entry.spec.transform.position;
+  query.from.y += std::max(1.0, entry.collisionHalfExtents.y);
+  query.to = query.from;
+  query.to.y -= std::max(2000.0, entry.collisionHalfExtents.y * 8.0);
+  query.group = physics::CollisionGroup::Npc;
+  query.mask = physics::collisionMask(physics::CollisionGroup::World) |
+               physics::collisionMask(physics::CollisionGroup::Door) |
+               physics::collisionMask(physics::CollisionGroup::Train) |
+               physics::collisionMask(physics::CollisionGroup::Dynamic);
+  query.includeTriggers = false;
+  const auto hit = impl_->physicsWorld->raycastClosest(query);
+  if (!hit || hit->normal.y < 0.35) return std::nullopt;
+
+  physics::Transform settled = entry.spec.transform;
+  settled.position.y = hit->point.y + entry.collisionHalfExtents.y;
+  impl_->setTransform(SetRuntimeTransform{handle, settled});
+  return settled;
 }
 
 double OgreSequenceServices::runtimeFovDegrees() const {

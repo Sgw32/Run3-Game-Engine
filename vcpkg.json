@@ -12,6 +12,7 @@
     "miniaudio",
     "nlohmann-json",
     "pugixml",
+    "sdl2",
     "sol2",
     {
       "name": "ogre",

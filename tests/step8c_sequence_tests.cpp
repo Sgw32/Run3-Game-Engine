@@ -326,10 +326,26 @@ TEST_CASE("Step 8C train stops at its last key point and door keeps legacy rate"
   const auto train = fixture.runtime->state("train");
   REQUIRE(train.has_value());
   CHECK(train->transform.position.x == 6.0);
+  CHECK_FALSE(train->transform.rotation == physics::Quaternion{});
   CHECK_FALSE(train->active);
   for (int tick = 0; tick < 30; ++tick) fixture.runtime->fixedUpdate();
   CHECK(fixture.runtime->state("train")->transform.position.x == 6.0);
   CHECK(fixture.services.count<gameplay::StopRuntimeSound>() == 1);
+}
+
+TEST_CASE("Step 8C pendulum preserves independent authored amplitudes",
+          "[step8c][pendulum]") {
+  FixtureRuntime fixture;
+  fixture.services.player = {1000.0, 1000.0, 1000.0};
+  fixture.runtime->start();
+  fixture.runtime->fixedUpdate();
+  const auto pendulum = fixture.runtime->state("pend");
+  REQUIRE(pendulum.has_value());
+  const double wave = std::sin(2.0 / 60.0);
+  CHECK(pendulum->transform.position.y == Catch::Approx(3.0 * wave));
+  CHECK(pendulum->transform.rotation.x == Catch::Approx(
+      std::sin(0.5 * 12.0 * wave * 3.14159265358979323846 / 180.0)));
+  CHECK(std::abs(pendulum->transform.rotation.y) > 0.0);
 }
 
 TEST_CASE("Step 8C rotating doors and func rotators preserve legacy activation and rate",
@@ -482,7 +498,8 @@ TEST_CASE("Step 8C inventories selected TLW maps and constructs live slices",
       sourceRoot / "build/step8c-content.exe", contentRoot,
       sourceRoot / "build/step8c-content-user");
   for (const std::string map : {"tlwcao", "tlwhome02", "tlwstations01",
-                                "tlwstations02", "tlwstations03"}) {
+                                "tlwstations02", "tlwstations03",
+                                "tlwdelusion05"}) {
     CAPTURE(map);
     const auto definition = content::loadMapDefinition(paths, map, "low");
     gameplay::EntityRegistry registry;
@@ -498,6 +515,9 @@ TEST_CASE("Step 8C inventories selected TLW maps and constructs live slices",
       REQUIRE(fake.has_value());
       CHECK(fake->tag == "rot");
       CHECK_FALSE(fake->active);
+      const auto computer = runtime.state("turn1");
+      REQUIRE(computer.has_value());
+      CHECK(std::abs(computer->transform.rotation.y) > 0.9);
       const physics::Quaternion initialRotation = fake->transform.rotation;
       REQUIRE(runtime.interact(fake->handle));
       runtime.fixedUpdate();
@@ -521,6 +541,14 @@ TEST_CASE("Step 8C inventories selected TLW maps and constructs live slices",
         return message && message->message.find("missing door 'right3'") !=
                               std::string::npos;
       }));
+    }
+    if (map == "tlwdelusion05") {
+      REQUIRE_NOTHROW(runtime.dispatchScriptCall(
+          {"sequence", "startTrain", {"coffin"}}));
+      const auto before = runtime.state("coffin")->transform.rotation;
+      runtime.fixedUpdate();
+      const auto after = runtime.state("coffin")->transform.rotation;
+      CHECK_FALSE(after == before);
     }
     if (map == "tlwstations01") {
       CHECK_NOTHROW(runtime.dispatchScriptCall(

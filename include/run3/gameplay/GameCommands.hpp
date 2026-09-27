@@ -247,6 +247,10 @@ public:
   lightVisible(std::string_view name) const = 0;
   [[nodiscard]] virtual std::optional<physics::Transform>
   runtimeTransform(std::string_view) const { return std::nullopt; }
+  [[nodiscard]] virtual physics::Vec3
+  runtimeScale(std::string_view) const { return {1.0, 1.0, 1.0}; }
+  [[nodiscard]] virtual std::optional<physics::Transform>
+  settleRuntimeNpc(EntityHandle) { return std::nullopt; }
   [[nodiscard]] virtual double runtimeFovDegrees() const { return 75.0; }
 };
 

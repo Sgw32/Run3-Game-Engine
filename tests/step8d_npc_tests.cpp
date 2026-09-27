@@ -38,6 +38,9 @@ struct Query final : physics::IPhysicsQuery {
 struct Services final : gameplay::IGameServices {
   physics::Vec3 player{1000, 0, 0};
   std::map<std::string, physics::Transform> transforms;
+  std::map<std::string, physics::Vec3> scales;
+  std::optional<physics::Transform> settledNpc;
+  std::size_t settleCalls{};
   std::vector<gameplay::GameCommand> commands;
   void submit(const gameplay::GameCommand &command) override {
     commands.push_back(command);
@@ -50,6 +53,15 @@ struct Services final : gameplay::IGameServices {
     const auto found = transforms.find(std::string(name));
     return found == transforms.end() ? std::nullopt
                                      : std::optional<physics::Transform>{found->second};
+  }
+  physics::Vec3 runtimeScale(std::string_view name) const override {
+    const auto found = scales.find(std::string(name));
+    return found == scales.end() ? physics::Vec3{1, 1, 1} : found->second;
+  }
+  std::optional<physics::Transform>
+  settleRuntimeNpc(gameplay::EntityHandle) override {
+    ++settleCalls;
+    return settledNpc;
   }
   template <class T> std::size_t count() const {
     return static_cast<std::size_t>(std::count_if(commands.begin(), commands.end(),
@@ -64,11 +76,13 @@ struct RuntimeFixture {
   Query query;
   Services services;
   std::unique_ptr<gameplay::NpcSystem> npcs;
-  RuntimeFixture()
+  explicit RuntimeFixture(
+      std::optional<physics::Transform> settledNpc = std::nullopt)
       : paths(AppPaths::resolve(sourceRoot / "build/step8d-fixture.exe",
                                 sourceRoot / "tests/fixtures/step8d/content",
                                 sourceRoot / "build/step8d-user")),
         definition(content::loadMapDefinition(paths, "fixture", "low")) {
+    services.settledNpc = settledNpc;
     static_cast<void>(gameplay::populateEntityRegistry(definition, registry));
     npcs = std::make_unique<gameplay::NpcSystem>(definition, registry, query, services);
     npcs->start();
@@ -91,6 +105,14 @@ physics::Vec3 replayAt(double renderHz) {
   return fixture.npcs->state("guide")->transform.position;
 }
 } // namespace
+
+TEST_CASE("Step 8D gravity NPCs receive deterministic initial floor settling",
+          "[step8d][npc][physics]") {
+  RuntimeFixture fixture(physics::Transform{{10, 42, 30}, {}});
+  CHECK(fixture.services.settleCalls == 2);
+  CHECK(fixture.npcs->state("guide")->transform.position.y ==
+        Catch::Approx(42.0));
+}
 
 TEST_CASE("Step 8D constructs typed neutral and enemy NPCs", "[step8d][npc]") {
   RuntimeFixture fixture;
@@ -140,14 +162,15 @@ TEST_CASE("Step 8D parent motion, teleport and animation commands are determinis
   fixture.services.transforms["train"] = {{20, 0, 0}, {}};
   fixture.npcs->fixedUpdate();
   CHECK(fixture.npcs->state("guide")->transform.position.x == Catch::Approx(10));
+  fixture.services.scales["train"] = {2, 3, 4};
   fixture.npcs->dispatch({"guide", 21, "5 0 0", {}, false});
-  CHECK(fixture.npcs->state("guide")->transform.position.x == Catch::Approx(25));
+  CHECK(fixture.npcs->state("guide")->transform.position.x == Catch::Approx(30));
   fixture.npcs->dispatch({"guide", 25, {}, {}, false});
   fixture.npcs->dispatch({"guide", 15, "Sitting", {}, false});
   CHECK(fixture.npcs->state("guide")->animation == "Sitting");
   fixture.services.transforms["train"] = {{30, 0, 0}, {}};
   fixture.npcs->fixedUpdate();
-  CHECK(fixture.npcs->state("guide")->transform.position.x == Catch::Approx(25));
+  CHECK(fixture.npcs->state("guide")->transform.position.x == Catch::Approx(30));
 }
 
 TEST_CASE("Step 8D enemy perception, damage and ragdoll are bounded",

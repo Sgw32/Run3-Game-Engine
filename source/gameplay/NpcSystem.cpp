@@ -308,6 +308,16 @@ void NpcSystem::start() {
     spec.halfExtents = {20, 90, 20};
     impl_->services->submit(SpawnRuntimeEntity{std::move(spec)});
     npc.spawned = true;
+    // Newton's legacy NPC body fell from its authored spawn onto the map.
+    // The portable navigation body is intentionally kinematic, so perform the
+    // equivalent deterministic initial floor placement through the engine's
+    // physics query rather than leaving gravity-enabled actors suspended.
+    if (npc.gravityEnabled) {
+      if (const auto settled =
+              impl_->services->settleRuntimeNpc(npc.publicState.handle)) {
+        npc.publicState.transform = *settled;
+      }
+    }
     if (npc.animated) impl_->services->submit(PlayRuntimeAnimation{
         npc.publicState.handle, npc.publicState.animation, true});
   }
@@ -495,7 +505,15 @@ void NpcSystem::dispatch(const NpcRuntimeCommand &command) {
         throw std::invalid_argument("NPC has no parent for relative teleport");
       const auto parent = impl_->services->runtimeTransform(npc.parent);
       if (!parent) throw std::invalid_argument("NPC parent is missing");
-      npc.parentOffset = parseVector(command.argument);
+      const physics::Vec3 local = parseVector(command.argument);
+      const physics::Vec3 parentScale =
+          impl_->services->runtimeScale(npc.parent);
+      // Ogre scene-node children inherit the parent's scale. The legacy NPC
+      // callback stored this scaled relative position; omitting it displaced
+      // station-train passengers by roughly 90-100 authored units.
+      npc.parentOffset = {local.x * parentScale.x,
+                          local.y * parentScale.y,
+                          local.z * parentScale.z};
       const auto offset = rotate(parent->rotation, npc.parentOffset);
       npc.publicState.transform.position = {
           parent->position.x + offset.x, parent->position.y + offset.y,

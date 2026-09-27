@@ -4,3 +4,6 @@
 [submodule "mygui"]
 	path = mygui
 	url = https://github.com/MyGUI/mygui.git
+[submodule "mygui_buttons"]
+	path = mygui_buttons
+	url = https://github.com/Omegapy/MyGUI.git

@@ -40,6 +40,19 @@ struct SourceMaterial {
   std::optional<bool> lighting;
   bool transparent{};
   bool doubleSided{};
+  std::string normal, specularMap, ao, metalRoughness;
+  std::optional<std::array<float, 4>> diffuse;
+  std::optional<std::array<float, 3>> specular;
+  std::optional<float> shininess;
+  std::optional<unsigned> lightLimit;
+  std::optional<float> alphaCutoff;
+  unsigned fixedLightCount{};
+  unsigned techniques{};
+  bool oncePerLight{};
+  std::string reflection;
+  rendering::ReflectionMapping reflectionMapping{rendering::ReflectionMapping::None};
+  std::optional<float> reflectionWeight;
+  bool volumeTexture{};
 };
 
 std::string unquote(std::string value) {
@@ -66,6 +79,8 @@ struct LegacyMaterialCatalog::Impl {
     std::string activeName;
     SourceMaterial *active{};
     std::size_t depth{};
+    std::size_t textureDepth{};
+    std::string textureUnit, unitTexture;
     std::string line;
     while (std::getline(stream, line)) {
       if (const auto comment = line.find("//"); comment != std::string::npos) {
@@ -93,6 +108,7 @@ struct LegacyMaterialCatalog::Impl {
           continue;
         }
         SourceMaterial &material = source[activeName];
+        material = {};
         material.parent = unquote(std::move(parent));
         canonicalNames[lower(activeName)] = activeName;
         active = &material;
@@ -111,19 +127,114 @@ struct LegacyMaterialCatalog::Impl {
       std::istringstream tokens(cleaned);
       std::string keyword;
       tokens >> keyword;
+      // Subsequent techniques are fallbacks/deferred exports, not overrides
+      // of the selected forward material's alpha, lighting or texture state.
+      if (active->techniques > 1 && keyword != "technique") keyword.clear();
+      if (keyword == "texture_unit") {
+        tokens >> textureUnit;
+        textureUnit = lower(textureUnit);
+        textureUnit.erase(std::remove(textureUnit.begin(), textureUnit.end(), '_'), textureUnit.end());
+        unitTexture.clear();
+        textureDepth = depth + 1;
+      }
       if (keyword == "set_texture_alias") {
         std::string alias;
         std::string texture;
         tokens >> alias >> texture;
-        if (alias == "MainTexture" && !texture.empty()) {
+        alias = lower(alias);
+        alias.erase(std::remove(alias.begin(), alias.end(), '_'), alias.end());
+        if (alias == "maintexture" && !texture.empty()) {
           active->aliasTexture = unquote(std::move(texture));
+        } else if (alias == "normalmap") {
+          active->normal = unquote(texture);
+        } else if (alias == "specularmap") {
+          active->specularMap = unquote(texture);
+        } else if (alias == "aomap") {
+          active->ao = unquote(texture);
+        } else if (alias == "metalroughnessmap") {
+          active->metalRoughness = unquote(texture);
         }
-      } else if (keyword == "texture" && active->directTexture.empty()) {
-        tokens >> active->directTexture;
-        active->directTexture = unquote(std::move(active->directTexture));
-        if (!active->directTexture.empty() && active->directTexture.front() == '$') {
-          active->directTexture.clear();
+      } else if (keyword == "technique") {
+        ++active->techniques;
+      } else if (keyword == "iteration" && active->techniques <= 1) {
+        std::string mode; tokens >> mode;
+        active->oncePerLight = mode == "once_per_light";
+      } else if (keyword == "param_named_auto" && active->techniques <= 1) {
+        std::string name, semantic; unsigned index{};
+        if (tokens >> name >> semantic >> index;
+            semantic == "light_position_object_space" || semantic == "light_position_object_space_array")
+          active->fixedLightCount = std::max(active->fixedLightCount,
+              semantic == "light_position_object_space_array" ? index : index + 1);
+      } else if (keyword == "max_lights" && active->techniques <= 1) {
+        unsigned limit{};
+        if (tokens >> limit; limit != 0) active->lightLimit = limit;
+      } else if (keyword == "alpha_rejection") {
+        std::string comparison; unsigned threshold{};
+        if (tokens >> comparison >> threshold;
+            comparison == "greater_equal" || comparison == "greater")
+          active->alphaCutoff = static_cast<float>(std::min(255U, threshold + (comparison == "greater" ? 1U : 0U))) / 255.0F;
+      } else if (keyword == "set") {
+        std::string variable; tokens >> variable;
+        std::string valueText; std::getline(tokens, valueText);
+        tokens.clear(); tokens.str(unquote(trim(valueText)));
+        if (variable == "$diffuseCol") {
+          std::array<float,4> value{1,1,1,1};
+          if (tokens >> value[0] >> value[1] >> value[2]) {
+            tokens >> value[3]; active->diffuse=value;
+          }
+        } else if (variable == "$specularCol") {
+          std::array<float,3> value{};
+          if (tokens >> value[0] >> value[1] >> value[2]) active->specular=value;
+        } else if (variable == "$shininess") {
+          float value{}; if (tokens >> value) active->shininess=value;
         }
+      } else if (keyword == "diffuse") {
+        std::array<float,4> value{1,1,1,1};
+        if (tokens >> value[0] >> value[1] >> value[2]) {
+          // Ignore ambient-only pass's black diffuse; keep the lit pass.
+          if (value[0]+value[1]+value[2] > 0) {
+            tokens >> value[3]; active->diffuse=value;
+          }
+        }
+      } else if (keyword == "specular") {
+        std::array<float,3> value{}; float exponent{};
+        if (tokens >> value[0] >> value[1] >> value[2] >> exponent) {
+          if(value[0]+value[1]+value[2] > 0) {
+            active->specular=value; active->shininess=exponent;
+          }
+        }
+      } else if (keyword == "texture" && active->techniques <= 1) {
+        std::string dimension;
+        tokens >> unitTexture >> dimension;
+        unitTexture = unquote(unitTexture);
+        if (dimension == "3d" || dimension == "1d" || dimension == "2darray") {
+          // Volume noise belongs to its effect shader, never to UV0 albedo.
+          active->volumeTexture = true;
+        } else if (!unitTexture.empty() && unitTexture.front() != '$') {
+          if (textureUnit == "normalmap") active->normal = unitTexture;
+          else if (textureUnit == "specularmap") active->specularMap = unitTexture;
+          else if (textureUnit == "aomap") active->ao = unitTexture;
+          else if (textureUnit == "metalroughnessmap") active->metalRoughness = unitTexture;
+          else if ((textureUnit.find("map") == std::string::npos || textureUnit == "diffusemap") && active->directTexture.empty())
+            active->directTexture = unitTexture;
+        }
+      } else if (keyword == "cubic_texture" && active->techniques <= 1) {
+        std::string coordinates;
+        tokens >> active->reflection >> coordinates;
+        active->reflection = unquote(active->reflection);
+        active->reflectionMapping = coordinates == "separateUV"
+            ? rendering::ReflectionMapping::CubeDirection : rendering::ReflectionMapping::Cube;
+      } else if (keyword == "env_map" && active->techniques <= 1) {
+        std::string mode; tokens >> mode;
+        if (mode == "spherical" || mode == "cubic_reflection") {
+          active->reflectionMapping = mode == "spherical" ? rendering::ReflectionMapping::Spherical : rendering::ReflectionMapping::Cube;
+          if (active->reflection.empty()) active->reflection = unitTexture;
+          if (active->directTexture == active->reflection) active->directTexture.clear();
+        }
+      } else if ((keyword == "colour_op_ex" || keyword == "color_op_ex") && active->techniques <= 1) {
+        std::string operation, first, second; float weight{};
+        if (tokens >> operation >> first >> second >> weight; operation == "blend_manual")
+          active->reflectionWeight = weight;
       } else if (keyword == "scene_blend") {
         std::string mode;
         tokens >> mode;
@@ -157,6 +268,9 @@ struct LegacyMaterialCatalog::Impl {
         active = nullptr;
         activeName.clear();
       }
+      if (textureDepth && depth < textureDepth && keyword != "texture_unit") {
+        textureDepth = 0; textureUnit.clear(); unitTexture.clear();
+      }
     }
   }
 
@@ -180,10 +294,13 @@ struct LegacyMaterialCatalog::Impl {
                          ? found->second.aliasTexture
                          : found->second.directTexture;
     result.lighting = found->second.lighting.value_or(true);
+    if(found->second.oncePerLight || found->second.lightLimit || found->second.fixedLightCount)
+      result.lighting = true;
     result.transparent = found->second.transparent;
     result.doubleSided = found->second.doubleSided;
     if (!found->second.parent.empty()) {
       if (const auto parent = resolve(found->second.parent, visiting)) {
+        result.surface = parent->surface;
         if (result.texture.empty()) {
           result.texture = parent->texture;
         }
@@ -194,13 +311,47 @@ struct LegacyMaterialCatalog::Impl {
         result.doubleSided = result.doubleSided || parent->doubleSided;
       }
     }
+    auto &surface = result.surface;
+    const auto &input = found->second;
+    surface.name = requestedName;
+    surface.diffuseMap.name = result.texture;
+    if (!input.normal.empty()) surface.normalMap.name = input.normal;
+    if (!input.specularMap.empty()) surface.specularMap.name = input.specularMap;
+    if (!input.ao.empty()) surface.aoMap.name = input.ao;
+    if (!input.metalRoughness.empty()) surface.metalRoughnessMap.name = input.metalRoughness;
+    if (!input.reflection.empty()) {
+      surface.reflectionMap.name = input.reflection;
+      surface.reflectionMapping = input.reflectionMapping;
+      surface.reflectionWeight = input.reflectionWeight.value_or(result.texture.empty() ? 1.0F : 0.25F);
+    }
+    if (input.volumeTexture) {
+      surface.compatibilityNotes.push_back(requestedName + ": volume/effect textures excluded from UV0 albedo; effect adapter still required");
+      if (result.texture.empty()) result.lighting = false;
+    }
+    if (input.diffuse) surface.diffuse = *input.diffuse;
+    if (input.specular) surface.specular = *input.specular;
+    if (input.shininess) {
+      surface.shininess = *input.shininess;
+      surface.roughness = rendering::roughnessFromShininess(surface.shininess);
+    }
+    if (input.lightLimit) surface.lightLimit = *input.lightLimit;
+    if (!input.oncePerLight && input.fixedLightCount > 0)
+      surface.lightLimit = input.fixedLightCount;
+    surface.doubleSided = result.doubleSided;
+    if (input.alphaCutoff) {
+      surface.surface = rendering::Surface::Cutout;
+      surface.alphaCutoff = *input.alphaCutoff;
+    }
+    if (result.transparent && !input.alphaCutoff) surface.surface = rendering::Surface::Transparent;
+    surface.lighting = result.lighting;
     visiting.erase(found->first);
     return result;
   }
 };
 
 void LegacyMaterialCatalog::scan(const fs::path &root,
-                                 const fs::path &preferredRoot) {
+                                 const fs::path &preferredRoot,
+                                 const fs::path &overlayCore) {
   implementation_ = std::make_shared<Impl>();
   std::error_code error;
   if (!fs::exists(root, error)) {
@@ -247,6 +398,14 @@ void LegacyMaterialCatalog::scan(const fs::path &root,
       implementation_->parse(path);
     }
   }
+  if (!overlayCore.empty() && fs::is_directory(overlayCore)) {
+    std::vector<fs::path> files;
+    for (const auto &entry : fs::recursive_directory_iterator(overlayCore))
+      if (entry.is_regular_file() && lower(entry.path().extension().string()) == ".material")
+        files.push_back(entry.path());
+    std::sort(files.begin(),files.end());
+    for(const auto &path:files) implementation_->parse(path);
+  }
 }
 
 std::optional<LegacyMaterialInfo>
@@ -256,7 +415,7 @@ LegacyMaterialCatalog::find(const std::string &materialName) const {
   }
   std::unordered_set<std::string> visiting;
   const auto result = implementation_->resolve(materialName, visiting);
-  return result && !result->texture.empty() ? result : std::nullopt;
+  return result;
 }
 
 std::size_t LegacyMaterialCatalog::size() const noexcept {

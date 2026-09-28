@@ -231,12 +231,16 @@ target_link_libraries(
     run3_ui_mygui PUBLIC run3::ui
     PRIVATE run3::warnings MyGUI::MyGUI MyGUI::OgrePlatform OgreMain)
 
-add_library(run3_rendering STATIC source/rendering/OgreEnvironment.cpp)
+add_library(run3_rendering STATIC source/rendering/OgreEnvironment.cpp
+                                source/rendering/Lighting.cpp
+                                source/rendering/OgreLighting.cpp
+                                source/rendering/OgreLightingPost.cpp)
 add_library(run3::rendering ALIAS run3_rendering)
 target_compile_features(run3_rendering PUBLIC cxx_std_17)
 target_include_directories(
     run3_rendering PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
-target_link_libraries(run3_rendering PUBLIC OgreMain PRIVATE run3::warnings)
+target_link_libraries(run3_rendering PUBLIC OgreMain
+                     PRIVATE run3::warnings OgreRTShaderSystem nlohmann_json::nlohmann_json)
 
 add_library(run3_gameplay STATIC
             source/gameplay/DynamicPhysicsScene.cpp
@@ -542,6 +546,11 @@ if(RUN3_BUILD_TESTS)
         PROPERTIES LABELS "step8e;presentation;entities")
 
     add_executable(run3_step9a_tests tests/step9a_ui_tests.cpp)
+    add_executable(run3_step9b_tests tests/step9b_lighting_tests.cpp)
+    target_compile_definitions(run3_step9b_tests PRIVATE RUN3_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(run3_step9b_tests PRIVATE run3::warnings run3::gameplay Catch2::Catch2WithMain)
+    catch_discover_tests(run3_step9b_tests TEST_PREFIX "run3_step9b."
+                        PROPERTIES LABELS "step9b;lighting")
     target_compile_features(run3_step9a_tests PRIVATE cxx_std_17)
     target_compile_definitions(run3_step9a_tests
         PRIVATE RUN3_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
@@ -671,6 +680,22 @@ if(RUN3_BUILD_TESTS)
         else()
             set(_run3_smoke_renderer gl3plus)
         endif()
+        set(_run3_lighting_renderers "${_run3_smoke_renderer}")
+        if(WIN32)
+            list(APPEND _run3_lighting_renderers gl3plus)
+        endif()
+        foreach(_renderer IN LISTS _run3_lighting_renderers)
+            foreach(_pipeline legacy-forward deferred pbr fast-forward)
+                add_test(NAME "run3_lighting.${_renderer}.${_pipeline}"
+                    COMMAND "${CMAKE_COMMAND}"
+                        "-DRUN3_PROGRAM=${_run3_test_install}/bin/run3_shell${CMAKE_EXECUTABLE_SUFFIX}"
+                        "-DRUN3_USER_DIR=${CMAKE_BINARY_DIR}/lighting-test-${_renderer}-${_pipeline}"
+                        "-DRUN3_RENDERER=${_renderer}" "-DRUN3_PIPELINE=${_pipeline}"
+                        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunLightingSmoke.cmake")
+                set_tests_properties("run3_lighting.${_renderer}.${_pipeline}" PROPERTIES
+                    FIXTURES_REQUIRED run3_shell_installed TIMEOUT 100 RUN_SERIAL TRUE LABELS "step9b;lighting;shaders")
+            endforeach()
+        endforeach()
         add_test(
             NAME run3_shell.smoke
             COMMAND
@@ -830,6 +855,8 @@ install(DIRECTORY "${OGRE_MEDIA_DIR}/Main"
                   "${OGRE_MEDIA_DIR}/RTShaderLib"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/Media")
 install(DIRECTORY "${RUN3_MYGUI_SOURCE_DIR}/Media/MyGUI_Media"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/Media")
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/media/Lighting"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/Media")
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/content/"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/validation-fixture")

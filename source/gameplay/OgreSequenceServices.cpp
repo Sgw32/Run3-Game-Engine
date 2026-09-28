@@ -30,6 +30,7 @@
 #include <OgreSceneManager.h>
 #include <OgreSceneNode.h>
 #include <OgreScriptCompiler.h>
+#include <OgreShaderGenerator.h>
 #include <OgreSkeletonInstance.h>
 #include <OgreDataStream.h>
 
@@ -551,6 +552,8 @@ public:
       material = Ogre::MaterialManager::getSingleton().create(
           materialName, "Run3Step9A");
     } else {
+      if (auto *generator = Ogre::RTShader::ShaderGenerator::getSingletonPtr())
+        generator->removeAllShaderBasedTechniques(*material);
       material->removeAllTechniques();
     }
     Ogre::Pass *pass = material->createTechnique()->createPass();

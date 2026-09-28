@@ -136,6 +136,11 @@ CommandLine parseCommandLine(const std::vector<std::string> &arguments,
       result.validateContent = true;
       continue;
     }
+    if (argument == "--lighting-lab" || argument == "--lighting-capture" ||
+        argument == "--lighting-reload" || argument == "--lighting-resize") {
+      result.values[argument.substr(2)] = "true";
+      continue;
+    }
     if (argument == "--fullscreen") {
       result.values["fullscreen"] = "true";
       continue;
@@ -158,6 +163,16 @@ CommandLine parseCommandLine(const std::vector<std::string> &arguments,
     const std::string &value = arguments[++index];
     if (argument == "--renderer") {
       result.values["renderer"] = value;
+    } else if (argument == "--lighting-pipeline") {
+      result.values["render.lighting_pipeline"] = value;
+    } else if (argument == "--shadow-quality") {
+      result.values["render.shadow_quality"] = value;
+    } else if (argument == "--exposure") {
+      result.values["render.exposure"] = value;
+    } else if (argument == "--content-variant") {
+      result.values["content.variant"] = value;
+    } else if (argument == "--content-overlay") {
+      result.values["content.overlay"] = cliPath(value, executableDir).string();
     } else if (argument == "--frames") {
       result.values["frames"] = value;
     } else if (argument == "--user-dir") {

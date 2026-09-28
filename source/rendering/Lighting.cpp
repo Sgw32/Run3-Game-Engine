@@ -1,0 +1,63 @@
+#include <run3/rendering/Lighting.hpp>
+#include <algorithm>
+#include <cmath>
+#include <stdexcept>
+
+namespace run3::rendering {
+LightingPipeline parseLightingPipeline(std::string_view value) {
+  if (value == "legacy-forward") return LightingPipeline::LegacyForward;
+  if (value == "deferred") return LightingPipeline::Deferred;
+  if (value == "pbr") return LightingPipeline::Pbr;
+  if (value == "fast-forward") return LightingPipeline::FastForward;
+  throw std::invalid_argument("Unknown lighting pipeline: " + std::string(value));
+}
+ShadowQuality parseShadowQuality(std::string_view value) {
+  if (value == "off") return ShadowQuality::Off;
+  if (value == "low") return ShadowQuality::Low;
+  if (value == "medium") return ShadowQuality::Medium;
+  if (value == "high") return ShadowQuality::High;
+  if (value == "ultra") return ShadowQuality::Ultra;
+  throw std::invalid_argument("Unknown shadow quality: " + std::string(value));
+}
+std::string_view pipelineName(LightingPipeline value) {
+  switch (value) {
+  case LightingPipeline::LegacyForward: return "legacy-forward";
+  case LightingPipeline::Deferred: return "deferred";
+  case LightingPipeline::Pbr: return "pbr";
+  case LightingPipeline::FastForward: return "fast-forward";
+  }
+  throw std::invalid_argument("Invalid lighting pipeline enum");
+}
+ShadowBudget shadowBudget(ShadowQuality quality, LightingPipeline pipeline) {
+  if (quality == ShadowQuality::Off) return {};
+  const unsigned tier = static_cast<unsigned>(quality);
+  const bool fast = pipeline == LightingPipeline::FastForward;
+  return {512U << (std::min(tier, 4U) - 1U), fast ? 1U : 3U,
+          fast ? 1U : 3U, tier >= 3 && !fast ? 16U : 4U,
+          fast ? 5000.0F : 20000.0F};
+}
+float roughnessFromShininess(float shininess) {
+  if (!std::isfinite(shininess) || shininess < 0)
+    throw std::invalid_argument("Invalid material shininess");
+  return std::clamp(std::sqrt(2.0F / (shininess + 2.0F)), 0.045F, 1.0F);
+}
+std::vector<std::string> resolveMaterial(
+    MaterialDescription &material, const std::vector<std::string> &available) {
+  if (!std::isfinite(material.roughness) || material.roughness < 0 ||
+      material.roughness > 1 || !std::isfinite(material.metallic) ||
+      material.metallic < 0 || material.metallic > 1 || material.lightLimit == 0)
+    throw std::invalid_argument("Invalid surface parameters for " + material.name);
+  std::vector<std::string> warnings = material.compatibilityNotes;
+  for (auto *slot : {&material.diffuseMap, &material.normalMap,
+                    &material.specularMap, &material.metalRoughnessMap,
+                    &material.aoMap, &material.reflectionMap}) {
+    if (!slot->name.empty() &&
+        std::find(available.begin(), available.end(), slot->name) == available.end()) {
+      warnings.push_back(material.name + ": missing texture '" + slot->name +
+                         "'; using constant surface fallback");
+      slot->name.clear();
+    }
+  }
+  return warnings;
+}
+} // namespace run3::rendering

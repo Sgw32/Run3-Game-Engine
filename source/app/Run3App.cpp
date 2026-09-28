@@ -262,6 +262,27 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
   options.reportPath = configuredPath(std::move(reportPath), executableDir);
   options.renderFixture = installedShare / "validation-fixture" / "step5.scene";
   options.mapName = configuration.valueOr("map", "");
+  options.lighting.pipeline = rendering::parseLightingPipeline(
+      configuration.valueOr("render.lighting_pipeline", "legacy-forward"));
+  options.lighting.shadows = rendering::parseShadowQuality(
+      configuration.valueOr("render.shadow_quality", "off"));
+  options.lighting.exposure = static_cast<float>(
+      configuredDouble(configuration, "render.exposure", 1.0));
+  if (options.lighting.exposure <= 0 || options.lighting.exposure > 32)
+    throw std::runtime_error("render.exposure must be in (0,32]");
+  options.lightingLab = configuredBool(configuration, "lighting-lab");
+  options.lightingCapture = configuredBool(configuration, "lighting-capture");
+  options.lightingReload = configuredBool(configuration, "lighting-reload");
+  options.lightingResize = configuredBool(configuration, "lighting-resize");
+  if (options.lightingLab && !options.mapName.empty())
+    throw std::runtime_error("--lighting-lab and --map are mutually exclusive");
+  const auto variant = configuration.valueOr("content.variant", "original");
+  if (variant != "original" && variant != "nextgen")
+    throw std::runtime_error("content.variant must be original or nextgen");
+  if (const auto overlay = configuration.find("content.overlay"))
+    options.paths.setContentOverlay(configuredPath(*overlay, executableDir));
+  else if (variant == "nextgen")
+    options.paths.setContentOverlay(options.paths.userPath("derived-content/nextgen"));
   options.mapQuality = configuredQuality(
       configuration, "scene-quality",
       configuration.valueOr("map-quality", "low"));
@@ -321,6 +342,10 @@ void printRun3AppUsage() {
       << "       [--new-game-map NAME]\n"
       << "       [--audio-backend auto|miniaudio|null]\n"
       << "       [--render-hz 30|60|144]\n"
+      << "       [--lighting-pipeline legacy-forward|deferred|pbr|fast-forward]\n"
+      << "       [--shadow-quality off|low|medium|high|ultra] [--exposure N]\n"
+      << "       [--lighting-lab] [--lighting-capture]\n"
+      << "       [--content-variant original|nextgen] [--content-overlay PATH]\n"
       << "Precedence: command line > user config > content defaults.\n"
       << "Relative paths are resolved from the executable directory.\n";
 }
@@ -332,6 +357,8 @@ Run3App::Run3App(Run3AppOptions options)
 Run3App::~Run3App() {
   // initApp() may throw before run() reaches its cleanup block.
   try { unloadMap(false); } catch (...) {}
+  ui_.reset();
+  lighting_.reset();
   showSystemCursor(true);
 }
 
@@ -347,6 +374,16 @@ int Run3App::run() {
   try {
     while (!quitRequested_ && !getRoot()->endRenderingQueued()) {
       pollEvents();
+      if (options_.lightingReload && renderedFrames_ == 3 && !options_.mapName.empty()) {
+        const auto map=options_.mapName;
+        unloadMap(false);
+        loadMap(map);
+        options_.lightingReload=false;
+      }
+      if(options_.lightingResize && options_.lightingLab && renderedFrames_==3)
+        getRenderWindow()->resize(800,600);
+      if(options_.lightingResize && options_.lightingLab && renderedFrames_==6)
+        getRenderWindow()->resize(options_.windowWidth,options_.windowHeight);
       handleInput(input_.poll());
       if (quitRequested_) {
         break;
@@ -477,6 +514,7 @@ int Run3App::run() {
         ui_->update(static_cast<float>(frame.elapsed.count()));
         ui_->renderComputerSurface();
       }
+      if (lighting_) lighting_->update(static_cast<double>(renderedFrames_) / 60.0);
       if (!getRoot()->renderOneFrame(
               static_cast<Ogre::Real>(frame.elapsed.count()))) {
         break;
@@ -509,6 +547,7 @@ int Run3App::run() {
       logError("Run3 cleanup error after main-loop failure: unknown exception");
     }
     ui_.reset();
+    lighting_.reset();
     audioEngine_.reset();
     showSystemCursor(true);
     closeApp();
@@ -527,11 +566,17 @@ int Run3App::run() {
   }
   std::exception_ptr exitFailure;
   try {
+    if (options_.lightingCapture) {
+      getRenderWindow()->writeContentsToFile(
+          (options_.paths.logDir() / "lighting.png").string());
+      lighting_->writeReport(options_.paths.logDir() / "lighting.json", *getRenderWindow());
+    }
     unloadMap(true);
   } catch (...) {
     exitFailure = std::current_exception();
   }
   ui_.reset();
+  lighting_.reset();
   audioEngine_.reset();
   showSystemCursor(true);
   closeApp();
@@ -623,6 +668,8 @@ void Run3App::locateResources() {
                                 Ogre::RGN_INTERNAL);
   resources.addResourceLocation((media / "RTShaderLib").string(), "FileSystem",
                                 Ogre::RGN_INTERNAL);
+  resources.addResourceLocation((media / "Lighting").string(), "FileSystem",
+                                Ogre::RGN_INTERNAL);
   resources.addResourceLocation((media / "MyGUI_Media").string(), "FileSystem",
                                 "Run3MyGUI");
   // Content validation registers only the locations selected by resource.cfg
@@ -646,17 +693,19 @@ void Run3App::setup() {
   sceneManager_->addRenderQueueListener(mOverlaySystem);
 #ifdef OGRE_BUILD_COMPONENT_RTSHADERSYSTEM
   mShaderGenerator->addSceneManager(sceneManager_);
+  mShaderGenerator->setShaderCachePath(options_.paths.cacheDir().string());
 #endif
   sceneManager_->setAmbientLight(Ogre::ColourValue(0.25F, 0.25F, 0.25F));
 
   Ogre::Light *light = sceneManager_->createLight("Run3ShellLight");
   light->setType(Ogre::Light::LT_DIRECTIONAL);
+  light->setCastShadows(true);
   Ogre::SceneNode *lightNode =
       sceneManager_->getRootSceneNode()->createChildSceneNode();
   lightNode->setDirection(Ogre::Vector3(-1.0F, -1.0F, -1.0F).normalisedCopy(),
                           Ogre::Node::TS_WORLD);
   lightNode->attachObject(light);
-  if (options_.mapName.empty()) {
+  if (options_.mapName.empty() && !options_.lightingLab) {
     Ogre::Entity *cube =
         sceneManager_->createEntity("Run3ShellCube", Ogre::SceneManager::PT_CUBE);
     cubeNode_ = sceneManager_->getRootSceneNode()->createChildSceneNode();
@@ -674,6 +723,9 @@ void Run3App::setup() {
   Ogre::Viewport *viewport = getRenderWindow()->addViewport(camera_);
   viewport->setBackgroundColour(Ogre::ColourValue(0.04F, 0.06F, 0.1F));
   updateAspectRatio();
+  lighting_ = std::make_unique<rendering::OgreLighting>(
+      *sceneManager_, *camera_, *viewport, options_.lighting);
+  if (options_.lightingLab) lighting_->createLab();
   ui_ = ui::createMyGuiUiSystem(
       *getRenderWindow(), *sceneManager_, options_.paths.logDir(),
       [this](const ui::MenuAction &action) { handleMenuAction(action); },
@@ -707,7 +759,7 @@ void Run3App::setup() {
     loadMap(options_.mapName);
   }
 
-  ui_->showMenu(options_.mapName.empty());
+  ui_->showMenu(options_.mapName.empty() && !options_.lightingLab);
   showSystemCursor(false);
   if (options_.introEnabled) {
     Ogre::LogManager::getSingleton().logMessage(
@@ -746,7 +798,7 @@ void Run3App::loadMap(const std::string &mapName) {
     const gameplay::StaticMapStats mapStats = staticMap_->load(
         {&options_.paths, options_.mapName, options_.mapQuality,
          options_.resourceProfile, options_.textureQuality,
-         meshLodBias(options_.modelQuality)});
+         meshLodBias(options_.modelQuality), options_.lighting});
     static_cast<void>(mapStats);
     gameplay::PlayerConfig playerConfig;
     playerConfig.standingHeight = options_.playerHeightCm;

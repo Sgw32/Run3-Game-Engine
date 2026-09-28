@@ -375,3 +375,20 @@ The normal preset workflows also run the public-header boundary check that
 prevents OgreNewt, Newton, Bullet, or Ogre types from entering the migrated
 gameplay headers. Real-map evaluation remains an explicit manual command so
 the build never depends on untracked game content; see [RUNNING.md](RUNNING.md).
+
+## Step 9B compile-only continuation
+
+In an x64 Visual Studio Developer Command Prompt at the repository root:
+
+```bat
+cmake --build --preset windows-msvc-x64-debug --target run3_shell run3_step9b_tests
+ctest --preset windows-msvc-x64-debug -R run3_step9b --output-on-failure
+cmake --install build/windows-msvc-x64-debug --prefix build/install/windows-debug
+```
+
+The filtered tests are CPU-only. Do not use unrestricted CTest when following
+the owner's no-game-probes policy: graphical lighting tests are also registered.
+Use `windows-msvc-x64-release` and `build/install/windows-release` for Release.
+Linux build only: `cmake --build --preset linux-ninja-debug --target run3_shell run3_step9b_tests -j 1`.
+Runtime commands and blank acceptance fields are in
+[LIGHTING_CHECKLIST.md](porting/LIGHTING_CHECKLIST.md).

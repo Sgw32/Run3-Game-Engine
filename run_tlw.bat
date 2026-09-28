@@ -1,14 +1,26 @@
 @echo off
+REM Step 9B preview: extra arguments override the defaults below.
+REM run_tlw.bat --lighting-pipeline legacy-forward --shadow-quality low
+REM run_tlw.bat --lighting-pipeline fast-forward --shadow-quality off
+REM run_tlw.bat --lighting-pipeline pbr --shadow-quality high --exposure 1
+REM run_tlw.bat --lighting-pipeline deferred --shadow-quality low
+REM These new pipelines are experimental; campaign validation is still in progress.
+REM Content overlay is independent of the lighting pipeline. Use an existing hashed copy:
+REM run_tlw.bat --lighting-pipeline pbr --content-variant nextgen --content-overlay "%~dp0derived-content\nextgen-v0"
+REM nextgen-v0 is currently a byte-identical staging copy, NOT a lighting retune.
+REM Use --content-variant original without --content-overlay for original content.
+REM Add --map tlwhome02 or --renderer gl3plus to override the map or renderer.
 REM cd /d C:\Run3-Game-Engine
 
-build\install\windows-debug\bin\run3_shell.exe ^
-    --renderer d3d11 ^
+"%~dp0build\install\windows-debug\bin\run3_shell.exe" ^
+    --renderer gl3plus ^
     --content-root "C:\Run3-Game-Engine\Games\The Long Way\TheLongWay" ^
-    --map tlwdelusion05 ^
+    --map tlwstations01 ^
     --user-dir ".\build\user\windows-debug" ^
     --fullscreen ^
     --resolution 1920x1080 --fov 75 ^
     --texture-quality high --model-quality high --scene-quality high ^
-    --audio-backend miniaudio
+    --audio-backend miniaudio ^
+    %*
 
 pause

@@ -30,11 +30,16 @@ public:
       const std::filesystem::path &relative) const;
   std::filesystem::path userPath(const std::filesystem::path &relative) const;
   void createWritableDirectories() const;
+  // Overlay is read-only and restricted to derived core/maps, never scripts,
+  // audio, meshes or textures. Unchanged data falls back to the original root.
+  void setContentOverlay(const std::filesystem::path &root);
+  const std::filesystem::path &contentOverlay() const noexcept { return contentOverlay_; }
 
 private:
   std::filesystem::path executable_;
   std::filesystem::path executableDir_;
   std::filesystem::path contentRoot_;
+  std::filesystem::path contentOverlay_;
   std::filesystem::path userRoot_;
   std::filesystem::path configDir_;
   std::filesystem::path saveDir_;

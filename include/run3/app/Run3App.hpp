@@ -12,6 +12,7 @@
 #include <run3/gameplay/NpcSystem.hpp>
 #include <run3/gameplay/StaticMap.hpp>
 #include <run3/physics/PhysicsQuery.hpp>
+#include <run3/rendering/OgreLighting.hpp>
 
 #include <OgreApplicationContext.h>
 
@@ -65,6 +66,11 @@ struct Run3AppOptions {
   bool introEnabled{};
   float uiScale{1.0F};
   std::string newGameMap{"tlwintro"};
+  rendering::LightingSettings lighting;
+  bool lightingLab{};
+  bool lightingCapture{};
+  bool lightingReload{};
+  bool lightingResize{};
 };
 
 Run3AppOptions loadRun3AppOptions(int argc, char **argv,
@@ -116,6 +122,7 @@ private:
   std::unique_ptr<audio::IAudioEngine> audioEngine_;
   std::unique_ptr<audio::MapAudioRuntime> mapAudio_;
   std::unique_ptr<ui::IUiSystem> ui_;
+  std::unique_ptr<rendering::OgreLighting> lighting_;
   double yawRadians_{};
   double pitchRadians_{};
   bool physicsDebug_{};

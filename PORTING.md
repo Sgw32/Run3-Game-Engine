@@ -523,6 +523,13 @@ Exit criteria:
 
 ### Step 9B — Modern lighting, dynamic shadows, and material pipelines
 
+Current acceptance procedure (owner direction, 2026-09-28): compile-check the
+implementation and use small CPU-only fixtures; do not repeatedly launch game
+maps or debuggers. The owner runs the individual cases in
+[`docs/porting/LIGHTING_CHECKLIST.md`](docs/porting/LIGHTING_CHECKLIST.md) and fills
+in load/visual results and errors. A build pass does not mark the rendering
+pipelines or Step 9B complete. Preserve the remaining requirements below.
+
 Do this only after Step 9A has removed required Cg and shader-model-2 programs. Preserve Run3's scene and gameplay concepts: maps continue to author normal Ogre directional, point (omni), and spot lights, including their colours, transforms, attenuation, cones, and shadow flags. Pipeline selection changes how those lights and materials are rendered; it must not change scripts, triggers, collision, or gameplay.
 
 The current content does not have one universal legacy light count. `approachHighDetail.material` contains `once_per_light` passes capped at 2, 3, or 8 lights and a separate fixed three-light parallax material; `run3PhongSpheremap.material` also defines fixed two- and four-light forward variants. First inventory which variants and shadow modes are actually referenced by campaign materials/maps and record the result in `docs/porting/LIGHTING.md`; do not guess a single value from a shader filename or treat every historical definition as live.

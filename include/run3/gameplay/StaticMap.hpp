@@ -4,6 +4,7 @@
 #include <run3/content/MapDefinition.hpp>
 #include <run3/gameplay/EntityRegistry.hpp>
 #include <run3/physics/Physics.hpp>
+#include <run3/rendering/Lighting.hpp>
 
 #include <filesystem>
 #include <memory>
@@ -34,6 +35,7 @@ struct StaticMapOptions {
   std::string resourceProfile{"resources_low_low.cfg"};
   std::string textureQuality{"low"};
   double meshLodBias{1.0};
+  rendering::LightingSettings lighting;
 };
 
 struct StaticMapStats {
@@ -48,10 +50,11 @@ struct StaticMapResourceCounts {
   std::size_t particles{};
   std::size_t physicsBodies{};
   bool rootNode{};
+  std::size_t lights{};
 
   [[nodiscard]] bool empty() const noexcept {
     return entities == 0 && particles == 0 && physicsBodies == 0 &&
-           !rootNode;
+           !rootNode && lights == 0;
   }
 };
 

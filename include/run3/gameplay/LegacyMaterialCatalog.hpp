@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <run3/rendering/Lighting.hpp>
 
 namespace run3::gameplay {
 
@@ -14,12 +15,14 @@ struct LegacyMaterialInfo {
   bool lighting{true};
   bool transparent{};
   bool doubleSided{};
+  rendering::MaterialDescription surface;
 };
 
 class LegacyMaterialCatalog final {
 public:
   void scan(const std::filesystem::path &root,
-            const std::filesystem::path &preferredRoot = {});
+            const std::filesystem::path &preferredRoot = {},
+            const std::filesystem::path &overlayCore = {});
   [[nodiscard]] std::optional<LegacyMaterialInfo>
   find(const std::string &materialName) const;
   [[nodiscard]] std::size_t size() const noexcept;

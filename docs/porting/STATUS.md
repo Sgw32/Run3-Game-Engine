@@ -1,6 +1,69 @@
 # Run3 porting status
 
-Last updated: 2026-09-27
+Last updated: 2026-09-28
+
+## Step 9B preview — in progress (2026-09-28)
+
+Latest owner direction: no further map/debugger probes. Continue implementation
+with compilation and small CPU-only tests; runtime acceptance belongs to the
+owner's [manual test sheet](LIGHTING_CHECKLIST.md). It includes individual
+commands for six maps, four pipelines and both Windows renderers, separate
+load/visual result fields, and notes/error placeholders. None is pre-marked PASS.
+
+Material repair slice: independently preserve unlit alpha, parse named/lowercase
+normal/specular slots, retain reflection coordinates/weights, reject volume-noise
+textures as surface albedo, route unlit/reflection materials forward in deferred,
+use normal-free depth casters, and consume authored ambient for PBR's neutral
+probe. PBR specular masks now modulate F0 without inventing metalness. Sky/water
+reuse and computer RTSS retirement address the identified reload lifetime bug.
+These changes are **not visually verified**. Shader runtime compilation remains
+part of the owner's checklist, not something a successful C++ build proves.
+
+Four selectable lighting paths, owned material descriptions, authored map
+lights, directional shadows, procedural LightingLab, HDR/deferred stages and
+hashed core/maps overlay staging are implemented as a workbench. **Not complete
+or campaign-ready.** See [LIGHTING.md](LIGHTING.md) for commands, conventions,
+capabilities, exceptions and the remaining exit criteria. Step 10 is untouched.
+
+Earlier evidence (before the owner's manual-only request): Windows Debug shell and six Step 9B unit cases build/pass;
+the Python provenance fixture passed. A fresh GL3+ deferred low-shadow lab
+capture (`build/lighting/gl-final01`) renders geometry after fixing its
+full-screen varying location. Earlier exit-code-only lab runs are insufficient
+because a blank GL target passed. The smoke runner now rejects near-uniform
+images. Real high-quality tlwcao previously exposed a reload access violation
+and a PBR UV shader-parameter mismatch; source-level repairs are in place,
+but runtime reverification belongs to the manual checklist. Do not treat these
+as successful campaign tests. No The Long Way originals have been edited.
+
+Latest compile-only verification (2026-09-28):
+
+| Configuration | Result |
+|---|---|
+| Windows MSVC Debug | `run3_shell` and `run3_step9b_tests` built; focused `ctest --preset windows-msvc-x64-debug -R run3_step9b --output-on-failure`: **7/7 passed**. |
+| Windows MSVC Release | Same targets built; corresponding Release focused CTest: **7/7 passed**. |
+| WSL GCC Debug | Same targets built serially using `linux-ninja-debug`; no Linux tests or game executables run. Ogre tangent-helper deprecation warnings remain. |
+
+The focused tests cover configuration, material roles/opacity/reflection,
+fallbacks, shadow budgets, and overlay path constraints; they do **not** compile
+GPU shaders. The broader 135-test CPU-only pass predates this final repair slice
+and is not substituted for a fresh full-suite result.
+
+**Installation completed:** installation was initially deferred while an
+owner-run `run3_shell` was active. After it closed independently, both Windows
+Debug and Release installs succeeded, including the new shader library. The
+installed executables now include these fixes. Reinstallation commands (x64 VS
+Developer Command Prompt at the repository root; close the game first):
+
+```bat
+cmake --install build/windows-msvc-x64-debug --prefix build/install/windows-debug
+cmake --install build/windows-msvc-x64-release --prefix build/install/windows-release
+```
+
+Then use the manual sheet; there were no new graphical runs or debugger probes
+for this repair slice. Linux Release was not rebuilt in this slice.
+
+Both `run3.bat` and `run_tlw.bat` now document the experimental lighting and
+overlay switches and forward CLI overrides while preserving existing defaults.
 
 ## Milestones
 
@@ -22,6 +85,7 @@ Last updated: 2026-09-27
 | 8D — map-owned NPC runtime | Partial, verified slice | Typed neutral/enemy construction, AIR3 movement, Lua events, Ogre/Bullet/audio adapters, content counts, and a real `tlwcao` smoke pass; remaining parity gaps are documented. |
 | 8E — cutscenes, computers, and authored presentation state | Completed with named Step 9 adapters | Deterministic cutscene/computer control, stable sequence/NPC state, safe live transitions, station train binding/event 26, and complete reviewed tag dispositions pass; final HUD/computer/effect drawing is delegated to Step 9A and lighting/material output to Step 9B. |
 | 9A — MyGUI UI and visual portability | Completed | Exact-gitlink MyGUI is the primary backend; menus/HUD/computer RTT, typed Lua and `buttonGUI` facades, required shader gates, portable sky/water, and intro fallback pass MSVC/GCC plus D3D11/GL3+ smokes. Step 9B owns lighting quality. |
+| 9B — lighting and materials | Partial, compile-checked workbench | Four selectable paths and material repairs build on MSVC Debug/Release and GCC Debug. GPU/visual acceptance, local-light shadows, deferred light volumes, capability fallback, and reviewed remaster tuning remain open; see LIGHTING.md and LIGHTING_CHECKLIST.md. |
 
 ## 2026-09-27 — UI-state and authored-motion regression repair
 

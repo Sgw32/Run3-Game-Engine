@@ -33,7 +33,10 @@ Ogre::MaterialPtr makeFallbackSky() {
   ensureGroup();
   auto &materials = Ogre::MaterialManager::getSingleton();
   Ogre::MaterialPtr material = materials.getByName(fallbackSky, groupName);
-  if (!material) material = materials.create(fallbackSky, groupName);
+  // These portable materials are immutable. Replacing their source techniques
+  // after RTSS has registered them leaves dangling pointers on map reload.
+  if (material) return material;
+  material = materials.create(fallbackSky, groupName);
   material->removeAllTechniques();
   Ogre::Pass *pass = material->createTechnique()->createPass();
   pass->setLightingEnabled(false);
@@ -48,7 +51,8 @@ Ogre::MaterialPtr makeWaterMaterial() {
   ensureGroup();
   auto &materials = Ogre::MaterialManager::getSingleton();
   Ogre::MaterialPtr material = materials.getByName(waterMaterial, groupName);
-  if (!material) material = materials.create(waterMaterial, groupName);
+  if (material) return material;
+  material = materials.create(waterMaterial, groupName);
   material->removeAllTechniques();
   Ogre::Pass *pass = material->createTechnique()->createPass();
   pass->setLightingEnabled(true);
@@ -129,7 +133,8 @@ private:
       waterNode_ = nullptr;
     }
     auto &meshes = Ogre::MeshManager::getSingleton();
-    if (meshes.resourceExists(waterMesh, groupName)) meshes.remove(waterMesh, groupName);
+    if (Ogre::ResourceGroupManager::getSingleton().resourceGroupExists(groupName) &&
+        meshes.resourceExists(waterMesh, groupName)) meshes.remove(waterMesh, groupName);
   }
 
   Ogre::SceneManager *sceneManager_{};

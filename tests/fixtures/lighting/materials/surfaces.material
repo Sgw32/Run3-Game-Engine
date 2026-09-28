@@ -1,0 +1,141 @@
+material Base
+{
+  set_texture_alias MainTexture diffuse.png
+  set_texture_alias NormalMap n.png
+  set_texture_alias SpecularMap s.png
+  set_texture_alias AOMap ao.png
+  set $shininess "64"
+  set $diffuseCol "0.7 0.6 0.5 1"
+  technique
+  {
+    pass
+    {
+      max_lights 3
+      iteration once_per_light
+    }
+  }
+}
+material Child : Base
+{
+  set_texture_alias MainTexture child.png
+}
+material UnlitLeaves
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      alpha_rejection greater 128
+      texture_unit
+      {
+        texture leaves.png
+      }
+    }
+  }
+}
+material Glass
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      diffuse 1 1 1 0.3
+      scene_blend alpha_blend
+      depth_write off
+      texture_unit
+      {
+        texture env_glass.png
+        color_op_ex blend_manual src_texture src_current 0.1
+        env_map spherical
+      }
+    }
+  }
+}
+material VolumeEffect
+{
+  technique
+  {
+    pass
+    {
+      texture_unit 1
+      {
+        texture Random3D.dds 3d
+      }
+    }
+  }
+}
+material SkyDirections
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        cubic_texture sky.dds separateUV
+      }
+    }
+  }
+}
+material NamedMaps
+{
+  set_texture_alias normalMap override-normal.png
+  technique
+  {
+    pass
+    {
+      texture_unit diffuse_tex
+      {
+        texture base.png
+      }
+      texture_unit normal_Map
+      {
+        texture named-normal.png
+      }
+      texture_unit specularMap
+      {
+        texture gloss.png
+      }
+      texture_unit cubeMap
+      {
+        cubic_texture morning.jpg combinedUVW
+        env_map cubic_reflection
+      }
+    }
+  }
+}
+material Two : Base
+{
+  max_lights 2
+}
+material Eight : Base
+{
+  max_lights 8
+}
+material Cutout : Base
+{
+  alpha_rejection greater_equal 128
+}
+material FixedTwo : Base
+{
+  technique
+  {
+    param_named_auto light0 light_position_object_space 0
+    param_named_auto light1 light_position_object_space 1
+  }
+}
+material ParallaxThree : Base
+{
+  technique
+  {
+    param_named_auto LightPos light_position_object_space_array 3
+  }
+  technique fallback
+  {
+    max_lights 8
+    iteration once_per_light
+  }
+}

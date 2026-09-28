@@ -115,7 +115,29 @@ fs::path AppPaths::defaultUserRoot() {
 }
 
 fs::path AppPaths::contentPath(const fs::path &relative) const {
-  return checkedRelative(contentRoot_, relative);
+  const auto original = checkedRelative(contentRoot_, relative);
+  const auto key = relative.lexically_normal().generic_string();
+  if (!contentOverlay_.empty() &&
+      (key == "run3/core" || key == "run3/maps" ||
+       key.rfind("run3/core/", 0) == 0 || key.rfind("run3/maps/", 0) == 0)) {
+    const auto derived = checkedRelative(contentOverlay_, relative);
+    if (fs::exists(derived)) {
+      const auto canonicalRoot = fs::weakly_canonical(contentOverlay_);
+      const auto canonicalPath = fs::weakly_canonical(derived);
+      const auto within = canonicalPath.lexically_relative(canonicalRoot);
+      if (within.empty() || *within.begin() == "..")
+        throw std::runtime_error("Content overlay path escapes its root");
+      return derived;
+    }
+  }
+  return original;
+}
+
+void AppPaths::setContentOverlay(const fs::path &root) {
+  const auto resolved = absoluteNormal(root, executableDir_);
+  if (!fs::is_regular_file(resolved / "remaster-manifest.json"))
+    throw std::runtime_error("Derived overlay has no remaster-manifest.json: " + resolved.string());
+  contentOverlay_ = resolved;
 }
 
 fs::path AppPaths::userPath(const fs::path &relative) const {

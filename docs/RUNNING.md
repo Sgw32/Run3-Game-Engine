@@ -362,3 +362,14 @@ rendering requires a working display and OpenGL driver.
 Use `ctest --preset <preset> -R "^run3_step6c\." --output-on-failure` for the
 dynamic entities, contacts, constraints, AIR3, ragdoll lifetime, unload, and
 representative-map fixtures.
+
+## Experimental Step 9B lighting
+
+The root `run3.bat` (menu) and `run_tlw.bat` (selected map) accept extra CLI arguments.
+For example: `run_tlw.bat --lighting-pipeline fast-forward --shadow-quality off`.
+Other pipelines are `legacy-forward`, `deferred`, and `pbr`; these previews are
+still undergoing campaign validation. See [the lighting workbench guide](porting/LIGHTING.md)
+for lab commands, shadow settings and opt-in derived-content overlay examples.
+For individual map commands and editable PASS/FAIL/error fields, use
+[the manual lighting checklist](porting/LIGHTING_CHECKLIST.md). The latest
+material repairs are compile-checked, not visually accepted.

@@ -1,5 +1,7 @@
 #include <run3/gameplay/StaticMap.hpp>
 #include <run3/rendering/Environment.hpp>
+#include <run3/rendering/OgreLighting.hpp>
+#include <OgreLight.h>
 
 #include <run3/content/MapDefinition.hpp>
 #include <run3/core/Log.hpp>
@@ -291,6 +293,7 @@ public:
 
   StaticMapStats load(const StaticMapOptions &options) {
     unload();
+    lightingSettings_ = options.lighting;
     OgreConsoleSilencer silenceBulkLoad;
     if (options.paths == nullptr) {
       throw std::invalid_argument("StaticMapOptions.paths is required");
@@ -315,13 +318,15 @@ public:
           std::to_string(issue.source.line) + ": " + issue.message);
     }
 
-    registerResources(options.paths->contentRoot(), options.resourceProfile);
+    registerResources(*options.paths, options.resourceProfile);
     meshLodBias_ = options.meshLodBias;
     const std::string materialDirectory =
         options.textureQuality == "medium" ? "med" : options.textureQuality;
     materialCatalog_.scan(options.paths->contentRoot(),
                           options.paths->contentRoot() / "run3" / "mats" /
-                              materialDirectory);
+                              materialDirectory,
+                          options.paths->contentOverlay().empty() ? fs::path{} :
+                              options.paths->contentOverlay() / "run3/core");
     // Dynamic sequence meshes are deserialized after the static-map listener
     // is gone. Publish each resolvable legacy material name as an Ogre alias
     // now, so MeshSerializer can resolve it without noisy/fatal missing-
@@ -330,7 +335,7 @@ public:
       const std::optional<LegacyMaterialInfo> legacy =
           materialCatalog_.find(legacyName);
       const Ogre::MaterialPtr compatible = compatibleMaterial(
-          legacyName, !legacy || legacy->lighting, true, false);
+          legacyName, true, true, false);
       if (compatible &&
           !Ogre::MaterialManager::getSingleton().resourceExists(
               legacyName, resourceGroup_)) {
@@ -407,7 +412,7 @@ public:
                            Ogre::SceneNode *parent,
                            const std::string &parentName,
                            const double sceneMultiplier, bool &firstPlayer) {
-    if (element.tag == "integratedSequence") {
+    if (element.tag == "integratedSequence" || element.tag == "nodev") {
       return;
     }
     const auto values = attributes(element);
@@ -479,6 +484,55 @@ public:
       return;
     }
 
+    if (element.tag == "light") {
+      const auto authoredName = values.find("name");
+      const std::string name = authoredName == values.end()
+          ? "Run3/MapLight/" + std::to_string(sequence_++) : authoredName->second;
+      if (sceneManager_->hasLight(name))
+        throw std::runtime_error("Duplicate authored light: " + name);
+      auto *light = sceneManager_->createLight(name);
+      mapLights_.push_back(light);
+      const auto type = values.find("type");
+      const std::string kind = type == values.end() ? "point" : type->second;
+      if (kind == "directional") light->setType(Ogre::Light::LT_DIRECTIONAL);
+      else if (kind == "spot") light->setType(Ogre::Light::LT_SPOTLIGHT);
+      else if (kind != "point" && kind != "omni")
+        throw std::runtime_error("Unsupported light type '" + kind + "' at " + name);
+      auto *node = parent->createChildSceneNode();
+      node->attachObject(light);
+      if (const auto *position = element.firstChild("position"))
+        node->setPosition(toOgre(vector(attributes(*position))) * static_cast<Ogre::Real>(sceneMultiplier));
+      if (const auto *direction = element.firstChild("direction"))
+        node->setDirection(toOgre(vector(attributes(*direction), {0,0,-1})));
+      for (const auto &[tag, specular] : {std::pair{"colourDiffuse",false}, {"colourSpecular",true}}) {
+        if (const auto *entry = element.firstChild(tag)) {
+          const auto a=attributes(*entry);
+          const Ogre::ColourValue c(static_cast<float>(number(a,"r",1)),
+              static_cast<float>(number(a,"g",1)),static_cast<float>(number(a,"b",1)));
+          if(specular) light->setSpecularColour(c); else light->setDiffuseColour(c);
+        }
+      }
+      if (const auto *entry=element.firstChild("lightAttenuation")) {
+        const auto a=attributes(*entry);
+        light->setAttenuation(static_cast<float>(number(a,"range",100000)),
+            static_cast<float>(number(a,"constant",1)),static_cast<float>(number(a,"linear",0)),
+            static_cast<float>(number(a,"quadratic",0)));
+      }
+      if (light->getType()==Ogre::Light::LT_SPOTLIGHT) {
+        if (const auto *entry=element.firstChild("lightRange")) {
+          const auto a=attributes(*entry);
+          light->setSpotlightRange(Ogre::Degree(static_cast<float>(number(a,"inner",30))),
+              Ogre::Degree(static_cast<float>(number(a,"outer",45))),
+              static_cast<float>(number(a,"falloff",1)));
+        }
+      }
+      const bool shadow = values.find("castShadows") == values.end() || values.at("castShadows") != "false";
+      light->setCastShadows(shadow && light->getType()==Ogre::Light::LT_DIRECTIONAL);
+      if(shadow && light->getType()!=Ogre::Light::LT_DIRECTIONAL && lightingSettings_.shadows!=rendering::ShadowQuality::Off)
+        Ogre::LogManager::getSingleton().logMessage("Step 9B: local-light shadows unavailable for '"+name+"'; light retained");
+      return;
+    }
+
     if (isMapRenderableTag(element.tag)) {
       if (activeRenderables_.count(&element) != 0) {
         processRenderable(element, parent, parentName);
@@ -494,13 +548,23 @@ public:
   void configureEnvironment(const content::AuthoredElement &root) {
     const content::AuthoredElement *sky{};
     const content::AuthoredElement *water{};
+    const content::AuthoredElement *ambient{};
     const auto visit = [&](const auto &self,
                            const content::AuthoredElement &element) -> void {
       if (element.tag == "skyBox" && sky == nullptr) sky = &element;
       if (element.tag == "water" && water == nullptr) water = &element;
+      if (element.tag == "colourAmbient" && ambient == nullptr) ambient = &element;
       for (const auto &child : element.children) self(self, child);
     };
     visit(visit, root);
+    sceneManager_->setAmbientLight(Ogre::ColourValue(0.25F, 0.25F, 0.25F));
+    if (ambient) {
+      const auto values = attributes(*ambient);
+      sceneManager_->setAmbientLight(Ogre::ColourValue(
+          static_cast<float>(number(values, "r", 0.25)),
+          static_cast<float>(number(values, "g", 0.25)),
+          static_cast<float>(number(values, "b", 0.25))));
+    }
     if (sky != nullptr) {
       const auto values = attributes(*sky);
       const auto material = values.find("material");
@@ -564,6 +628,8 @@ public:
         if (legacy != generatedMaterialSources_.end()) {
           const std::string legacyName = legacy->second;
           assignCompatibleMaterial(subEntity, legacyName);
+        } else if (!subEntityHasNormals(subEntity)) {
+          subEntity->setMaterialName("BaseWhiteNoLighting");
         }
       }
       const auto entityMaterial = values.find("materialFile");
@@ -702,12 +768,13 @@ public:
   Ogre::MaterialPtr compatibleMaterial(const std::string &legacyName,
                                        const bool lighting = true,
                                        const bool textured = true,
-                                       const bool logFallback = true) {
+                                       const bool logFallback = true,
+                                       const bool tangents = false) {
     if (legacyName.empty() || legacyName == "BaseWhite") {
       return {};
     }
     const std::string cacheKey = legacyName + (lighting ? "#lit" : "#unlit") +
-                                 (textured ? "#textured" : "#solid");
+                                 (textured ? "#textured" : "#solid") + (tangents ? "#tangents" : "");
     if (const auto cached = compatibleMaterials_.find(cacheKey);
         cached != compatibleMaterials_.end()) {
       return cached->second;
@@ -724,32 +791,43 @@ public:
     }
 
     const std::string generatedName =
-        "Run3/CompatTexture/" + std::to_string(compatibleMaterials_.size());
+        "Run3/CompatTexture/" + std::to_string(compatibleMaterials_.size()) + "/" + legacyName;
     Ogre::MaterialPtr generated = Ogre::MaterialManager::getSingleton().create(
         generatedName, resourceGroup_);
-    Ogre::Pass *pass = generated->getTechnique(0)->getPass(0);
-    pass->setLightingEnabled(lighting);
-    pass->setAmbient(1.0F, 1.0F, 1.0F);
-    pass->setDiffuse(1.0F, 1.0F, 1.0F, 1.0F);
-    if (textured) {
-      Ogre::TextureUnitState *texture =
-          pass->createTextureUnitState(legacy->texture);
-      texture->setTextureFiltering(Ogre::TFO_ANISOTROPIC);
-      texture->setTextureAnisotropy(8);
+    auto surface = legacy->surface;
+    if (!lighting) {
+      surface.lighting = false;
+      // Environment mapping consumes a normal too, even on unlit glass.
+      surface.reflectionMap.name.clear();
     }
-    if (legacy->transparent) {
-      pass->setSceneBlending(Ogre::SBT_TRANSPARENT_ALPHA);
-      pass->setDepthWriteEnabled(false);
+    if (!textured) {
+      surface.diffuseMap.name.clear(); surface.normalMap.name.clear();
+      surface.specularMap.name.clear(); surface.aoMap.name.clear(); surface.metalRoughnessMap.name.clear();
+      // Ogre's Cook-Torrance stage requires UV0 even without a map.
+      if (lightingSettings_.pipeline == rendering::LightingPipeline::Pbr)
+        surface.lighting = false;
     }
-    if (legacy->doubleSided) {
-      pass->setCullingMode(Ogre::CULL_NONE);
+    std::vector<std::string> available;
+    auto &resources = Ogre::ResourceGroupManager::getSingleton();
+    for (const auto *slot : {&surface.diffuseMap,&surface.normalMap,&surface.specularMap,&surface.aoMap,&surface.metalRoughnessMap,&surface.reflectionMap}) {
+      if (slot->name.empty()) continue;
+      bool present = resources.resourceExists(resourceGroup_, slot->name);
+      if (!present && slot == &surface.reflectionMap &&
+          (surface.reflectionMapping == rendering::ReflectionMapping::Cube ||
+           surface.reflectionMapping == rendering::ReflectionMapping::CubeDirection)) {
+        // Ogre supports either a single DDS cubemap or six base-name faces.
+        const auto dot = slot->name.find_last_of('.');
+        if (dot != std::string::npos) {
+          present = true;
+          for (const auto *face : {"_rt", "_lf", "_up", "_dn", "_fr", "_bk"})
+            present = resources.resourceExists(resourceGroup_, slot->name.substr(0, dot) + face + slot->name.substr(dot)) && present;
+        }
+      }
+      if (present) available.push_back(slot->name);
     }
-    if (Ogre::RTShader::ShaderGenerator *shaderGenerator =
-            Ogre::RTShader::ShaderGenerator::getSingletonPtr()) {
-      static_cast<void>(shaderGenerator->createShaderBasedTechnique(
-          *generated, Ogre::MaterialManager::DEFAULT_SCHEME_NAME,
-          Ogre::RTShader::ShaderGenerator::DEFAULT_SCHEME_NAME));
-    }
+    for (const auto &warning : rendering::resolveMaterial(surface, available))
+      Ogre::LogManager::getSingleton().logMessage("Step 9B: "+warning);
+    rendering::OgreLighting::configureMaterial(*generated,surface,lightingSettings_,tangents);
     if (logFallback && !lighting) {
       Ogre::LogManager::getSingleton().logMessage(
           "Step 8C unlit fallback: material '" + legacyName +
@@ -767,23 +845,55 @@ public:
 
   void assignCompatibleMaterial(Ogre::SubEntity *subEntity,
                                 const std::string &legacyName) {
+    bool tangents = false;
+    const auto material = materialCatalog_.find(legacyName);
+    if (material && !material->surface.normalMap.name.empty() &&
+        subEntityHasNormals(subEntity) && subEntityHasTextureCoordinates(subEntity)) {
+      try {
+        const auto mesh = subEntity->getParent()->getMesh();
+        unsigned short source{}, destination{};
+        if (!mesh->suggestTangentVectorBuildParams(Ogre::VES_TANGENT, source, destination))
+          mesh->buildTangentVectors(Ogre::VES_TANGENT, source, destination);
+        tangents = true;
+      } catch (const Ogre::Exception &error) {
+        Ogre::LogManager::getSingleton().logMessage("Step 9B: tangent generation fallback: " + error.getDescription());
+      }
+    }
     const Ogre::MaterialPtr generated =
         compatibleMaterial(legacyName, subEntityHasNormals(subEntity),
-                           subEntityHasTextureCoordinates(subEntity));
+                           subEntityHasTextureCoordinates(subEntity),true,tangents);
     if (generated) {
       subEntity->setMaterial(generated);
     } else {
-      subEntity->setMaterialName("BaseWhite");
+      subEntity->setMaterialName(subEntityHasNormals(subEntity) ? "BaseWhite" : "BaseWhiteNoLighting");
     }
   }
 
-  void registerResources(const fs::path &contentRoot,
-                         const std::string &profile) {
-    Ogre::ResourceGroupManager &manager =
-        Ogre::ResourceGroupManager::getSingleton();
+  void releaseResources() {
+    auto &manager = Ogre::ResourceGroupManager::getSingleton();
     if (manager.resourceGroupExists(resourceGroup_)) {
+      // RTSS owns generated pass state separately from Ogre's resources. Drop
+      // those references before the group destroys/reuses material names.
+      auto &materials = Ogre::MaterialManager::getSingleton();
+      auto iterator = materials.getResourceIterator();
+      std::vector<Ogre::MaterialPtr> retiring;
+      while(iterator.hasMoreElements()) {
+        auto resource=iterator.getNext();
+        if(resource->getGroup()==resourceGroup_)
+          retiring.push_back(Ogre::static_pointer_cast<Ogre::Material>(resource));
+      }
+      if(auto *generator=Ogre::RTShader::ShaderGenerator::getSingletonPtr())
+        for(const auto &material:retiring) generator->removeAllShaderBasedTechniques(*material);
+      retiring.clear();
       manager.destroyResourceGroup(resourceGroup_);
     }
+  }
+
+  void registerResources(const AppPaths &paths,
+                         const std::string &profile) {
+    const auto &contentRoot = paths.contentRoot();
+    auto &manager = Ogre::ResourceGroupManager::getSingleton();
+    releaseResources();
     manager.createResourceGroup(resourceGroup_);
     const fs::path configPath = contentRoot / profile;
     std::ifstream stream(configPath);
@@ -803,7 +913,7 @@ public:
         continue;
       }
       const std::string type = trim(line.substr(0, equals));
-      fs::path path = (contentRoot / trim(line.substr(equals + 1))).lexically_normal();
+      fs::path path = paths.contentPath(trim(line.substr(equals + 1)));
       if ((type != "FileSystem" && type != "Zip") || !fs::exists(path) ||
           !added.insert(path).second) {
         continue;
@@ -869,6 +979,8 @@ public:
     ladders_.clear();
     debugNodes_.clear();
     if (sceneManager_ != nullptr) {
+      for (auto *light : mapLights_) sceneManager_->destroyLight(light);
+      mapLights_.clear();
       for (Ogre::ParticleSystem *particle : mapParticles_) {
         try {
           sceneManager_->destroyParticleSystem(particle);
@@ -903,6 +1015,14 @@ public:
             .removeTemplatesByResourceGroup(resourceGroup_);
       } catch (...) {
       }
+    }
+    // Retire generated shader state while its factories and Ogre are alive,
+    // not at the next load or after lighting teardown.
+    try {
+      releaseResources();
+    } catch (const std::exception &error) {
+      Ogre::LogManager::getSingleton().logMessage(
+          "StaticMap resource teardown failed: " + std::string(error.what()));
     }
   }
 
@@ -944,6 +1064,8 @@ public:
   Ogre::SceneNode *rootNode_{};
   std::vector<Ogre::Entity *> entities_;
   std::vector<Ogre::ParticleSystem *> mapParticles_;
+  std::vector<Ogre::Light *> mapLights_;
+  rendering::LightingSettings lightingSettings_;
   std::unordered_map<std::string, Ogre::Entity *> namedEntities_;
   std::vector<Ogre::SceneNode *> debugNodes_;
   std::vector<BodyBinding> bodies_;
@@ -993,7 +1115,8 @@ StaticMapResourceCounts StaticMap::resourceCounts() const noexcept {
   return {implementation_->entities_.size(),
           implementation_->mapParticles_.size(),
           implementation_->bodies_.size(),
-          implementation_->rootNode_ != nullptr};
+          implementation_->rootNode_ != nullptr,
+          implementation_->mapLights_.size()};
 }
 const content::MapDefinition &StaticMap::definition() const {
   if (!implementation_->definition_) {

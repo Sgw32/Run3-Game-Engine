@@ -74,6 +74,23 @@ public:
   virtual void clearScriptCallbacks() noexcept = 0;
 };
 
+// Legacy buttonGUI is deliberately a separate authoring surface from the
+// typed MyGUI facade.  Implementations may composite both layers into the
+// same computer render target, but handles, roots and lifetime never cross.
+class IButtonGuiFacade {
+public:
+  virtual ~IButtonGuiFacade() = default;
+  virtual void activate(int layoutMode) = 0;
+  virtual void deactivate() noexcept = 0;
+  virtual void clear() noexcept = 0;
+  [[nodiscard]] virtual std::string createButton(
+      std::string name, std::string material, Rect rect, bool dummy,
+      UiCallback callback) = 0;
+  virtual void setPosition(std::string_view name, float x, float y) = 0;
+  virtual void setCursorVisible(bool visible) = 0;
+  [[nodiscard]] virtual std::pair<float, float> cursorPosition() const noexcept = 0;
+};
+
 enum class MenuActionKind {
   Resume,
   NewGame,
@@ -109,10 +126,14 @@ public:
   virtual void appendConsole(std::string line) = 0;
   virtual void setLoading(bool visible, std::string text) = 0;
   virtual void setInventoryEnabled(bool enabled) = 0;
+  [[nodiscard]] virtual IButtonGuiFacade &buttonGui() noexcept = 0;
+
+  virtual void setDebugOverlay(bool visible, std::string text) = 0;
 
   // Only one owner can have a computer context. The returned name is the Ogre
   // texture to put on that owner's screen; it is not an owning renderer type.
-  [[nodiscard]] virtual std::string activateComputer(std::string ownerKey) = 0;
+  [[nodiscard]] virtual std::string activateComputer(
+      std::string ownerKey, bool renderToTexture) = 0;
   virtual void deactivateComputer(std::string_view ownerKey) noexcept = 0;
   [[nodiscard]] virtual bool computerActive() const noexcept = 0;
   [[nodiscard]] virtual bool computerActiveFor(std::string_view ownerKey) const noexcept = 0;

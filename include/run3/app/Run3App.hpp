@@ -97,6 +97,9 @@ private:
   void updateAspectRatio();
   void setGameplayMouseCapture(bool enabled);
   void handleInput(const std::vector<InputEvent> &events);
+  void captureScreenshot();
+  void cycleDebugOverlay();
+  void updateDebugOverlay();
   void loadMap(const std::string &mapName);
   void unloadMap(bool runOnExit);
   void requestMapChange(std::string mapName);
@@ -131,6 +134,7 @@ private:
   std::uint64_t simulatedSteps_{};
   bool quitRequested_{};
   bool validationFailed_{};
+  unsigned debugOverlayPage_{};
   std::optional<std::string> pendingMapChange_;
 };
 

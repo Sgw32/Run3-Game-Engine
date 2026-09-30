@@ -39,7 +39,7 @@ git -C C:\dev\vcpkg checkout 04a9d8e5212d01ee1dd9478eadd9caade4f8b0d4
 C:\dev\vcpkg\bootstrap-vcpkg.bat -disableMetrics
 ```
 
-Open **Developer PowerShell for Visual Studio** configured for x64, then run
+Open **Developer PowerShell for Visual Studio** configured for x64(Native tools for...), then run
 these exact workflows from the repository root:
 
 ```powershell

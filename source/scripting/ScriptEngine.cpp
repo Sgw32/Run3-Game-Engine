@@ -222,7 +222,7 @@ public:
               call.arguments.push_back(argumentString(argument));
             }
             calls_.push_back(call);
-            if (config_.uiFacade != nullptr) {
+            if (config_.buttonGuiFacade != nullptr) {
               if (const auto result = dispatchButtonGuiCompatibility(calls_.back()))
                 return toObject(state, *result);
             }
@@ -241,17 +241,20 @@ public:
         static_cast<void>(scriptId);
         config_.uiFacade->clearCallback(facadeId);
       }
-      for (const auto &[handle, callback] : legacyButtons_) {
-        static_cast<void>(handle);
-        if (callback != 0) config_.uiFacade->clearCallback(callback);
-      }
     }
+    if (config_.buttonGuiFacade != nullptr) config_.buttonGuiFacade->clear();
   }
 
   ui::IScriptUiFacade &uiFacade() const {
     if (config_.uiFacade == nullptr)
       throw std::runtime_error("MyGUI facade is unavailable in this runtime");
     return *config_.uiFacade;
+  }
+
+  ui::IButtonGuiFacade &buttonGuiFacade() const {
+    if (config_.buttonGuiFacade == nullptr)
+      throw std::logic_error("buttonGUI facade is unavailable");
+    return *config_.buttonGuiFacade;
   }
 
   static ui::Context uiContext(const std::string &name) {
@@ -358,44 +361,45 @@ public:
   std::optional<ScriptValue>
   dispatchButtonGuiCompatibility(const ScriptCall &call) {
     if (call.name.rfind("buttonGUI_", 0) != 0) return std::nullopt;
-    auto &facade = uiFacade();
+    auto &facade = buttonGuiFacade();
     if (call.name == "buttonGUI_activateCenter640") {
       legacyButtonTransform_ = 1;
+      facade.activate(legacyButtonTransform_);
       return ScriptValue{};
     }
     if (call.name == "buttonGUI_activateTopLeft640") {
       legacyButtonTransform_ = 2;
+      facade.activate(legacyButtonTransform_);
       return ScriptValue{};
     }
     if (call.name == "buttonGUI_activateTopLeftComp640") {
       legacyButtonTransform_ = 3;
+      facade.activate(legacyButtonTransform_);
       return ScriptValue{};
     }
     if (call.name == "buttonGUI_deactivateCenter640" ||
         call.name == "buttonGUI_deactivate640") {
       legacyButtonTransform_ = 0;
+      facade.deactivate();
       return ScriptValue{};
     }
     if (call.name == "buttonGUI_deleteAllButtons") {
-      for (const auto &[handle, callback] : legacyButtons_) {
-        facade.clearCallback(callback);
-        try { facade.destroyWidget(handle); } catch (...) {}
-      }
-      legacyButtons_.clear();
+      facade.clear();
       return ScriptValue{};
     }
     if (call.name == "buttonGUI_hideCursor" ||
-        call.name == "buttonGUI_showCursor") return ScriptValue{};
-    if (call.name == "buttonGUI_getCursX" ||
-        call.name == "buttonGUI_getCursY" || call.name == "buttonGUI_getX" ||
-        call.name == "buttonGUI_getY") return ScriptValue{0.0};
+        call.name == "buttonGUI_showCursor") {
+      facade.setCursorVisible(call.name == "buttonGUI_showCursor");
+      return ScriptValue{};
+    }
+    if (call.name == "buttonGUI_getCursX" || call.name == "buttonGUI_getX")
+      return ScriptValue{static_cast<double>(facade.cursorPosition().first)};
+    if (call.name == "buttonGUI_getCursY" || call.name == "buttonGUI_getY")
+      return ScriptValue{static_cast<double>(facade.cursorPosition().second)};
     if (call.name == "buttonGUI_setPos") {
       if (call.arguments.size() != 3) return ScriptValue{};
-      const auto handle = facade.findWidget(ui::Context::Computer,
-                                             "buttonGUI." + call.arguments[0]);
-      if (handle)
-        facade.setProperty(*handle, "Position",
-                           call.arguments[1] + " " + call.arguments[2]);
+      facade.setPosition(call.arguments[0], std::stof(call.arguments[1]),
+                         std::stof(call.arguments[2]));
       return ScriptValue{};
     }
     if (call.name != "buttonGUI_createButton" &&
@@ -403,11 +407,6 @@ public:
         call.name != "buttonGUI_createDummy") return std::nullopt;
     if (call.arguments.size() != 5)
       throw std::invalid_argument(call.name + " expects five string arguments");
-    const std::string safeName = "buttonGUI." + call.arguments[0];
-    if (const auto existing = facade.findWidget(ui::Context::Computer, safeName)) {
-      facade.setVisible(*existing, true);
-      return ScriptValue{existing->token()};
-    }
     auto [x, y] = legacyPair(call.arguments[2]);
     auto [width, height] = legacyPair(call.arguments[3]);
     if (legacyButtonTransform_ == 3) {
@@ -419,29 +418,20 @@ public:
       x += (1024.0F - 640.0F) * 0.5F;
       y += (768.0F - 480.0F) * 0.5F;
     }
-    const ui::WidgetHandle root =
-        facade.loadLayout(ui::Context::Computer, "default");
-    const ui::WidgetType type = call.name == "buttonGUI_createDummy"
-                                    ? ui::WidgetType::Panel
-                                    : ui::WidgetType::Button;
-    const ui::WidgetHandle handle = facade.createWidget(
-        {ui::Context::Computer, root, type, safeName,
-         {x, y, width, height}, call.arguments[0]});
-    std::uint64_t callback{};
-    if (type == ui::WidgetType::Button && !call.arguments[4].empty()) {
+    ui::UiCallback callback;
+    if (call.name != "buttonGUI_createDummy" && !call.arguments[4].empty()) {
       const fs::path script = call.arguments[4];
-      callback = facade.setCallback(
-          handle, ui::UiEvent::Click,
-          [this, script](std::string) {
+      callback = [this, script](std::string) {
             const fs::path approved = approvedPath(script);
             auto [loaded, shims] =
                 load(readText(approved), approved.generic_string());
             static_cast<void>(shims);
             executeLoaded(std::move(loaded), approved);
-          });
+          };
     }
-    legacyButtons_.emplace_back(handle, callback);
-    return ScriptValue{handle.token()};
+    return ScriptValue{facade.createButton(
+        call.arguments[0], call.arguments[1], {x, y, width, height},
+        call.name == "buttonGUI_createDummy", std::move(callback))};
   }
 
   void invokeUiCallback(const std::uint64_t id, std::string value) {
@@ -534,7 +524,6 @@ public:
   std::unordered_map<std::uint64_t, sol::protected_function> uiCallbacks_;
   std::unordered_map<std::uint64_t, std::uint64_t> uiCallbackIds_;
   std::uint64_t nextUiCallbackId_{1};
-  std::vector<std::pair<ui::WidgetHandle, std::uint64_t>> legacyButtons_;
   int legacyButtonTransform_{};
 
   [[nodiscard]] const std::vector<ScriptCall> &calls() const noexcept {

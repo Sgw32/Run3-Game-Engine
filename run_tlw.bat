@@ -12,14 +12,15 @@ REM Use --content-variant original without --content-overlay for original conten
 REM Add --map tlwhome02 or --renderer gl3plus to override the map or renderer.
 REM cd /d C:\Run3-Game-Engine
 
-"%~dp0build\install\windows-debug\bin\run3_shell.exe" ^
-    --renderer gl3plus ^
+"%~dp0build\install\windows-release\bin\run3_shell.exe" ^
+    --renderer d3d11 ^
     --content-root "C:\Run3-Game-Engine\Games\The Long Way\TheLongWay" ^
-    --map tlwstations01 ^
-    --user-dir ".\build\user\windows-debug" ^
+    --map tlwstations02 ^
+    --user-dir ".\build\user\windows-release" ^
     --fullscreen ^
+    --lighting-pipeline fast-forward --shadow-quality low --exposure 0.2 ^
     --resolution 1920x1080 --fov 75 ^
-    --texture-quality high --model-quality high --scene-quality high ^
+    --texture-quality low --model-quality low --scene-quality low ^
     --audio-backend miniaudio ^
     %*
 

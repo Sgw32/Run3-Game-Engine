@@ -109,6 +109,10 @@ available with GL3+.
 - Left mouse button: cast the weapon ray (the hit is logged)
 - `N`: toggle noclip
 - `F3`: toggle collision-section bounds
+- `F5`: save a timestamped PNG under the Run3 user directory's `screenshots`
+  folder
+- `P`: cycle performance, player, active-sound, and NPC diagnostics; press once
+  more after the NPC page to hide the panel
 - Escape: open/close the MyGUI menu; while connected to a computer or playing
   a cutscene, disconnect/skip first
 - Window close or **Quit** in the menu: quit cleanly

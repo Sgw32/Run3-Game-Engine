@@ -83,26 +83,26 @@ Record build revision/date/GPU/driver alongside the results.
 
 | ID | Exact command | D3D11 load / visual | GL3+ load / visual | Notes / error |
 |---|---|---|---|---|
-| 1A | `Test-Lighting 1A tlwcao legacy-forward` | [ ] / [ ] | [ ] / [ ] | |
-| 1B | `Test-Lighting 1B tlwcao fast-forward` | [ ] / [ ] | [ ] / [ ] | |
-| 1C | `Test-Lighting 1C tlwcao deferred` | [ ] / [ ] | [ ] / [ ] | |
-| 1D | `Test-Lighting 1D tlwcao pbr` | [ ] / [ ] | [ ] / [ ] | |
+| 1A | `Test-Lighting 1A tlwcao legacy-forward` | [ ] / [ ] | [ ] / D3D11: mostly OK. Specular component highlight cone(glossy ray) is too big and bright. !!!Important note: if the light comes out of the sight, the shadows on object from this light disappears!!! GL3Plus Lights are absent except the overall map lighting with shadows. GL3Plus far shadows have noticable artifacts even on high quality | no error |
+| 1B | `Test-Lighting 1B tlwcao fast-forward` | [ ] / [ ] | [ ] / Similar to 1A, shadows are slightly better and smooth, artifacts are less in GL3Plus, similar in D3D11 - but there are fewer lights and scene looks a bit unlit.  The main issue is too few lights.  | no error |
+| 1C | `Test-Lighting 1C tlwcao deferred` | [ ] / [ ] | [ ] / D3D11: Mostly OK, but too bright(controllable by exposure level - good). Very poor performance/FPS. Objects too glossy - if without normal/spec. GL3Plus: Everything is black, FPS and performance is very low. Few materials are sort of unlit, while others are completely black -sometimes with some lighting specular, but without any color|no errors |
+| 1D | `Test-Lighting 1D tlwcao pbr` | [ ] / [ ] | [ ] / PBR was working (not very good, but still) before last corrections | Crash: [Run3 error] Ogre main-loop error: Ogre::RuntimeAssertionException::RuntimeAssertionException: mSemantic == OPS_OUT failed. invalid semantic in Ogre::RTShader::Out::Out at C:\dev\vcpkg\buildtrees\ogre\src\v14.5.2-a37f7415e5.clean\Components\RTShaderSystem\include\OgreShaderFunctionAtom.h (line 169) |
 | 2A | `Test-Lighting 2A tlwhome02 legacy-forward` | [ ] / [ ] | [ ] / [ ] | |
 | 2B | `Test-Lighting 2B tlwhome02 fast-forward` | [ ] / [ ] | [ ] / [ ] | |
 | 2C | `Test-Lighting 2C tlwhome02 deferred` | [ ] / [ ] | [ ] / [ ] | |
 | 2D | `Test-Lighting 2D tlwhome02 pbr` | [ ] / [ ] | [ ] / [ ] | |
 | 3A | `Test-Lighting 3A tlwstations01 legacy-forward` | [ ] / [ ] | [ ] / [ ] | |
 | 3B | `Test-Lighting 3B tlwstations01 fast-forward` | [ ] / [ ] | [ ] / [ ] | |
-| 3C | `Test-Lighting 3C tlwstations01 deferred` | [ ] / [ ] | [ ] / [ ] | |
+| 3C | `Test-Lighting 3C tlwstations01 deferred` | [ ] / [ ] | [ ] / Good enough, but transparent objects not shown + performance is poor. | |
 | 3D | `Test-Lighting 3D tlwstations01 pbr` | [ ] / [ ] | [ ] / [ ] | |
-| 4A | `Test-Lighting 4A tlwstations02 legacy-forward` | [ ] / [ ] | [ ] / [ ] | |
+| 4A | `Test-Lighting 4A tlwstations02 legacy-forward` | [ ] / [ ] | Good. Same notes as for 1A / [ ] | |
 | 4B | `Test-Lighting 4B tlwstations02 fast-forward` | [ ] / [ ] | [ ] / [ ] | |
-| 4C | `Test-Lighting 4C tlwstations02 deferred` | [ ] / [ ] | [ ] / [ ] | |
+| 4C | `Test-Lighting 4C tlwstations02 deferred` | [ ] / [ ] | [ ] / Works on D3D11 - probably even better than legacy forward(still, performance props very significantly), looks good enough. Issue with shadows disappearing when camera moves and objects are out of the sight persists as in 1A. | |
 | 4D | `Test-Lighting 4D tlwstations02 pbr` | [ ] / [ ] | [ ] / [ ] | |
 | 5A | `Test-Lighting 5A tlwstations03 legacy-forward` | [ ] / [ ] | [ ] / [ ] | |
 | 5B | `Test-Lighting 5B tlwstations03 fast-forward` | [ ] / [ ] | [ ] / [ ] | |
 | 5C | `Test-Lighting 5C tlwstations03 deferred` | [ ] / [ ] | [ ] / [ ] | |
-| 5D | `Test-Lighting 5D tlwstations03 pbr` | [ ] / [ ] | [ ] / [ ] | |
+| 5D | `Test-Lighting 5D tlwstations03 pbr` | [ ] / [ ] | [ ] / [ ] | Crash: [Run3 error] Ogre main-loop error: Ogre::RuntimeAssertionException::RuntimeAssertionException: mSemantic == OPS_OUT failed. invalid semantic in Ogre::RTShader::Out::Out at C:\dev\vcpkg\buildtrees\ogre\src\v14.5.2-a37f7415e5.clean\Components\RTShaderSystem\include\OgreShaderFunctionAtom.h (line 169) |
 | 6A | `Test-Lighting 6A tlwdelusion05 legacy-forward` | [ ] / [ ] | [ ] / [ ] | |
 | 6B | `Test-Lighting 6B tlwdelusion05 fast-forward` | [ ] / [ ] | [ ] / [ ] | |
 | 6C | `Test-Lighting 6C tlwdelusion05 deferred` | [ ] / [ ] | [ ] / [ ] | |

@@ -46,6 +46,14 @@
 namespace run3::gameplay {
 namespace {
 
+constexpr const char *computerResourceGroup = "Run3Step9A";
+
+void ensureComputerResourceGroup() {
+  auto &groups = Ogre::ResourceGroupManager::getSingleton();
+  if (!groups.resourceGroupExists(computerResourceGroup))
+    groups.createResourceGroup(computerResourceGroup);
+}
+
 Ogre::Vector3 toOgre(physics::Vec3 value) {
   return {static_cast<Ogre::Real>(value.x), static_cast<Ogre::Real>(value.y),
           static_cast<Ogre::Real>(value.z)};
@@ -144,7 +152,8 @@ public:
         player(&playerController),
         audio(&audioEngine), ui(&uiSystem), oneShots(audioEngine), dynamicPhysics(world),
         mapChangeRequest(std::move(changeRequest)),
-        scripts({paths.contentRoot(), paths.userRoot(), 1'000'000, &uiSystem},
+        scripts({paths.contentRoot(), paths.userRoot(), 1'000'000, &uiSystem,
+                 &uiSystem.buttonGui()},
                 [this](const scripting::ScriptCall &call) {
                   if (runtime == nullptr) {
                     throw std::runtime_error(
@@ -521,11 +530,16 @@ public:
       log("computer '" + entry.spec.name + "' released");
       return;
     }
-    const std::string textureName = ui->activateComputer(ownerKey);
-    bindComputerMaterial(entry, command.owner.id.value, command.material,
-                         textureName);
+    const bool virtualSurface = command.allowVirtualDisplay &&
+                                staticMap->definition().quality == "high";
+    const std::string textureName =
+        ui->activateComputer(ownerKey, virtualSurface);
+    if (virtualSurface)
+      bindComputerMaterial(entry, command.owner.id.value, command.material,
+                           textureName);
     log("computer '" + entry.spec.name +
-        "' focused on MyGUI RTT '" + textureName + "'");
+        (virtualSurface ? "' focused on computer RTT '" + textureName + "'"
+                        : "' focused in direct-display mode"));
   }
 
   void sendComputerInput(const SendComputerInput &command) {
@@ -545,12 +559,13 @@ public:
                             const std::string &authoredMaterial,
                             const std::string &textureName) {
     restoreComputerMaterial(id);
+    ensureComputerResourceGroup();
     const std::string materialName = "Run3/ComputerSurface/" + std::to_string(id);
     Ogre::MaterialPtr material = Ogre::MaterialManager::getSingleton().getByName(
-        materialName, "Run3Step9A");
+        materialName, computerResourceGroup);
     if (!material) {
       material = Ogre::MaterialManager::getSingleton().create(
-          materialName, "Run3Step9A");
+          materialName, computerResourceGroup);
     } else {
       if (auto *generator = Ogre::RTShader::ShaderGenerator::getSingletonPtr())
         generator->removeAllShaderBasedTechniques(*material);
@@ -568,13 +583,9 @@ public:
     binding.generatedMaterial = materialName;
     const auto visit = [&](Ogre::Entity *entity) {
       if (entity == nullptr) return;
-      bool exactMatch = false;
-      for (unsigned index = 0; index < entity->getNumSubEntities(); ++index)
-        exactMatch = exactMatch || authoredMaterial.empty() ||
-            entity->getSubEntity(index)->getMaterialName() == authoredMaterial;
       for (unsigned index = 0; index < entity->getNumSubEntities(); ++index) {
         Ogre::SubEntity *sub = entity->getSubEntity(index);
-        if (!exactMatch || authoredMaterial.empty() ||
+        if (authoredMaterial.empty() ||
             sub->getMaterialName() == authoredMaterial) {
           binding.items.push_back({sub, sub->getMaterialName()});
           sub->setMaterial(material);
@@ -586,6 +597,9 @@ public:
     if (binding.items.empty()) {
       log("warning: computer '" + entry.spec.name +
           "' has no renderable screen for material '" + authoredMaterial + "'");
+      Ogre::MaterialManager::getSingleton().remove(materialName,
+                                                   computerResourceGroup);
+      return;
     }
     computerMaterialBindings.insert_or_assign(id, std::move(binding));
   }
@@ -600,7 +614,7 @@ public:
     }
     try {
       Ogre::MaterialManager::getSingleton().remove(
-          found->second.generatedMaterial, "Run3Step9A");
+          found->second.generatedMaterial, computerResourceGroup);
     } catch (...) {}
     computerMaterialBindings.erase(found);
   }

@@ -37,10 +37,14 @@
 #include <algorithm>
 #include <charconv>
 #include <cctype>
+#include <chrono>
+#include <ctime>
 #include <filesystem>
 #include <exception>
+#include <iomanip>
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string_view>
 #include <cmath>
@@ -511,6 +515,7 @@ int Run3App::run() {
         audioEngine_->update(static_cast<float>(frame.elapsed.count()));
       }
       if (ui_) {
+        if (debugOverlayPage_ != 0U) updateDebugOverlay();
         ui_->update(static_cast<float>(frame.elapsed.count()));
         ui_->renderComputerSurface();
       }
@@ -984,6 +989,17 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
       requestQuit();
       continue;
     }
+    if (event.type == InputEventType::KeyPressed && !event.repeated &&
+        event.key == Key::F5) {
+           Ogre::LogManager::getSingleton().logMessage("Screenshot");
+      captureScreenshot();
+      continue;
+    }
+    if (event.type == InputEventType::KeyPressed && !event.repeated &&
+        event.key == Key::P) {
+      cycleDebugOverlay();
+      continue;
+    }
     const bool escape = event.type == InputEventType::KeyPressed &&
                         !event.repeated && event.key == Key::Escape;
     if (ui_ && ui_->computerActive() && !escape) {
@@ -1052,6 +1068,136 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
     }
     refreshMouseCapture();
   }
+}
+
+void Run3App::captureScreenshot() {
+  try {
+    const fs::path directory = options_.paths.userPath("screenshots");
+    fs::create_directories(directory);
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t timestamp = std::chrono::system_clock::to_time_t(now);
+    std::tm local{};
+#ifdef _WIN32
+    localtime_s(&local, &timestamp);
+#else
+    localtime_r(&timestamp, &local);
+#endif
+    std::string map = options_.mapName.empty() ? "menu" : options_.mapName;
+    for (char &character : map) {
+      if (!std::isalnum(static_cast<unsigned char>(character)) &&
+          character != '-' && character != '_') character = '_';
+    }
+    std::ostringstream name;
+    name << "run3_" << map << '_' << std::put_time(&local, "%Y-%m-%d_%H-%M-%S")
+         << '_' << std::setw(3) << std::setfill('0')
+         << (std::chrono::duration_cast<std::chrono::milliseconds>(
+                 now.time_since_epoch()).count() % 1000)
+         << ".png";
+    const fs::path output = directory / name.str();
+    getRenderWindow()->writeContentsToFile(output.string());
+    Ogre::LogManager::getSingleton().logMessage("Screenshot saved: " +
+                                                 output.string());
+    if (ui_) ui_->appendConsole("Screenshot saved: " + output.string());
+  } catch (const std::exception &error) {
+    Ogre::LogManager::getSingleton().logMessage(
+        "Screenshot failed: " + std::string(error.what()));
+  }
+}
+
+void Run3App::cycleDebugOverlay() {
+  debugOverlayPage_ = (debugOverlayPage_ + 1U) % 5U;
+  updateDebugOverlay();
+}
+
+void Run3App::updateDebugOverlay() {
+  if (!ui_) return;
+  if (debugOverlayPage_ == 0U) {
+    ui_->setDebugOverlay(false, {});
+    return;
+  }
+  std::ostringstream out;
+  out << std::fixed << std::setprecision(1);
+  if (debugOverlayPage_ == 1U) {
+    const auto &stats = getRenderWindow()->getStatistics();
+    out << "PERFORMANCE  [P: next]\n"
+        << "FPS  now " << stats.lastFPS << "  avg " << stats.avgFPS
+        << "  best " << stats.bestFPS << "  worst " << stats.worstFPS << '\n'
+        << "Frame " << (stats.lastFPS > 0.0F ? 1000.0F / stats.lastFPS : 0.0F)
+        << " ms  best " << stats.bestFrameTime << " ms  worst "
+        << stats.worstFrameTime << " ms\n"
+        << "Batches " << stats.batchCount << "  triangles "
+        << stats.triangleCount << "  vblank misses " << stats.vBlankMissCount
+        << '\n' << "Viewport " << getRenderWindow()->getWidth() << 'x'
+        << getRenderWindow()->getHeight() << "  rendered frames "
+        << renderedFrames_;
+  } else if (debugOverlayPage_ == 2U) {
+    out << "PLAYER  [P: next]\nMap "
+        << (options_.mapName.empty() ? "<none>" : options_.mapName)
+        << "  quality " << options_.mapQuality << '\n';
+    if (player_) {
+      const auto state = player_->state();
+      out << "Position " << state.position.x << ", " << state.position.y
+          << ", " << state.position.z << '\n'
+          << "Velocity " << state.velocity.x << ", " << state.velocity.y
+          << ", " << state.velocity.z << '\n'
+          << "Grounded " << (state.grounded ? "yes" : "no")
+          << "  crouched " << (state.crouched ? "yes" : "no")
+          << "  noclip " << (state.noclip ? "yes" : "no")
+          << "  ladder " << (state.onLadder ? "yes" : "no") << '\n';
+    }
+    out << "Yaw " << yawRadians_ << "  pitch " << pitchRadians_
+        << "  simulation steps " << simulatedSteps_;
+    if (sequenceRuntime_) {
+      const auto &presentation = sequenceRuntime_->presentation();
+      out << "\nComputer "
+          << (presentation.activeComputer.empty() ? "<none>"
+                                                   : presentation.activeComputer)
+          << "  cutscene "
+          << (presentation.activeCutscene.empty() ? "<none>"
+                                                  : presentation.activeCutscene);
+    }
+  } else if (debugOverlayPage_ == 3U) {
+    out << "SOUND  [P: next]\n";
+    if (audioEngine_) {
+      const auto stats = audioEngine_->stats();
+      out << "Backend " << audioEngine_->backendName() << "  device "
+          << (audioEngine_->hasOutputDevice() ? "ready" : "unavailable") << '\n'
+          << "Active voices " << stats.activeVoices << '/' << stats.voiceCapacity;
+    }
+    if (mapAudio_) {
+      out << "\nCurrent music "
+          << (mapAudio_->musicActive() ? mapAudio_->musicFile().string()
+                                       : "<none>")
+          << "\nAmbient sounds " << mapAudio_->ambientCount()
+          << "  footsteps played " << mapAudio_->footstepCount();
+    }
+    if (sequenceServices_)
+      out << "\nSequence sound handles "
+          << sequenceServices_->resourceCounts().audioHandles;
+  } else {
+    out << "NPC  [P: hide]\n";
+    if (!npcSystem_) {
+      out << "No NPC system loaded";
+    } else {
+      std::size_t alive{}, dead{}, navigating{}, blocked{};
+      for (const auto &npc : npcSystem_->states()) {
+        if (npc.state == gameplay::NpcState::Dead) ++dead; else ++alive;
+        if (npc.state == gameplay::NpcState::Navigating) ++navigating;
+        if (npc.state == gameplay::NpcState::Blocked) ++blocked;
+      }
+      out << "Total " << npcSystem_->size() << "  alive " << alive
+          << "  dead " << dead << "  navigating " << navigating
+          << "  blocked " << blocked;
+      std::size_t shown{};
+      for (const auto &npc : npcSystem_->states()) {
+        if (shown++ == 8) break;
+        out << '\n' << npc.name << "  hp " << npc.health << "  pos "
+            << npc.transform.position.x << ',' << npc.transform.position.y
+            << ',' << npc.transform.position.z;
+      }
+    }
+  }
+  ui_->setDebugOverlay(true, out.str());
 }
 
 void Run3App::handleMenuAction(const ui::MenuAction &action) {

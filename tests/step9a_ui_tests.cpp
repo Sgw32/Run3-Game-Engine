@@ -20,7 +20,8 @@ std::string read(const fs::path &path) {
           std::istreambuf_iterator<char>()};
 }
 
-class TestUiFacade final : public run3::ui::IScriptUiFacade {
+class TestUiFacade final : public run3::ui::IScriptUiFacade,
+                           public run3::ui::IButtonGuiFacade {
 public:
   TestUiFacade() { openComputer("fixture-a"); }
 
@@ -87,10 +88,38 @@ public:
   }
   std::size_t callbacks() const noexcept { return registry_.callbackCount(); }
 
+  void activate(int) override {}
+  void deactivate() noexcept override {}
+  void clear() noexcept override {
+    for (const auto handle : legacy_) {
+      try { destroyWidget(handle); } catch (...) {}
+    }
+    legacy_.clear();
+  }
+  std::string createButton(std::string name, std::string,
+                           run3::ui::Rect rect, bool dummy,
+                           run3::ui::UiCallback callback) override {
+    const auto handle = registry_.add(
+        {run3::ui::Context::Computer, root_,
+         dummy ? run3::ui::WidgetType::Panel : run3::ui::WidgetType::Button,
+         "buttonGUI." + name, rect, name});
+    text_[handle.id] = name;
+    legacy_.push_back(handle);
+    if (callback) static_cast<void>(registry_.bind(
+        handle, run3::ui::UiEvent::Click, std::move(callback)));
+    return handle.token();
+  }
+  void setPosition(std::string_view, float, float) override {}
+  void setCursorVisible(bool) override {}
+  std::pair<float, float> cursorPosition() const noexcept override {
+    return {};
+  }
+
 private:
   run3::ui::UiRegistry registry_;
   run3::ui::WidgetHandle root_;
   std::unordered_map<std::uint64_t, std::string> text_;
+  std::vector<run3::ui::WidgetHandle> legacy_;
 };
 
 } // namespace
@@ -138,7 +167,7 @@ TEST_CASE("Step 9A typed MyGUI Lua facade is snapshotted and bounded",
   TestUiFacade facade;
   run3::scripting::ScriptEngine engine(
       {sourceRoot / "tests/fixtures/step8/scripts",
-       sourceRoot / "tests/fixtures/step8/user", 10'000, &facade});
+       sourceRoot / "tests/fixtures/step8/user", 10'000, &facade, &facade});
   engine.executeText(R"lua(
     local root = mygui.load_layout("computer", "default")
     button = mygui.create("computer", root, "button", "lua.start",
@@ -177,13 +206,13 @@ TEST_CASE("Step 9A Lua UI callback instruction budget is enforced",
   CHECK_THROWS_AS(facade.click("loop"), run3::scripting::ScriptError);
 }
 
-TEST_CASE("Step 9A buttonGUI remains a scoped MyGUI compatibility facade",
+TEST_CASE("Step 9A buttonGUI has an independent scoped compatibility facade",
           "[step9a][ui][lua][button-gui]") {
   const fs::path sourceRoot{RUN3_TEST_SOURCE_DIR};
   TestUiFacade facade;
   run3::scripting::ScriptEngine engine(
       {sourceRoot / "tests/fixtures/step8/scripts",
-       sourceRoot / "tests/fixtures/step8/user", 10'000, &facade});
+       sourceRoot / "tests/fixtures/step8/user", 10'000, &facade, &facade});
   engine.executeText(R"lua(
     buttonGUI_activateTopLeftComp640()
     legacy = buttonGUI_createButton("launch", "unused", "10 20",

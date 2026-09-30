@@ -92,8 +92,12 @@ ctest --preset <preset> -R run3_step9a --output-on-failure
 ```
 
 It covers handle generations, duplicate names, callback cleanup, path/layout
-confinement, callback instruction budgets, typed API snapshots, retained
-`buttonGUI`, 16:9, 16:10, 4:3, and high-DPI layout math. Installed shell
+confinement, callback instruction budgets, and typed API snapshots.
+`buttonGUI` now owns a separate facade, root widget tree, callback registry,
+and teardown path from the typed `mygui` namespace. Both independent layers
+are composited into the computer target so legacy scripts remain visible
+without leaking button handles into MyGUI's typed API. The tests also cover
+16:9, 16:10, 4:3, and high-DPI layout math. Installed shell
 smokes exercise D3D11 and GL3+ on Windows and GL3+ on Linux. The standalone
 rotating-cube demo and exact commands are in
 `Demos/MyGUIOgre/README.md`.

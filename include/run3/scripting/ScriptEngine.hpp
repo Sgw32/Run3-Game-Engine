@@ -10,6 +10,7 @@
 #include <vector>
 
 namespace run3::ui {
+class IButtonGuiFacade;
 class IScriptUiFacade;
 }
 
@@ -38,6 +39,7 @@ struct ScriptEngineConfig {
   std::filesystem::path userRoot;
   std::size_t instructionBudget{1'000'000};
   ui::IScriptUiFacade *uiFacade{};
+  ui::IButtonGuiFacade *buttonGuiFacade{};
 };
 
 struct ScriptCheckResult {

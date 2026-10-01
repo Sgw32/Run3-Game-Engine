@@ -86,7 +86,12 @@ public:
   [[nodiscard]] virtual std::string createButton(
       std::string name, std::string material, Rect rect, bool dummy,
       UiCallback callback) = 0;
+  [[nodiscard]] virtual std::string createMeshButton(
+      std::string name, std::string mesh, Rect rect, float zoom,
+      std::string rotation, UiCallback callback) = 0;
   virtual void setPosition(std::string_view name, float x, float y) = 0;
+  [[nodiscard]] virtual std::pair<float, float>
+  position(std::string_view name) const noexcept = 0;
   virtual void setCursorVisible(bool visible) = 0;
   [[nodiscard]] virtual std::pair<float, float> cursorPosition() const noexcept = 0;
 };
@@ -126,6 +131,10 @@ public:
   virtual void appendConsole(std::string line) = 0;
   virtual void setLoading(bool visible, std::string text) = 0;
   virtual void setInventoryEnabled(bool enabled) = 0;
+  [[nodiscard]] virtual bool inventoryEnabled() const noexcept = 0;
+  [[nodiscard]] virtual bool inventoryVisible() const noexcept = 0;
+  [[nodiscard]] virtual bool openInventory() = 0;
+  virtual void closeInventory() noexcept = 0;
   [[nodiscard]] virtual IButtonGuiFacade &buttonGui() noexcept = 0;
 
   virtual void setDebugOverlay(bool visible, std::string text) = 0;
@@ -137,6 +146,7 @@ public:
   virtual void deactivateComputer(std::string_view ownerKey) noexcept = 0;
   [[nodiscard]] virtual bool computerActive() const noexcept = 0;
   [[nodiscard]] virtual bool computerActiveFor(std::string_view ownerKey) const noexcept = 0;
+  virtual void setComputerDisplayMaterial(std::string material) = 0;
   virtual void renderComputerSurface() = 0;
   virtual void resetMapState() noexcept = 0;
 };

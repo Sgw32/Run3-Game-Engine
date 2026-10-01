@@ -1,4 +1,5 @@
 #include <run3/ui/OgreMyGui.hpp>
+#include <run3/ui/OgreButtonGui.hpp>
 
 #include <run3/ui/UiModel.hpp>
 
@@ -6,11 +7,8 @@
 #include <MyGUI_OgrePlatform.h>
 
 #include <OgreRenderWindow.h>
-#include <OgreMaterialManager.h>
-#include <OgrePass.h>
+#include <OgreCamera.h>
 #include <OgreSceneManager.h>
-#include <OgreTechnique.h>
-#include <OgreTextureUnitState.h>
 
 #include <algorithm>
 #include <array>
@@ -265,7 +263,7 @@ private:
 
 } // namespace
 
-class MyGuiUiSystem final : public IUiSystem, public IButtonGuiFacade {
+class MyGuiUiSystem final : public IUiSystem {
 public:
   struct Entry {
     WidgetSpec spec;
@@ -273,9 +271,12 @@ public:
   };
 
   MyGuiUiSystem(Ogre::RenderWindow &window, Ogre::SceneManager &sceneManager,
+                Ogre::Camera &camera,
                 const std::filesystem::path &logDirectory,
                 MenuActionHandler actionHandler, const float dpiScale)
-      : window_(&window), actions_(std::move(actionHandler)), dpiScale_(dpiScale) {
+      : window_(&window), actions_(std::move(actionHandler)), dpiScale_(dpiScale),
+        buttonGui_(createOgreButtonGuiSystem(window, sceneManager,
+                                              camera.getName())) {
     platform_ = std::make_unique<MyGUI::OgrePlatform>();
     const std::filesystem::path log = logDirectory / "mygui.log";
     platform_->initialise(&window, &sceneManager, "Run3MyGUI", log.string());
@@ -295,6 +296,7 @@ public:
   }
 
   ~MyGuiUiSystem() override {
+    buttonGui_.reset();
     clearScriptCallbacks();
     entries_.clear();
     reverse_.clear();
@@ -316,7 +318,16 @@ public:
       resize(event.width, event.height, dpiScale_);
       return false;
     }
-    if (!computerActive() && !menuVisible_ && !consoleVisible_) return false;
+    if (!computerActive() && !inventoryVisible_ && !menuVisible_ &&
+        !consoleVisible_)
+      return false;
+
+    // Full-screen computers use the original Ogre-overlay buttonGUI renderer.
+    // No computer input is injected into MyGUI in this mode.
+    if (inventoryVisible_ || (computerActive() && !computerRenderToTexture_)) {
+      static_cast<void>(buttonGui_->handleInput(event));
+      return true;
+    }
 
     const Context context = computerActive() ? Context::Computer : Context::Main;
     const auto roots = rootWidgets();
@@ -364,13 +375,16 @@ public:
       static_cast<void>(id);
       applyCoordinates(entry);
     }
+    buttonGui_->resize();
   }
 
   void update(const float seconds) override {
     static_cast<void>(seconds);
+    buttonGui_->update();
   }
 
   void showMenu(const bool visible) override {
+    if (visible) closeInventory();
     menuVisible_ = visible;
     if (auto root = findWidget(Context::Main, "menu.root"))
       widget(*root).setVisible(visible);
@@ -412,10 +426,29 @@ public:
   }
   void setInventoryEnabled(const bool enabled) override {
     inventoryEnabled_ = enabled;
+    if (!enabled) closeInventory();
+    syncHudVisibility();
+  }
+  bool inventoryEnabled() const noexcept override { return inventoryEnabled_; }
+  bool inventoryVisible() const noexcept override { return inventoryVisible_; }
+  bool openInventory() override {
+    if (!inventoryEnabled_ || inventoryVisible_ || computerActive() ||
+        menuVisible_)
+      return false;
+    buttonGui_->beginInventory();
+    inventoryVisible_ = true;
+    MyGUI::PointerManager::getInstance().setVisible(false);
+    syncHudVisibility();
+    return true;
+  }
+  void closeInventory() noexcept override {
+    if (!inventoryVisible_) return;
+    buttonGui_->endInventory();
+    inventoryVisible_ = false;
     syncHudVisibility();
   }
 
-  IButtonGuiFacade &buttonGui() noexcept override { return *this; }
+  IButtonGuiFacade &buttonGui() noexcept override { return *buttonGui_; }
 
   void setDebugOverlay(const bool visible, std::string text) override {
     debugVisible_ = visible;
@@ -529,34 +562,28 @@ public:
       if (computerOwner_ == ownerKey) return computerTexture_->getName();
       deactivateComputer(computerOwner_);
     }
+    closeInventory();
     computerOwner_ = std::move(ownerKey);
     computerRenderToTexture_ = renderToTexture;
+    buttonGui_->beginComputer(renderToTexture);
     registry_.beginContext(Context::Computer, computerOwner_);
     WidgetSpec background{Context::Computer, {}, WidgetType::Panel,
                           "computer.root", {0, 0, 1024, 768}, {}};
     const WidgetHandle root = createWidget(background);
-    // Legacy buttonGUI scripts remain the primary author of a computer's
-    // contents. The MyGUI context is intentionally empty until buttonGUI or
-    // the typed MyGUI Lua facade adds scoped widgets.
-    setVisible(root, !computerRenderToTexture_);
-    const WidgetHandle buttonRoot = createWidget(
-        {Context::Computer, {}, WidgetType::Panel, "buttonGUI.root",
-         {0, 0, 1024, 768}, {}});
-    setVisible(buttonRoot, !computerRenderToTexture_);
-    MyGUI::PointerManager::getInstance().setVisible(
-        !computerRenderToTexture_ && buttonCursorVisible_);
+    // The typed MyGUI computer surface remains available only for RTT mode.
+    // Direct computers are rendered exclusively by Ogre buttonGUI overlays.
+    setVisible(root, computerRenderToTexture_);
+    MyGUI::PointerManager::getInstance().setVisible(false);
     return computerTexture_->getName();
   }
 
   void deactivateComputer(const std::string_view ownerKey) noexcept override {
     if (!computerActive() || ownerKey != computerOwner_) return;
     try {
-      clearButtonGui();
       if (const auto root = registry_.find(Context::Computer, "computer.root"))
         destroyWidget(*root);
-      if (const auto root = registry_.find(Context::Computer, "buttonGUI.root"))
-        destroyWidget(*root);
     } catch (...) {}
+    buttonGui_->endComputer();
     registry_.clearContext(Context::Computer);
     computerOwner_.clear();
     computerRenderToTexture_ = false;
@@ -569,12 +596,17 @@ public:
     return computerOwner_ == ownerKey;
   }
 
+  void setComputerDisplayMaterial(std::string material) override {
+    if (!computerActive()) return;
+    buttonGui_->setDisplayMaterial(std::move(material));
+  }
+
   void renderComputerSurface() override {
     if (!computerActive() || !computerRenderToTexture_) return;
     MyGUI::IRenderTarget *target = computerTexture_->getRenderTarget();
     const auto roots = rootWidgets();
     VisibilityGuard guard(roots, Context::Computer, reverse_);
-    PointerVisibilityGuard pointer(buttonCursorVisible_);
+    PointerVisibilityGuard pointer(false);
     target->begin();
     try {
       MyGUI::LayerManager::getInstance().renderToTarget(target, true);
@@ -592,79 +624,6 @@ public:
     setInventoryEnabled(false);
     setLoading(false, {});
     showMenu(false);
-  }
-
-  // IButtonGuiFacade. This is a separate legacy layer and registry namespace;
-  // only its final pixels are composited with typed MyGUI into the RTT.
-  void activate(const int layoutMode) override {
-    if (!computerActive())
-      throw std::logic_error("buttonGUI activated outside a computer context");
-    buttonLayoutMode_ = layoutMode;
-  }
-  void deactivate() noexcept override { buttonLayoutMode_ = 0; }
-  void clear() noexcept override { clearButtonGui(); }
-  std::string createButton(std::string name, std::string material,
-                           const Rect rect, const bool dummy,
-                           UiCallback callback) override {
-    if (!computerActive())
-      throw std::logic_error("buttonGUI button created outside a computer context");
-    const auto existing = buttonHandles_.find(name);
-    if (existing != buttonHandles_.end()) {
-      setVisible(existing->second, true);
-      return existing->second.token();
-    }
-    const auto root = registry_.find(Context::Computer, "buttonGUI.root");
-    if (!root) throw std::logic_error("buttonGUI root is not active");
-    const WidgetHandle handle = createWidget(
-        {Context::Computer, *root,
-         dummy ? WidgetType::Panel : WidgetType::Button,
-         "buttonGUI." + name, rect, dummy ? std::string{} : name});
-    if (!dummy && !material.empty()) {
-      try {
-        Ogre::MaterialPtr source =
-            Ogre::MaterialManager::getSingleton().getByName(material);
-        if (source) {
-          source->load();
-          Ogre::Technique *technique = source->getBestTechnique();
-          if (technique != nullptr && technique->getNumPasses() != 0U) {
-            Ogre::Pass *pass = technique->getPass(0);
-            if (pass->getNumTextureUnitStates() != 0U) {
-              const std::string texture =
-                  pass->getTextureUnitState(0)->getTextureName();
-              auto *button = widget(handle).castType<MyGUI::Button>();
-              button->setModeImage(true);
-              if (button->_getImageBox() != nullptr) {
-                button->_getImageBox()->setImageTexture(texture);
-                button->setCaption({});
-              }
-            }
-          }
-        }
-      } catch (...) {
-        // Keep the themed caption button as a safe fallback for malformed or
-        // renderer-specific legacy materials.
-      }
-    }
-    if (callback && !dummy)
-      buttonCallbacks_.emplace(name, setCallback(handle, UiEvent::Click,
-                                                  std::move(callback)));
-    buttonHandles_.emplace(std::move(name), handle);
-    return handle.token();
-  }
-  void setPosition(const std::string_view name, const float x,
-                   const float y) override {
-    const auto found = buttonHandles_.find(std::string(name));
-    if (found == buttonHandles_.end()) return;
-    Entry &entry = entries_.at(found->second.id);
-    entry.spec.rect.left = x;
-    entry.spec.rect.top = y;
-    applyCoordinates(entry);
-  }
-  void setCursorVisible(const bool visible) override {
-    buttonCursorVisible_ = visible;
-  }
-  std::pair<float, float> cursorPosition() const noexcept override {
-    return {static_cast<float>(mouseX_), static_cast<float>(mouseY_)};
   }
 
 private:
@@ -703,7 +662,8 @@ private:
 
   std::pair<int, int> inputPosition(const InputEvent &event,
                                     const Context context) const {
-    if (context != Context::Computer || window_->getWidth() == 0 ||
+    if (context != Context::Computer || !computerRenderToTexture_ ||
+        window_->getWidth() == 0 ||
         window_->getHeight() == 0) return {event.x, event.y};
     return {event.x * 1024 / static_cast<int>(window_->getWidth()),
             event.y * 768 / static_cast<int>(window_->getHeight())};
@@ -772,13 +732,12 @@ private:
   }
   void syncHudVisibility() {
     const bool active = debugVisible_ ||
-                        (hudVisible_ && (consoleVisible_ || loadingVisible_ ||
-                                        inventoryEnabled_));
+                        (hudVisible_ && (consoleVisible_ || loadingVisible_));
     if (const auto root = findWidget(Context::Hud, "hud.root"))
       widget(*root).setVisible(active);
     setWidgetVisible("hud.console", active && consoleVisible_);
     setWidgetVisible("hud.loading", active && loadingVisible_);
-    setWidgetVisible("hud.inventory", active && inventoryEnabled_);
+    setWidgetVisible("hud.inventory", false);
     setWidgetVisible("hud.debug", debugVisible_);
   }
   void showPage(const std::string_view page) {
@@ -859,24 +818,12 @@ private:
     setDebugOverlay(false, {});
   }
 
-  void clearButtonGui() noexcept {
-    for (const auto &[name, callback] : buttonCallbacks_) {
-      static_cast<void>(name);
-      registry_.unbind(callback);
-    }
-    buttonCallbacks_.clear();
-    for (const auto &[name, handle] : buttonHandles_) {
-      static_cast<void>(name);
-      try { destroyWidget(handle); } catch (...) {}
-    }
-    buttonHandles_.clear();
-  }
-
   Ogre::RenderWindow *window_{};
   MenuActionHandler actions_;
   UiRegistry registry_;
   std::unique_ptr<MyGUI::OgrePlatform> platform_;
   std::unique_ptr<MyGUI::Gui> gui_;
+  std::unique_ptr<IButtonGuiSystem> buttonGui_;
   MyGUI::ITexture *computerTexture_{};
   std::unordered_map<std::uint64_t, Entry> entries_;
   std::unordered_map<MyGUI::Widget *, WidgetHandle> reverse_;
@@ -892,19 +839,18 @@ private:
   bool consoleVisible_{};
   bool loadingVisible_{};
   bool inventoryEnabled_{};
-  std::unordered_map<std::string, WidgetHandle> buttonHandles_;
-  std::unordered_map<std::string, std::uint64_t> buttonCallbacks_;
-  int buttonLayoutMode_{};
-  bool buttonCursorVisible_{true};
+  bool inventoryVisible_{};
   bool debugVisible_{};
   bool computerRenderToTexture_{};
 };
 
 std::unique_ptr<IUiSystem> createMyGuiUiSystem(
     Ogre::RenderWindow &window, Ogre::SceneManager &sceneManager,
+    Ogre::Camera &camera,
     const std::filesystem::path &userLogDirectory,
     MenuActionHandler actionHandler, const float dpiScale) {
-  return std::make_unique<MyGuiUiSystem>(window, sceneManager, userLogDirectory,
+  return std::make_unique<MyGuiUiSystem>(window, sceneManager, camera,
+                                        userLogDirectory,
                                         std::move(actionHandler), dpiScale);
 }
 

@@ -6,6 +6,7 @@
 #include <memory>
 
 namespace Ogre {
+class Camera;
 class RenderWindow;
 class SceneManager;
 }
@@ -16,6 +17,7 @@ namespace run3::ui {
 // private to its implementation translation unit.
 [[nodiscard]] std::unique_ptr<IUiSystem> createMyGuiUiSystem(
     Ogre::RenderWindow &window, Ogre::SceneManager &sceneManager,
+    Ogre::Camera &camera,
     const std::filesystem::path &userLogDirectory,
     MenuActionHandler actionHandler, float dpiScale = 1.0F);
 

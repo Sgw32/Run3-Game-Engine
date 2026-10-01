@@ -96,9 +96,10 @@ public:
     }
     legacy_.clear();
   }
-  std::string createButton(std::string name, std::string,
+  std::string createButton(std::string name, std::string material,
                            run3::ui::Rect rect, bool dummy,
                            run3::ui::UiCallback callback) override {
+    lastButtonMaterial = std::move(material);
     const auto handle = registry_.add(
         {run3::ui::Context::Computer, root_,
          dummy ? run3::ui::WidgetType::Panel : run3::ui::WidgetType::Button,
@@ -109,11 +110,21 @@ public:
         handle, run3::ui::UiEvent::Click, std::move(callback)));
     return handle.token();
   }
+  std::string createMeshButton(std::string name, std::string, run3::ui::Rect rect,
+                               float, std::string,
+                               run3::ui::UiCallback callback) override {
+    return createButton(std::move(name), "BLANK", rect, false,
+                        std::move(callback));
+  }
   void setPosition(std::string_view, float, float) override {}
+  std::pair<float, float> position(std::string_view) const noexcept override {
+    return {};
+  }
   void setCursorVisible(bool) override {}
   std::pair<float, float> cursorPosition() const noexcept override {
     return {};
   }
+  std::string lastButtonMaterial;
 
 private:
   run3::ui::UiRegistry registry_;
@@ -215,11 +226,12 @@ TEST_CASE("Step 9A buttonGUI has an independent scoped compatibility facade",
        sourceRoot / "tests/fixtures/step8/user", 10'000, &facade, &facade});
   engine.executeText(R"lua(
     buttonGUI_activateTopLeftComp640()
-    legacy = buttonGUI_createButton("launch", "unused", "10 20",
+    legacy = buttonGUI_createButton("launch", "TLW/AntiqueButton1", "10 20",
                                     "120 32", "")
   )lua", "button-gui-fixture.lua");
   CHECK(facade.findWidget(run3::ui::Context::Computer,
                           "buttonGUI.launch").has_value());
+  CHECK(facade.lastButtonMaterial == "TLW/AntiqueButton1");
   engine.executeText("buttonGUI_deleteAllButtons()", "button-gui-cleanup.lua");
   CHECK_FALSE(facade.findWidget(run3::ui::Context::Computer,
                                 "buttonGUI.launch").has_value());

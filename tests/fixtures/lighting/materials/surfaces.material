@@ -15,6 +15,22 @@ material Base
     }
   }
 }
+
+material OverlayTemplate
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit tex
+      {
+      }
+    }
+  }
+}
+material OverlayButton : OverlayTemplate
+{ set_texture_alias tex overlay-button.png }
 material Child : Base
 {
   set_texture_alias MainTexture child.png

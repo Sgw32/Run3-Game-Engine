@@ -220,8 +220,24 @@ target_include_directories(
     run3_ui PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 target_link_libraries(run3_ui PUBLIC run3::core PRIVATE run3::warnings)
 
+# Compile the original Ogre-overlay buttonGUI directly. It remains independent
+# from MyGUI; OgreButtonGui.cpp only adapts Run3 input and Lua callbacks.
+add_library(run3_ui_buttongui STATIC
+            buttonGUI.cpp
+            source/ui/OgreButtonGui.cpp)
+add_library(run3::ui_buttongui ALIAS run3_ui_buttongui)
+target_compile_features(run3_ui_buttongui PUBLIC cxx_std_17)
+target_include_directories(
+    run3_ui_buttongui
+    PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(
+    run3_ui_buttongui PUBLIC run3::ui
+    PRIVATE run3::warnings OgreMain OgreOverlay)
+
 # MyGUI and Ogre ownership remain private to this adapter. Gameplay sees only
-# the Run3-owned run3::ui interfaces above.
+# the Run3-owned run3::ui interfaces above. The native buttonGUI renderer is a
+# separate dependency and is not implemented using MyGUI widgets.
 add_library(run3_ui_mygui STATIC source/ui/MyGuiUiSystem.cpp)
 add_library(run3::ui_mygui ALIAS run3_ui_mygui)
 target_compile_features(run3_ui_mygui PUBLIC cxx_std_17)
@@ -229,7 +245,8 @@ target_include_directories(
     run3_ui_mygui PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 target_link_libraries(
     run3_ui_mygui PUBLIC run3::ui
-    PRIVATE run3::warnings MyGUI::MyGUI MyGUI::OgrePlatform OgreMain)
+    PRIVATE run3::warnings run3::ui_buttongui MyGUI::MyGUI
+            MyGUI::OgrePlatform OgreMain)
 
 add_library(run3_rendering STATIC source/rendering/OgreEnvironment.cpp
                                 source/rendering/Lighting.cpp

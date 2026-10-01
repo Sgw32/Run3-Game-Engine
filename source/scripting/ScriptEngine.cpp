@@ -392,35 +392,39 @@ public:
       facade.setCursorVisible(call.name == "buttonGUI_showCursor");
       return ScriptValue{};
     }
-    if (call.name == "buttonGUI_getCursX" || call.name == "buttonGUI_getX")
+    if (call.name == "buttonGUI_getCursX")
       return ScriptValue{static_cast<double>(facade.cursorPosition().first)};
-    if (call.name == "buttonGUI_getCursY" || call.name == "buttonGUI_getY")
+    if (call.name == "buttonGUI_getCursY")
       return ScriptValue{static_cast<double>(facade.cursorPosition().second)};
+    if (call.name == "buttonGUI_getX" || call.name == "buttonGUI_getY") {
+      if (call.arguments.size() != 1) return ScriptValue{};
+      const auto [x, y] = facade.position(call.arguments[0]);
+      return ScriptValue{static_cast<double>(call.name == "buttonGUI_getX" ? x : y)};
+    }
     if (call.name == "buttonGUI_setPos") {
       if (call.arguments.size() != 3) return ScriptValue{};
       facade.setPosition(call.arguments[0], std::stof(call.arguments[1]),
                          std::stof(call.arguments[2]));
       return ScriptValue{};
     }
+    const bool meshButton = call.name == "buttonGUI_create3DButton";
+    const bool quaternionMeshButton = call.name == "buttonGUI_create3DButtonQuat";
     if (call.name != "buttonGUI_createButton" &&
         call.name != "buttonGUI_createButtonS" &&
-        call.name != "buttonGUI_createDummy") return std::nullopt;
-    if (call.arguments.size() != 5)
-      throw std::invalid_argument(call.name + " expects five string arguments");
+        call.name != "buttonGUI_createDummy" && !meshButton &&
+        !quaternionMeshButton)
+      return std::nullopt;
+    const std::size_t expected = quaternionMeshButton ? 7U : meshButton ? 6U : 5U;
+    if (call.arguments.size() != expected)
+      throw std::invalid_argument(call.name + " expects " +
+                                  std::to_string(expected) + " string arguments");
     auto [x, y] = legacyPair(call.arguments[2]);
     auto [width, height] = legacyPair(call.arguments[3]);
-    if (legacyButtonTransform_ == 3) {
-      x *= 1024.0F / 640.0F;
-      y *= 768.0F / 480.0F;
-      width *= 1024.0F / 640.0F;
-      height *= 768.0F / 480.0F;
-    } else if (legacyButtonTransform_ == 1) {
-      x += (1024.0F - 640.0F) * 0.5F;
-      y += (768.0F - 480.0F) * 0.5F;
-    }
     ui::UiCallback callback;
-    if (call.name != "buttonGUI_createDummy" && !call.arguments[4].empty()) {
-      const fs::path script = call.arguments[4];
+    const std::size_t scriptIndex = quaternionMeshButton ? 6U : meshButton ? 5U : 4U;
+    if (call.name != "buttonGUI_createDummy" &&
+        !call.arguments[scriptIndex].empty()) {
+      const fs::path script = call.arguments[scriptIndex];
       callback = [this, script](std::string) {
             const fs::path approved = approvedPath(script);
             auto [loaded, shims] =
@@ -428,6 +432,13 @@ public:
             static_cast<void>(shims);
             executeLoaded(std::move(loaded), approved);
           };
+    }
+    if (meshButton || quaternionMeshButton) {
+      return ScriptValue{facade.createMeshButton(
+          call.arguments[0], call.arguments[1], {x, y, width, height},
+          std::stof(call.arguments[4]),
+          quaternionMeshButton ? call.arguments[5] : std::string{},
+          std::move(callback))};
     }
     return ScriptValue{facade.createButton(
         call.arguments[0], call.arguments[1], {x, y, width, height},

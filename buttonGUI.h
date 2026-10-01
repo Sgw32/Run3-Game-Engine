@@ -934,7 +934,8 @@ public:
    *materialName.mouseOff    are defined
    */
   buttonManager(std::string defaultTextFieldM, textScheme defaultTextScheme,
-                Ogre::SceneManager *mgr = NULL, std::string cameraName = "");
+                Ogre::SceneManager *mgr = NULL, std::string cameraName = "",
+                Ogre::RenderWindow *window = NULL);
   ~buttonManager(void);
 
   /**
@@ -1211,6 +1212,7 @@ private:
       camera; // this is only needed for 3D elements in the overlays,  you can
               // throw junk in here if you arent using them,  otherwise,  give
               // it the name of the camera you are using.
+  Ogre::RenderWindow *renderWindow;
 
   static const short triggerOpacity =
       50; // any windows,  text or buttons  will not react when their opacity is

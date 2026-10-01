@@ -537,6 +537,8 @@ public:
     if (virtualSurface)
       bindComputerMaterial(entry, command.owner.id.value, command.material,
                            textureName);
+    else
+      ui->setComputerDisplayMaterial(command.material);
     log("computer '" + entry.spec.name +
         (virtualSurface ? "' focused on computer RTT '" + textureName + "'"
                         : "' focused in direct-display mode"));

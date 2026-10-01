@@ -732,7 +732,7 @@ void Run3App::setup() {
       *sceneManager_, *camera_, *viewport, options_.lighting);
   if (options_.lightingLab) lighting_->createLab();
   ui_ = ui::createMyGuiUiSystem(
-      *getRenderWindow(), *sceneManager_, options_.paths.logDir(),
+      *getRenderWindow(), *sceneManager_, *camera_, options_.paths.logDir(),
       [this](const ui::MenuAction &action) { handleMenuAction(action); },
       options_.uiScale);
   Ogre::LogManager::getSingleton().logMessage(
@@ -1000,6 +1000,25 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
       cycleDebugOverlay();
       continue;
     }
+    if (event.type == InputEventType::KeyPressed && !event.repeated &&
+        event.key == Key::I && ui_ && !ui_->computerActive() &&
+        !ui_->menuVisible()) {
+      if (ui_->inventoryVisible()) {
+        ui_->closeInventory();
+      } else if (sequenceRuntime_ &&
+                 !sequenceRuntime_->presentation().playerFrozen &&
+                 ui_->openInventory()) {
+        try {
+          static_cast<void>(sequenceRuntime_->dispatchScriptCall(
+              {"world", "runScript", {"run3/lua/funcs/inventory.lua"}}));
+        } catch (...) {
+          ui_->closeInventory();
+          throw;
+        }
+      }
+      refreshMouseCapture();
+      continue;
+    }
     const bool escape = event.type == InputEventType::KeyPressed &&
                         !event.repeated && event.key == Key::Escape;
     if (ui_ && ui_->computerActive() && !escape) {
@@ -1013,7 +1032,8 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
       continue;
     }
     if (escape) {
-      if (ui_) ui_->showMenu(!ui_->menuVisible());
+      if (ui_ && ui_->inventoryVisible()) ui_->closeInventory();
+      else if (ui_) ui_->showMenu(!ui_->menuVisible());
       else requestQuit();
       refreshMouseCapture();
       continue;
@@ -1256,7 +1276,7 @@ void Run3App::handleMenuAction(const ui::MenuAction &action) {
 void Run3App::refreshMouseCapture() {
   const bool capture = player_ != nullptr && options_.frameLimit == 0 &&
                        ui_ != nullptr && !ui_->menuVisible() &&
-                       !ui_->computerActive();
+                       !ui_->computerActive() && !ui_->inventoryVisible();
   if (capture != gameplayMouseCapture_) setGameplayMouseCapture(capture);
 }
 

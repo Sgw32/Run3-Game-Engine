@@ -129,6 +129,17 @@ TEST_CASE("Step 8E computer captures backend-neutral input and exits safely",
   REQUIRE(terminal.has_value());
   REQUIRE(fixture.runtime->interact(*terminal));
   CHECK(fixture.runtime->presentation().computerFocused);
+  static_cast<void>(fixture.runtime->dispatchScriptCall(
+      {"display", "dMaterialSet", {"TLW/Antique05"}}));
+  const auto materialUpdate = std::find_if(
+      fixture.services.commands.rbegin(), fixture.services.commands.rend(),
+      [](const auto &command) {
+        return std::holds_alternative<gameplay::SetComputerPresentation>(command);
+      });
+  REQUIRE(materialUpdate != fixture.services.commands.rend());
+  CHECK(std::get<gameplay::SetComputerPresentation>(*materialUpdate).material ==
+        "TLW/Antique05");
+  CHECK(std::get<gameplay::SetComputerPresentation>(*materialUpdate).focused);
   CHECK(fixture.runtime->handleInput(
       {InputEventType::TextEntered, Key::Unknown, MouseButton::None, "a"}));
   CHECK(fixture.services.count<gameplay::SendComputerInput>() == 1);

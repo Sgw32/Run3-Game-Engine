@@ -124,7 +124,17 @@ struct LegacyMaterialCatalog::Impl {
         continue;
       }
 
-      std::istringstream tokens(cleaned);
+      // Many legacy GUI materials use the compact form
+      // `{ set_texture_alias tex image.png }`. Braces are structural tokens,
+      // not part of the directive, so strip leading braces before tokenizing.
+      std::string statement = cleaned;
+      while (!statement.empty() && statement.front() == '{')
+        statement = trim(statement.substr(1));
+      while (!statement.empty() && statement.back() == '}') {
+        statement.pop_back();
+        statement = trim(statement);
+      }
+      std::istringstream tokens(statement);
       std::string keyword;
       tokens >> keyword;
       // Subsequent techniques are fallbacks/deferred exports, not overrides
@@ -143,7 +153,9 @@ struct LegacyMaterialCatalog::Impl {
         tokens >> alias >> texture;
         alias = lower(alias);
         alias.erase(std::remove(alias.begin(), alias.end(), '_'), alias.end());
-        if (alias == "maintexture" && !texture.empty()) {
+        if ((alias == "maintexture" || alias == "tex" ||
+             alias == "diffusemap" || alias == "albedo") &&
+            !texture.empty()) {
           active->aliasTexture = unquote(std::move(texture));
         } else if (alias == "normalmap") {
           active->normal = unquote(texture);

@@ -106,4 +106,22 @@ TEST_CASE("Lighting material roles preserve unlit alpha and exclude volume noise
   CHECK(maps->surface.specularMap.name == "gloss.png");
   CHECK(maps->surface.reflectionMapping == ReflectionMapping::Cube);
   CHECK(maps->surface.reflectionMap.name == "morning.jpg");
+  const auto overlay = catalog.find("OverlayButton");
+  REQUIRE(overlay);
+  CHECK(overlay->surface.diffuseMap.name == "overlay-button.png");
+  CHECK_FALSE(overlay->surface.lighting);
+}
+
+TEST_CASE("Legacy buttonGUI texture aliases resolve from shipped content") {
+  gameplay::LegacyMaterialCatalog catalog;
+  const auto content = std::filesystem::path(RUN3_TEST_SOURCE_DIR) /
+                       "Games/The Long Way/TheLongWay";
+  catalog.scan(content);
+  const auto antique = catalog.find("TLW/AntiqueButton1");
+  REQUIRE(antique);
+  CHECK(antique->surface.diffuseMap.name == "antuque_shop_portraits.jpg");
+  CHECK_FALSE(antique->surface.lighting);
+  const auto inventory = catalog.find("Inventory/Portmone");
+  REQUIRE(inventory);
+  CHECK_FALSE(inventory->surface.diffuseMap.name.empty());
 }

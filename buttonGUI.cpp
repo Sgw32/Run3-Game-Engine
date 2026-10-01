@@ -43,8 +43,14 @@ textScheme::textScheme(std::string font, short unsigned size, float r, float g,
       cMouseOver(buttonTextColor(r, g, b, a)),
       cOnClick(buttonTextColor(r, g, b, a)),
       cOnRelease(buttonTextColor(r, g, b, a)), mFont(font), mFontSize(size) {
-  Ogre::FontManager::getSingletonPtr()->load(
-      font, ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
+  // Modern Run3 builds legacy materials manually instead of initialising every
+  // D3D9-era resource script. Most computer buttons contain no text, so a
+  // missing optional font must not prevent the native overlay manager from
+  // being constructed.
+  Ogre::FontManager &fonts = Ogre::FontManager::getSingleton();
+  if (fonts.resourceExists(font,
+                           ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME))
+    fonts.load(font, ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
 }
 textScheme::~textScheme(void) {}
 
@@ -430,16 +436,18 @@ button *button::setMaterial(std::string materialName) {
   else {
     panel->setTransparent(false);
     Ogre::MaterialManager &mgr = Ogre::MaterialManager::getSingleton();
+    const Ogre::String &group =
+        ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME;
     std::string materiallnstanceName;
     MaterialPtr mat;
 
-    if (mgr.resourceExists(materialName)) // try to default to the name itself
+    if (mgr.resourceExists(materialName, group)) // try to default to the name itself
     {
-      mat = mgr.getByName(materialName); // the material exists,  so lets make a
+      mat = mgr.getByName(materialName, group); // the material exists,  so lets make a
                                          // clone of it and use that.
       materiallnstanceName = (materialName + "_buttonGUI_" + name);
       if (!mgr.resourceExists(
-              materiallnstanceName)) // make sure clone doesn't exist before
+              materiallnstanceName, group)) // make sure clone doesn't exist before
                                      // trying to clone.
         mat->clone(materiallnstanceName);
 
@@ -447,18 +455,18 @@ button *button::setMaterial(std::string materialName) {
       onReleaseMaterial = materiallnstanceName;
       mouseOverMaterial = materiallnstanceName;
       mouseOffMaterial = materiallnstanceName;
-      panel->setMaterialName(materiallnstanceName);
+      panel->setMaterialName(materiallnstanceName, group);
     }
 
-    if (mgr.resourceExists(materialName +
-                           ".mouseOff")) // fall back to the mouseoff material
+    if (mgr.resourceExists(materialName + ".mouseOff",
+                           group)) // fall back to the mouseoff material
     {
-      mat = mgr.getByName(materialName + ".mouseOff");
+      mat = mgr.getByName(materialName + ".mouseOff", group);
       materiallnstanceName = (materialName + ".mouseOff_buttonGUI_" +
                               name); // the material exists,  so lets make a
                                      // clone of it and use that.
       if (!mgr.resourceExists(
-              materiallnstanceName)) // make sure clone doesn't exist before
+              materiallnstanceName, group)) // make sure clone doesn't exist before
                                      // trying to clone.
         mat->clone(materiallnstanceName);
 
@@ -466,40 +474,40 @@ button *button::setMaterial(std::string materialName) {
       onReleaseMaterial = materiallnstanceName;
       mouseOverMaterial = materiallnstanceName;
       mouseOffMaterial = materiallnstanceName;
-      panel->setMaterialName(materiallnstanceName);
+      panel->setMaterialName(materiallnstanceName, group);
     }
 
-    if (mgr.resourceExists(materialName + ".onClick")) {
-      mat = mgr.getByName(materialName + ".onClick");
+    if (mgr.resourceExists(materialName + ".onClick", group)) {
+      mat = mgr.getByName(materialName + ".onClick", group);
       materiallnstanceName = (materialName + ".onClick_buttonGUI_" +
                               name); // the material exists,  so lets make a
                                      // clone of it and use that.
       if (!mgr.resourceExists(
-              materiallnstanceName)) // make sure clone doesn't exist before
+              materiallnstanceName, group)) // make sure clone doesn't exist before
                                      // trying to clone.
         mat->clone(materiallnstanceName);
       onClickMaterial = materiallnstanceName;
     }
-    if (mgr.resourceExists(materialName + ".mouseOver")) {
-      mat = mgr.getByName(materialName + ".mouseOver");
+    if (mgr.resourceExists(materialName + ".mouseOver", group)) {
+      mat = mgr.getByName(materialName + ".mouseOver", group);
       materiallnstanceName = (materialName + ".mouseOver_buttonGUI_" +
                               name); // the material exists,  so lets make a
                                      // clone of it and use that.
       if (!mgr.resourceExists(
-              materiallnstanceName)) // make sure clone doesn't exist before
+              materiallnstanceName, group)) // make sure clone doesn't exist before
                                      // trying to clone.
         mat->clone(materiallnstanceName);
       mouseOverMaterial = materiallnstanceName;
       onReleaseMaterial = materiallnstanceName; // onRelease will fall back to
                                                 // mouseOver unless overwritten.
     }
-    if (mgr.resourceExists(materialName + ".onRelease")) {
-      mat = mgr.getByName(materialName + ".onRelease");
+    if (mgr.resourceExists(materialName + ".onRelease", group)) {
+      mat = mgr.getByName(materialName + ".onRelease", group);
       materiallnstanceName = (materialName + ".onRelease_buttonGUI_" +
                               name); // the material exists,  so lets make a
                                      // clone of it and use that.
       if (!mgr.resourceExists(
-              materiallnstanceName)) // make sure clone doesn't exist before
+              materiallnstanceName, group)) // make sure clone doesn't exist before
                                      // trying to clone.
         mat->clone(materiallnstanceName);
       onReleaseMaterial = materiallnstanceName;
@@ -877,7 +885,8 @@ bool button::onClick(bool rotateMB) {
     return false;
 
   if (onClickMaterial != "") {
-    panel->setMaterialName(onClickMaterial);
+    panel->setMaterialName(
+        onClickMaterial, ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
     //		if (!panel->isTransparent())  //if the panel is transparent it
     //means it has no material at all. 			setOpacity(1);//clear any half
     //transparencies from past events.
@@ -904,7 +913,8 @@ bool button::onRelease() {
     return false;
 
   if (onReleaseMaterial != "") {
-    panel->setMaterialName(onReleaseMaterial);
+    panel->setMaterialName(
+        onReleaseMaterial, ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
     //		if (!panel->isTransparent())  //if the panel is transparent it
     //means it has no material at all. 			setOpacity(1);//clear any half
     //transparencies from past events.
@@ -924,7 +934,8 @@ bool button::mouseOver() {
     return false;
 
   if (mouseOverMaterial != "") {
-    panel->setMaterialName(mouseOverMaterial);
+    panel->setMaterialName(
+        mouseOverMaterial, ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
     //		if (!panel->isTransparent())  //if the panel is transparent it
     //means it has no material at all. 			setOpacity(1);//clear any half
     //transparencies from past events.
@@ -944,7 +955,8 @@ bool button::mouseOff() {
     return false;
 
   if (mouseOffMaterial != "") {
-    panel->setMaterialName(mouseOffMaterial);
+    panel->setMaterialName(
+        mouseOffMaterial, ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
     //		if (!panel->isTransparent())  //if the panel is transparent it
     //means it has no material at all. 			setOpacity(1);		//clear any half
     //transparencies from past events.
@@ -984,8 +996,9 @@ textInputArea::textInputArea(buttonManager *mgr, std::string &textInputName,
       textAreas
           .back(); // get last element which is the text area we just created.
 
-  if (Ogre::MaterialManager::getSingleton().resourceExists(material +
-                                                           ".focused"))
+  if (Ogre::MaterialManager::getSingleton().resourceExists(
+          material + ".focused",
+          ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME))
     activatedMaterial =
         material +
         ".focused"; // auto apply a separate activated material if it exists.
@@ -1053,7 +1066,8 @@ bool textInputArea::setFocused(bool state) {
   if (state) {
     setMaterial(activatedMaterial);
     panel->setMaterialName(
-        onClickMaterial); // if we got focused its because mouse is on us.
+        onClickMaterial, ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
+    // if we got focused its because mouse is on us.
   } else
     setMaterial(deactivatedMaterial);
 
@@ -1125,10 +1139,14 @@ buttonMesh::buttonMesh(const Ogre::String name, const Ogre::String meshFile,
     std::string matName = mat->getName();
     std::string materiallnstanceName = (matName + "_buttonGUI_" + name);
     if (!mgr.resourceExists(
-            materiallnstanceName)) // make sure clone doesn't exist before
-                                   // trying to clone.
+            materiallnstanceName,
+            Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME))
+      // Make sure the clone doesn't exist before trying to clone it. Legacy
+      // content materials are not necessarily in Ogre's default group.
       mat->clone(materiallnstanceName);
-    e->getSubEntity(x)->setMaterialName(materiallnstanceName);
+    e->getSubEntity(x)->setMaterialName(
+        materiallnstanceName,
+        Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
   }
 
   if (!parent->getVisibility())
@@ -1299,8 +1317,9 @@ Ogre::Vector2 lastPos;
 
 buttonManager::buttonManager(std::string defaultTextFieldM,
                              textScheme defaultTextScheme,
-                             Ogre::SceneManager *mgr, std::string cameraName)
-    : sceneMgr(mgr), camera(cameraName),
+                             Ogre::SceneManager *mgr, std::string cameraName,
+                             Ogre::RenderWindow *window)
+    : sceneMgr(mgr), camera(cameraName), renderWindow(window),
       defaultTextFieldMaterial(defaultTextFieldM),
       defaultTextStyle(defaultTextScheme), grabbedButton(NULL),
       grabbingMouseButton(run3::MouseButton::Left), // defnes the mouse button that is used to
@@ -1308,6 +1327,8 @@ buttonManager::buttonManager(std::string defaultTextFieldM,
       turningMouseButton(
           run3::MouseButton::Right), // defines the mouse button that can rotate buttonMeshes
       zOrderCounter(5), activeTextInputArea(NULL),
+      mouseX(0), mouseY(0), mouseOffsetX(0), mouseOffsetY(0), lastFrameTime(0),
+      timeDiff(0),
       eventContainer(ONSUBMIT, run3::MouseButton::None, NULL,
                      NULL), // junk event container just for the initialization
       capslock(false), lshift(false), rshift(false), backSpace(false),
@@ -1328,7 +1349,11 @@ buttonManager::buttonManager(std::string defaultTextFieldM,
 buttonManager::~buttonManager(void) { shutdown(); }
 
 void buttonManager::resetScreenResolution(void) {
-  RenderWindow *rw = Ogre::Root::getSingleton().getAutoCreatedWindow();
+  RenderWindow *rw = renderWindow;
+  if (rw == nullptr)
+    rw = Ogre::Root::getSingleton().getAutoCreatedWindow();
+  if (rw == nullptr)
+    return;
   screenResX = rw->getWidth();
   screenResY = rw->getHeight();
 

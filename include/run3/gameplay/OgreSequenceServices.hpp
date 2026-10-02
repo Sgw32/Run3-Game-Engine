@@ -23,6 +23,7 @@ struct OgreSequenceResourceCounts {
   std::size_t particles{};
   std::size_t physicsBindings{};
   std::size_t audioHandles{};
+  std::size_t facialAnimations{};
   std::size_t attachments{};
   std::size_t ragdolls{};
   bool rootNode{};
@@ -30,7 +31,7 @@ struct OgreSequenceResourceCounts {
   [[nodiscard]] bool empty() const noexcept {
     return presentations == 0 && visualParts == 0 && particles == 0 &&
            physicsBindings == 0 && audioHandles == 0 && attachments == 0 &&
-           ragdolls == 0 && !rootNode;
+           facialAnimations == 0 && ragdolls == 0 && !rootNode;
   }
 };
 

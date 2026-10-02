@@ -1,5 +1,15 @@
 # Step 8B entity compatibility inventory
 
+## Step 8D facial-animation closure (2026-10-02)
+
+NPC event 27 is no longer voice-only. The existing `npcEvent`, `npcEvent2`,
+and broadcast Lua bindings route the authored facial XML path through the typed
+NPC command boundary. The presentation adapter drives per-NPC mesh poses from
+the voice playback cursor, including the patched multi-submesh layout, and
+shows the authored subtitle. Focused tests validate all 41 attached facial XML
+files and their voice resolution without modifying campaign content. See
+[NPC_RUNTIME.md](NPC_RUNTIME.md) for timing, lifetime, and remaining NPC gaps.
+
 ## Step 8E authored-presentation closure (2026-09-23)
 
 The 23 cutscene declarations, 20 cutscene bindings, 112 ordered run hooks, and

@@ -19,6 +19,7 @@ namespace run3::ui {
     Ogre::RenderWindow &window, Ogre::SceneManager &sceneManager,
     Ogre::Camera &camera,
     const std::filesystem::path &userLogDirectory,
-    MenuActionHandler actionHandler, float dpiScale = 1.0F);
+    MenuActionHandler actionHandler, OptionsMenuSettings settings,
+    float dpiScale = 1.0F);
 
 } // namespace run3::ui

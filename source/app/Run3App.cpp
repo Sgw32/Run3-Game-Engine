@@ -324,6 +324,22 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
       configuredDouble(configuration, "ui-scale", 1.0));
   if (options.uiScale < 0.75F || options.uiScale > 3.0F)
     throw std::runtime_error("ui-scale must be between 0.75 and 3.0");
+  options.mouseSensitivity =
+      configuredDouble(configuration, "input.mouse-sensitivity", 1.0);
+  if (options.mouseSensitivity < 0.1 || options.mouseSensitivity > 4.0)
+    throw std::runtime_error(
+        "input.mouse-sensitivity must be between 0.1 and 4.0");
+  for (const auto &definition : inputActionDefinitions()) {
+    const std::string configKey =
+        "input.bind." + std::string(definition.id);
+    const auto configured = configuration.find(configKey);
+    if (!configured) continue;
+    const auto key = parseKey(*configured);
+    if (!key || !isBindableKey(*key))
+      throw std::runtime_error("Configuration value for '" + configKey +
+                               "' is not a bindable key: " + *configured);
+    options.inputBindings.rebind(definition.action, *key);
+  }
   options.newGameMap = configuration.valueOr("new-game-map", "tlwintro");
   if (options.newGameMap.empty())
     throw std::runtime_error("new-game-map must not be empty");
@@ -401,15 +417,21 @@ int Run3App::run() {
         const InputState &state = input_.state();
         const bool frozen = sequenceRuntime_ &&
                             sequenceRuntime_->presentation().playerFrozen;
-        command.forward = frozen ? 0.0 : (state.keyDown(Key::W) || state.keyDown(Key::Up) ? 1.0 : 0.0) -
-                          (state.keyDown(Key::S) || state.keyDown(Key::Down) ? 1.0 : 0.0);
-        command.strafe = frozen ? 0.0 : (state.keyDown(Key::D) || state.keyDown(Key::Right) ? 1.0 : 0.0) -
-                         (state.keyDown(Key::A) || state.keyDown(Key::Left) ? 1.0 : 0.0);
-        command.run = !frozen && (state.keyDown(Key::LeftShift) || state.keyDown(Key::RightShift));
-        command.jump = !frozen && state.keyDown(Key::Space);
-        command.crouch = !frozen && (state.keyDown(Key::LeftControl) || state.keyDown(Key::RightControl));
+        command.forward = frozen ? 0.0
+            : (options_.inputBindings.down(state, InputAction::MoveForward) ? 1.0 : 0.0) -
+              (options_.inputBindings.down(state, InputAction::MoveBackward) ? 1.0 : 0.0);
+        command.strafe = frozen ? 0.0
+            : (options_.inputBindings.down(state, InputAction::MoveRight) ? 1.0 : 0.0) -
+              (options_.inputBindings.down(state, InputAction::MoveLeft) ? 1.0 : 0.0);
+        command.run = !frozen &&
+            options_.inputBindings.down(state, InputAction::Run);
+        command.jump = !frozen &&
+            options_.inputBindings.down(state, InputAction::Jump);
+        command.crouch = !frozen &&
+            options_.inputBindings.down(state, InputAction::Crouch);
         if (player_->state().noclip && !frozen) {
-          command.vertical = (state.keyDown(Key::Space) ? 1.0 : 0.0) -
+          command.vertical =
+              (options_.inputBindings.down(state, InputAction::Jump) ? 1.0 : 0.0) -
                              (command.crouch ? 1.0 : 0.0);
           command.jump = false;
           command.crouch = false;
@@ -734,6 +756,10 @@ void Run3App::setup() {
   ui_ = ui::createMyGuiUiSystem(
       *getRenderWindow(), *sceneManager_, *camera_, options_.paths.logDir(),
       [this](const ui::MenuAction &action) { handleMenuAction(action); },
+      {std::to_string(options_.windowWidth) + "x" +
+           std::to_string(options_.windowHeight),
+       options_.verticalFovDegrees, options_.mouseSensitivity,
+       options_.inputBindings},
       options_.uiScale);
   Ogre::LogManager::getSingleton().logMessage(
       "Run3 display: " + std::to_string(options_.windowWidth) + "x" +
@@ -1001,7 +1027,8 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
       continue;
     }
     if (event.type == InputEventType::KeyPressed && !event.repeated &&
-        event.key == Key::I && ui_ && !ui_->computerActive() &&
+        event.key == options_.inputBindings.key(InputAction::Inventory) &&
+        ui_ && !ui_->computerActive() &&
         !ui_->menuVisible()) {
       if (ui_->inventoryVisible()) {
         ui_->closeInventory();
@@ -1031,6 +1058,11 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
       refreshMouseCapture();
       continue;
     }
+    if (escape && ui_ && ui_->bindingCaptureActive() &&
+        ui_->handleInput(event)) {
+      refreshMouseCapture();
+      continue;
+    }
     if (escape) {
       if (ui_ && ui_->inventoryVisible()) ui_->closeInventory();
       else if (ui_) ui_->showMenu(!ui_->menuVisible());
@@ -1044,7 +1076,8 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
     }
     if (player_ && event.type == InputEventType::MouseMoved &&
         !(sequenceRuntime_ && sequenceRuntime_->presentation().playerFrozen)) {
-      constexpr double sensitivity = 0.0025;
+      constexpr double baseSensitivity = 0.0025;
+      const double sensitivity = baseSensitivity * options_.mouseSensitivity;
       yawRadians_ -= static_cast<double>(event.deltaX) * sensitivity;
       pitchRadians_ = std::clamp(
           pitchRadians_ - static_cast<double>(event.deltaY) * sensitivity,
@@ -1060,7 +1093,8 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
       physicsDebug_ = !physicsDebug_;
       staticMap_->setDebugDraw(physicsDebug_);
     } else if (player_ && event.type == InputEventType::KeyPressed &&
-               !event.repeated && event.key == Key::E) {
+               !event.repeated &&
+               event.key == options_.inputBindings.key(InputAction::Use)) {
       const auto hit = player_->useRaycast(pitchRadians_);
       bool handled = false;
       if (hit && sequenceServices_ && sequenceRuntime_) {
@@ -1244,24 +1278,54 @@ void Run3App::handleMenuAction(const ui::MenuAction &action) {
       ui_->setConsoleVisible(true);
       break;
     }
+    if (action.mouseSensitivity < 0.1 || action.mouseSensitivity > 4.0) {
+      ui_->appendConsole("Mouse sensitivity must be between 0.1x and 4.0x");
+      ui_->setConsoleVisible(true);
+      break;
+    }
     const std::size_t separator = action.resolution.find_first_of("xX");
+    unsigned width{};
+    unsigned height{};
     try {
       if (separator == std::string::npos) throw std::invalid_argument("format");
-      const unsigned width = static_cast<unsigned>(
+      width = static_cast<unsigned>(
           std::stoul(action.resolution.substr(0, separator)));
-      const unsigned height = static_cast<unsigned>(
+      height = static_cast<unsigned>(
           std::stoul(action.resolution.substr(separator + 1)));
       if (width < 640 || height < 480 || width > 16384 || height > 16384)
         throw std::out_of_range("range");
-      options_.windowWidth = width;
-      options_.windowHeight = height;
-      options_.verticalFovDegrees = action.verticalFov;
-      camera_->setFOVy(Ogre::Degree(static_cast<Ogre::Real>(action.verticalFov)));
-      getRenderWindow()->resize(width, height);
-      updateAspectRatio();
-      ui_->appendConsole("Settings applied for this session");
     } catch (...) {
       ui_->appendConsole("Resolution must be WIDTHxHEIGHT (minimum 640x480)");
+      ui_->setConsoleVisible(true);
+      break;
+    }
+
+    options_.windowWidth = width;
+    options_.windowHeight = height;
+    options_.verticalFovDegrees = action.verticalFov;
+    options_.mouseSensitivity = action.mouseSensitivity;
+    options_.inputBindings = action.bindings;
+    camera_->setFOVy(Ogre::Degree(static_cast<Ogre::Real>(action.verticalFov)));
+    getRenderWindow()->resize(width, height);
+    updateAspectRatio();
+
+    try {
+      const fs::path configPath = options_.paths.configDir() / "run3.cfg";
+      ConfigValues userValues = Configuration::readFile(configPath);
+      userValues["resolution"] = std::to_string(width) + "x" +
+                                 std::to_string(height);
+      userValues["fov"] = std::to_string(action.verticalFov);
+      userValues["input.mouse-sensitivity"] =
+          std::to_string(action.mouseSensitivity);
+      for (const auto &definition : inputActionDefinitions()) {
+        userValues["input.bind." + std::string(definition.id)] =
+            std::string(keyName(action.bindings.key(definition.action)));
+      }
+      Configuration::writeFile(configPath, userValues);
+      ui_->appendConsole("Settings applied and saved");
+    } catch (const std::exception &error) {
+      ui_->appendConsole("Settings applied but could not be saved: " +
+                         std::string(error.what()));
       ui_->setConsoleVisible(true);
     }
     break;

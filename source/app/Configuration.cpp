@@ -1,8 +1,10 @@
 #include <run3/app/Configuration.hpp>
 
+#include <algorithm>
 #include <charconv>
 #include <fstream>
 #include <stdexcept>
+#include <vector>
 
 namespace run3 {
 namespace fs = std::filesystem;
@@ -76,6 +78,36 @@ ConfigValues Configuration::readFile(const fs::path &path) {
     values[std::move(key)] = trim(line.substr(separator + 1));
   }
   return values;
+}
+
+void Configuration::writeFile(const fs::path &path,
+                              const ConfigValues &values) {
+  std::error_code error;
+  if (!path.parent_path().empty()) {
+    fs::create_directories(path.parent_path(), error);
+    if (error)
+      throw std::runtime_error("Cannot create configuration directory '" +
+                               path.parent_path().string() + "': " +
+                               error.message());
+  }
+  std::vector<std::string> keys;
+  keys.reserve(values.size());
+  for (const auto &[key, value] : values) {
+    static_cast<void>(value);
+    keys.push_back(key);
+  }
+  std::sort(keys.begin(), keys.end());
+
+  std::ofstream stream(path, std::ios::trunc);
+  if (!stream)
+    throw std::runtime_error("Cannot write configuration file: " +
+                             path.string());
+  stream << "# Run3 user settings. Command-line options override these values.\n";
+  for (const std::string &key : keys)
+    stream << key << '=' << values.at(key) << '\n';
+  if (!stream)
+    throw std::runtime_error("Failed while writing configuration file: " +
+                             path.string());
 }
 
 Configuration Configuration::merge(const ConfigValues &contentDefaults,

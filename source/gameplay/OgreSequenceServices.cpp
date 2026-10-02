@@ -2,15 +2,17 @@
 
 #include <run3/audio/MapAudio.hpp>
 #include <run3/audio/SoundRuntime.hpp>
-#include <run3/content/XmlParser.hpp>
 #include <run3/gameplay/DynamicPhysicsScene.hpp>
-#include <run3/gameplay/PlayerController.hpp>
+#include <run3/gameplay/NpcFacialAnimation.hpp>
 #include <run3/gameplay/NpcSystem.hpp>
+#include <run3/gameplay/PlayerController.hpp>
 #include <run3/gameplay/StaticMap.hpp>
 #include <run3/scripting/ScriptEngine.hpp>
 #include <run3/ui/Ui.hpp>
 
+#include <OgreAnimation.h>
 #include <OgreAnimationState.h>
+#include <OgreAnimationTrack.h>
 #include <OgreAxisAlignedBox.h>
 #include <OgreCamera.h>
 #include <OgreEntity.h>
@@ -24,8 +26,10 @@
 #include <OgreSubEntity.h>
 #include <OgreTechnique.h>
 #include <OgreTextureUnitState.h>
+#include <OgreKeyFrame.h>
 #include <OgreMesh.h>
 #include <OgreParticleSystem.h>
+#include <OgrePose.h>
 #include <OgreResourceGroupManager.h>
 #include <OgreSceneManager.h>
 #include <OgreSceneNode.h>
@@ -47,6 +51,7 @@ namespace run3::gameplay {
 namespace {
 
 constexpr const char *computerResourceGroup = "Run3Step9A";
+constexpr std::string_view facialAnimationPrefix = "Run3/Facial/";
 
 void ensureComputerResourceGroup() {
   auto &groups = Ogre::ResourceGroupManager::getSingleton();
@@ -137,6 +142,17 @@ public:
     std::uint64_t owner{};
     Ogre::SceneNode *node{};
     Ogre::ParticleSystem *system{};
+  };
+  struct FacialPresentation {
+    FacialAnimationDefinition definition;
+    physics::Vec3 position;
+    Ogre::MeshPtr mesh;
+    std::string animationName;
+    Ogre::AnimationState *state{};
+    std::unordered_map<unsigned short, Ogre::VertexPoseKeyFrame *> keyframes;
+    double leadInElapsed{};
+    bool voiceStarted{};
+    bool active{};
   };
 
   Impl(const AppPaths &appPaths, Ogre::SceneManager &manager,
@@ -737,6 +753,15 @@ public:
     }
     attachments.clear();
     sounds.clear();
+    std::vector<std::pair<Ogre::MeshPtr, std::string>> facialAnimations;
+    facialAnimations.reserve(facials.size());
+    for (auto &[id, facial] : facials) {
+      static_cast<void>(id);
+      try { resetFacialPose(facial); } catch (...) {}
+      if (facial.mesh && !facial.animationName.empty())
+        facialAnimations.emplace_back(facial.mesh, facial.animationName);
+    }
+    facials.clear();
     voices.clear();
     ragdolls.clear();
     music.reset();
@@ -762,6 +787,12 @@ public:
       }
     }
     presentations.clear();
+    for (auto &[mesh, animation] : facialAnimations) {
+      try {
+        if (mesh && mesh->hasAnimation(animation))
+          mesh->removeAnimation(animation);
+      } catch (...) {}
+    }
     if (sceneManager != nullptr && root != nullptr) {
       try {
         root->removeAndDestroyAllChildren();
@@ -778,6 +809,15 @@ public:
     // systems release their handles. Treat that second release as idempotent.
     if (found == presentations.end()) return;
     Presentation &entry = found->second;
+    Ogre::MeshPtr facialMesh;
+    std::string facialAnimation;
+    const auto facial = facials.find(handle.id.value);
+    if (facial != facials.end()) {
+      resetFacialPose(facial->second);
+      facialMesh = facial->second.mesh;
+      facialAnimation = facial->second.animationName;
+      facials.erase(facial);
+    }
     auto attached = attachments.find(handle.id.value);
     if (attached != attachments.end()) {
       for (auto &item : attached->second) {
@@ -818,6 +858,16 @@ public:
       sceneManager->destroySceneNode(entry.node);
     }
     presentations.erase(handle.id.value);
+    if (facialMesh && !facialAnimation.empty() &&
+        facialMesh->hasAnimation(facialAnimation)) {
+      facialMesh->removeAnimation(facialAnimation);
+      for (auto &[id, presentation] : presentations) {
+        static_cast<void>(id);
+        if (presentation.entity != nullptr &&
+            presentation.entity->getMesh() == facialMesh)
+          presentation.entity->refreshAvailableAnimationState();
+      }
+    }
   }
 
   void setNpcAttachment(const SetNpcAttachment &command) {
@@ -869,27 +919,192 @@ public:
     owned.push_back({object, original, command.object});
   }
 
-  void playFacial(const PlayRuntimeFacial &command) {
-    const auto document = content::parseXmlFile(
-        paths.contentPath(command.definition), content::XmlSchema::facialAnimation);
-    const auto *file = document.root.firstChild("file");
-    if (file == nullptr || file->attribute("name") == nullptr)
-      throw std::runtime_error("facial animation '" +
-          command.definition.string() + "' has no <file name>");
+  void resetFacialPose(FacialPresentation &facial) {
+    for (auto &[target, keyframe] : facial.keyframes) {
+      static_cast<void>(target);
+      std::vector<unsigned short> references;
+      for (const auto &reference : keyframe->getPoseReferences())
+        references.push_back(reference.poseIndex);
+      for (const unsigned short pose : references)
+        keyframe->updatePoseReference(pose, 0.0F);
+    }
+    if (facial.state != nullptr) {
+      facial.state->setTimePosition(0.0F);
+      facial.state->setEnabled(false);
+      facial.state->getParent()->_notifyDirty();
+    }
+  }
+
+  FacialPresentation &facialRig(Presentation &owner) {
+    const std::uint64_t id = owner.spec.handle.id.value;
+    const auto existing = facials.find(id);
+    if (existing != facials.end()) return existing->second;
+    if (owner.spec.kind != RuntimeEntityKind::Npc || owner.entity == nullptr)
+      throw std::invalid_argument("facial animation owner is not a presented NPC");
+
+    FacialPresentation facial;
+    facial.mesh = owner.entity->getMesh();
+    facial.animationName = std::string(facialAnimationPrefix) +
+                           std::to_string(id) + "/" +
+                           std::to_string(owner.spec.handle.generation) + "/" +
+                           std::to_string(++facialSequence);
+    const Ogre::PoseList &poses = facial.mesh->getPoseList();
+    if (!poses.empty()) {
+      Ogre::Animation *animation =
+          facial.mesh->createAnimation(facial.animationName, 1.0F);
+      for (std::size_t index = 0; index < poses.size(); ++index) {
+        const unsigned short target = poses[index]->getTarget();
+        auto found = facial.keyframes.find(target);
+        if (found == facial.keyframes.end()) {
+          Ogre::VertexAnimationTrack *track = animation->createVertexTrack(
+              target, Ogre::VAT_POSE);
+          found = facial.keyframes
+                      .emplace(target, track->createVertexPoseKeyFrame(0.0F))
+                      .first;
+        }
+        found->second->addPoseReference(static_cast<unsigned short>(index),
+                                        0.0F);
+      }
+      owner.entity->refreshAvailableAnimationState();
+      facial.state = owner.entity->getAnimationState(facial.animationName);
+      facial.state->setLoop(true);
+      facial.state->setTimePosition(0.0F);
+    } else {
+      log("warning: NPC '" + owner.spec.name +
+          "' mesh has no vertex poses for facial animation");
+    }
+    return facials.emplace(id, std::move(facial)).first->second;
+  }
+
+  void applyFacialPose(FacialPresentation &facial,
+                       const FacialPoseSample &sample) {
+    if (facial.state == nullptr) return;
+    for (auto &[target, keyframe] : facial.keyframes) {
+      static_cast<void>(target);
+      std::vector<unsigned short> references;
+      for (const auto &reference : keyframe->getPoseReferences())
+        references.push_back(reference.poseIndex);
+      for (const unsigned short pose : references)
+        keyframe->updatePoseReference(pose, 0.0F);
+    }
+
+    const std::size_t submeshes =
+        std::max<std::size_t>(1, facial.mesh->getNumSubMeshes());
+    for (const FacialPoseInfluence &influence : sample.influences) {
+      if (facial.definition.patched) {
+        for (std::size_t ordinal = 0; ordinal < submeshes; ++ordinal) {
+          const std::size_t pose =
+              static_cast<std::size_t>(influence.poseIndex) * submeshes + ordinal;
+          if (pose >= facial.mesh->getPoseList().size()) continue;
+          const unsigned short target = facial.mesh->getPoseList()[pose]->getTarget();
+          const auto keyframe = facial.keyframes.find(target);
+          if (keyframe != facial.keyframes.end())
+            keyframe->second->updatePoseReference(
+                static_cast<unsigned short>(pose), influence.weight);
+        }
+      } else {
+        const std::size_t pose = static_cast<std::size_t>(influence.poseIndex);
+        if (pose >= facial.mesh->getPoseList().size()) continue;
+        const unsigned short target = facial.mesh->getPoseList()[pose]->getTarget();
+        const auto keyframe = facial.keyframes.find(target);
+        if (keyframe != facial.keyframes.end())
+          keyframe->second->updatePoseReference(
+              static_cast<unsigned short>(pose), influence.weight);
+      }
+    }
+    facial.state->setEnabled(sample.active);
+    facial.state->setTimePosition(0.0F);
+    facial.state->getParent()->_notifyDirty();
+  }
+
+  void startFacialVoice(const std::uint64_t owner,
+                        FacialPresentation &facial) {
     audio::PlayOptions options;
-    options.file = paths.contentPath(*file->attribute("name"));
+    options.file = paths.contentPath(facial.definition.sound);
+    if (!std::filesystem::exists(options.file)) {
+      const std::filesystem::path sibling =
+          facial.definition.source.parent_path() /
+          facial.definition.sound.filename();
+      if (std::filesystem::exists(sibling)) {
+        log("facial voice '" + facial.definition.sound.generic_string() +
+            "' resolved by legacy basename lookup to '" +
+            sibling.generic_string() + "'");
+        options.file = sibling;
+      }
+    }
     options.bus = audio::Bus::voice;
     options.spatial = true;
-    options.position = {static_cast<float>(command.position.x),
-                        static_cast<float>(command.position.y),
-                        static_cast<float>(command.position.z)};
+    options.position = {static_cast<float>(facial.position.x),
+                        static_cast<float>(facial.position.y),
+                        static_cast<float>(facial.position.z)};
     options.minDistance = 50.0F;
     options.maxDistance = 1200.0F;
     audio::SoundHandle sound = audio->play(options);
     if (!sound.valid())
       throw std::runtime_error("NPC voice '" + options.file.string() +
                                "' failed: " + audio->lastError());
-    voices.insert_or_assign(command.owner.id.value, std::move(sound));
+    voices.insert_or_assign(owner, std::move(sound));
+    facial.voiceStarted = true;
+  }
+
+  void playFacial(const PlayRuntimeFacial &command) {
+    FacialAnimationDefinition definition = loadFacialAnimationDefinition(
+        paths.contentPath(command.definition));
+    Presentation &owner = require(command.owner);
+    FacialPresentation &facial = facialRig(owner);
+    resetFacialPose(facial);
+    voices.erase(command.owner.id.value);
+    facial.definition = std::move(definition);
+    facial.position = command.position;
+    facial.leadInElapsed = 0.0;
+    facial.voiceStarted = false;
+    facial.active = true;
+    applyFacialPose(facial,
+                    sampleFacialAnimation(facial.definition,
+                                          -facialAnimationLeadInSeconds));
+    if (!facial.definition.subtitle.empty()) {
+      ui->setSubtitle(facial.definition.subtitle,
+                      facialAnimationLeadInSeconds +
+                          facial.definition.durationSeconds() +
+                          facialAnimationLeadInSeconds);
+    }
+  }
+
+  void updateFacials(const float seconds) {
+    for (auto &[owner, facial] : facials) {
+      if (!facial.active) continue;
+      double soundSecond{};
+      if (!facial.voiceStarted) {
+        facial.leadInElapsed += seconds;
+        soundSecond = facial.leadInElapsed - facialAnimationLeadInSeconds;
+        if (facial.leadInElapsed >= facialAnimationLeadInSeconds) {
+          startFacialVoice(owner, facial);
+          soundSecond = 0.0;
+        }
+      } else {
+        const auto voice = voices.find(owner);
+        if (voice == voices.end()) {
+          resetFacialPose(facial);
+          facial.active = false;
+          continue;
+        }
+        soundSecond = audio->playbackSeconds(voice->second);
+        if (audio->state(voice->second) == audio::SoundState::stopped &&
+            soundSecond < facial.definition.durationSeconds()) {
+          resetFacialPose(facial);
+          facial.active = false;
+          continue;
+        }
+      }
+      const FacialPoseSample sample =
+          sampleFacialAnimation(facial.definition, soundSecond);
+      applyFacialPose(facial, sample);
+      if (!sample.active && facial.voiceStarted &&
+          soundSecond > facial.definition.durationSeconds()) {
+        resetFacialPose(facial);
+        facial.active = false;
+      }
+    }
   }
 
   AppPaths paths;
@@ -916,6 +1131,8 @@ public:
   std::unordered_map<PhysicsEntityId, EntityHandle> physicsHandles;
   std::unordered_map<std::uint64_t, audio::SoundHandle> sounds;
   std::unordered_map<std::uint64_t, audio::SoundHandle> voices;
+  std::unordered_map<std::uint64_t, FacialPresentation> facials;
+  std::uint64_t facialSequence{};
   std::unordered_map<std::uint64_t, PhysicsEntityId> ragdolls;
   std::unordered_map<std::uint64_t, std::vector<Attachment>> attachments;
   audio::SoundHandle music;
@@ -958,6 +1175,7 @@ void OgreSequenceServices::attachMapAudio(audio::MapAudioRuntime &mapAudio) noex
 void OgreSequenceServices::updateAudio(float seconds) {
   impl_->oneShots.update(seconds);
   impl_->updateGameText(seconds);
+  impl_->updateFacials(seconds);
   for (auto &[id, presentation] : impl_->presentations) {
     static_cast<void>(id);
     if (presentation.spec.kind != RuntimeEntityKind::Npc ||
@@ -1054,7 +1272,16 @@ void OgreSequenceServices::submit(const GameCommand &command) {
             if (value.owner.id.value == 0 && impl_->mapAudio != nullptr) {
               impl_->mapAudio->stopMusic(0.25F);
             } else if (value.owner.id.value == 0) impl_->music.reset();
-            else impl_->sounds.erase(value.owner.id.value);
+            else {
+              impl_->sounds.erase(value.owner.id.value);
+              impl_->voices.erase(value.owner.id.value);
+              const auto facial = impl_->facials.find(value.owner.id.value);
+              if (facial != impl_->facials.end()) {
+                impl_->resetFacialPose(facial->second);
+                facial->second.active = false;
+                facial->second.voiceStarted = false;
+              }
+            }
           },
           [this](const PlayRuntimeEffect &value) {
             const std::filesystem::path path = impl_->paths.contentPath(value.path);
@@ -1193,7 +1420,9 @@ void OgreSequenceServices::submit(const GameCommand &command) {
               auto iterator = entry.entity->getAllAnimationStates()->getAnimationStateIterator();
               while (iterator.hasMoreElements()) {
                 Ogre::AnimationState *other = iterator.getNext();
-                if (other != state) other->setEnabled(false);
+                if (other != state &&
+                    other->getAnimationName().rfind(facialAnimationPrefix, 0) != 0)
+                  other->setEnabled(false);
               }
             }
             state->setLoop(value.loop);
@@ -1368,6 +1597,7 @@ OgreSequenceServices::resourceCounts() const noexcept {
   result.physicsBindings = impl_->physicsHandles.size();
   result.audioHandles = impl_->sounds.size() + impl_->voices.size() +
                         (impl_->music.valid() ? 1U : 0U);
+  result.facialAnimations = impl_->facials.size();
   result.attachments = impl_->attachments.size();
   result.ragdolls = impl_->ragdolls.size();
   result.rootNode = impl_->root != nullptr;

@@ -56,7 +56,7 @@ The numeric values are content ABI and must never be renumbered.
 | 24 | `SetMoveActivity` | validated non-negative multiplier |
 | 25 | `ResetParent` | releases parent transform following |
 | 26 | `SetGravity` | implemented; live `tlwstations01` inspector calls accept `0` without aborting startup |
-| 27 | `FacialActivity` | parses the facial XML and plays its voice as positional audio; pose morphs/subtitles pending |
+| 27 | `FacialActivity` | parses the facial XML, plays positional voice audio after the legacy 0.2-second pose lead-in, drives mesh poses from the audio cursor, and displays the authored subtitle |
 | 28 | `ToggleFlashlight` | rejected; light presentation belongs to the later lighting step |
 | 29-32 | attach/detach physical object variants | typed bone attachment with shared map physics disabled while attached |
 
@@ -92,8 +92,15 @@ authored station timing control without reviving `NPCManager`.
   child inheritance and the legacy `TELEPORT_PARENT_NPC` calculation. This is
   required for the scaled passenger cars in `tlwstations01`/`02`.
 - NPC diffuse materials go through the existing legacy-material compatibility
-  adapter. Animation advancement and positional voice audio remain in the Ogre
-  service boundary.
+  adapter. Facial event 27 preserves the third-party XML contract and legacy
+  numeric pose layout (`A/E/O/U/I`, two consonant groups, and neutral
+  `L/M/P`). The Ogre boundary creates a per-NPC vertex-pose animation, blends
+  adjacent timed phonemes from the voice playback cursor, supports patched
+  multi-submesh meshes, and keeps skeletal body animation enabled alongside
+  the face. Authored subtitles use the map-scoped UI service. Replacing a line,
+  death, explicit destruction, and map unload stop/reset all pose and voice
+  state. The legacy Ogre resource lookup quirk is limited to a definition-
+  sibling basename fallback when an authored voice path is stale.
 - Destruction is reverse-order and map scoped. It detaches physical objects,
   removes NPC/ragdoll bodies and voices, destroys presentation, invalidates
   explicitly destroyed registry handles, and cannot survive a map unload.
@@ -103,9 +110,9 @@ authored station timing control without reviving `NPCManager`.
 
 ## Intentional/incomplete differences
 
-This is a tested Step 8D vertical slice, not a claim of complete 1:1 combat or
-facial presentation. The legacy random animation timing, per-bone head/look
-tracking, animation cross-fade weights, subtitle/mouth-pose output, detailed
+This is a tested Step 8D vertical slice, not a claim of complete 1:1 NPC
+presentation or combat. The legacy random animation timing, per-bone head/look
+tracking, animation cross-fade weights, detailed
 footstep/attack/random sound set, continuous airborne gravity/floor response
 beyond the tested initial settle, blood/gib
 effects, flashlight presentation, and attachment offsets need content-specific
@@ -122,8 +129,10 @@ machine; it must not restore `NPCManager`, OgreNewt, or global callbacks.
 `run3_step8d_tests` covers neutral/enemy construction, AIR3 success and blocked
 paths, 30/60/144 deterministic replay, reach/near/use/death callbacks,
 animation changes, initial floor settling, scaled parent/train following and
-relative teleport, damage,
-headshot classification, enemy attack scheduling, ragdoll commands, explicit
+relative teleport, facial XML validation, pose timing/interpolation/fade,
+event-27/Lua routing, all 41 attached facial definitions and their voice-file
+resolution, damage, headshot classification, enemy attack scheduling,
+ragdoll commands, explicit
 destruction, reverse unload, invalid/missing commands, all 19 `tlwcao` and 28
 `tlwhome02` declarations, and referenced NPC Lua target existence. Installed
 Windows Debug D3D11 two-frame smokes construct the 19 `tlwcao` and 28

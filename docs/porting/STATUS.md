@@ -1,6 +1,25 @@
 # Run3 porting status
 
-Last updated: 2026-09-28
+Last updated: 2026-10-02
+
+## NPC facial animation parity (2026-10-02)
+
+NPC event 27 now implements the legacy facial-animation pipeline end to end.
+The map-owned Lua route (`npcEvent`/`npcEvent2`/broadcast) retains the numeric
+ABI and submits a typed facial command. Facial XML is validated into a
+backend-neutral timeline; the Ogre adapter creates per-NPC vertex-pose tracks,
+handles patched multi-submesh pose layouts, preserves skeletal animation, and
+blends timed phonemes against the actual voice playback cursor after the
+legacy 0.2-second lead-in. Authored subtitles use the map-scoped UI, and
+replacement/death/destruction/unload reset pose and voice resources. The old
+resource-group basename behavior is preserved only as a constrained sibling
+fallback for stale authored voice paths; campaign files remain untouched.
+
+Windows MSVC Debug and Release build `run3_shell`, `run3_step8c_tests`, and
+`run3_step8d_tests`. The focused Step 8C/8D run passes **33/33** in both,
+including the real Lua binding route, deterministic pose interpolation, all 41
+attached facial definitions, and voice-file resolution. No visual or listening
+result is inferred from these CPU/compile checks.
 
 ## Step 9B preview — in progress (2026-09-28)
 
@@ -82,7 +101,7 @@ overlay switches and forward CLI overrides while preserving existing defaults.
 | 8 — XML and Lua | Completed | Golden schema adapters, pinned TinyXML2/Lua 5.4/sol2, a sandboxed `ScriptEngine`, 202-name API snapshot, and the 955-script compatibility gate pass with three explicitly broken legacy files. |
 | 8B — gameplay scene schema, entity inventory, and ownership | Completed | Side-effect-free map/sequence definitions, exact-case AppPaths resolution, generation-safe map ownership, deferred name resolution, definition-driven StaticMap loading, and all 18 attached low-variant map/sequence inventories pass on MSVC/GCC. |
 | 8C — fixed-tick Sequence runtime and interactive entities | Completed | Deterministic map-owned entities, typed script/render/physics/audio hooks, explicit train parenting, selected-quality particles, stable state, and audited teardown pass the Step 8C boundary. Chapter saves and the campaign soak are Step 10 work by owner direction. |
-| 8D — map-owned NPC runtime | Partial, verified slice | Typed neutral/enemy construction, AIR3 movement, Lua events, Ogre/Bullet/audio adapters, content counts, and a real `tlwcao` smoke pass; remaining parity gaps are documented. |
+| 8D — map-owned NPC runtime | Partial, verified slice | Typed neutral/enemy construction, AIR3 movement, Lua events, Ogre/Bullet/audio/facial-pose adapters, subtitles, content counts, and a real `tlwcao` smoke pass; remaining parity gaps are documented. |
 | 8E — cutscenes, computers, and authored presentation state | Completed with named Step 9 adapters | Deterministic cutscene/computer control, stable sequence/NPC state, safe live transitions, station train binding/event 26, and complete reviewed tag dispositions pass; final HUD/computer/effect drawing is delegated to Step 9A and lighting/material output to Step 9B. |
 | 9A — MyGUI UI and visual portability | Completed | Exact-gitlink MyGUI is the primary backend; menus/HUD/computer RTT, typed Lua and `buttonGUI` facades, required shader gates, portable sky/water, and intro fallback pass MSVC/GCC plus D3D11/GL3+ smokes. Step 9B owns lighting quality. |
 | 9B — lighting and materials | Partial, compile-checked workbench | Four selectable paths and material repairs build on MSVC Debug/Release and GCC Debug. GPU/visual acceptance, local-light shadows, deferred light volumes, capability fallback, and reviewed remaster tuning remain open; see LIGHTING.md and LIGHTING_CHECKLIST.md. |

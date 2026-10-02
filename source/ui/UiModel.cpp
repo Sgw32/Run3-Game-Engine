@@ -42,6 +42,7 @@ std::string_view widgetTypeName(const WidgetType type) noexcept {
   case WidgetType::Edit: return "edit";
   case WidgetType::CheckBox: return "checkbox";
   case WidgetType::List: return "list";
+  case WidgetType::Slider: return "slider";
   }
   return "panel";
 }
@@ -54,6 +55,7 @@ std::optional<WidgetType> parseWidgetType(const std::string_view name) noexcept 
   if (value == "edit" || value == "editbox") return WidgetType::Edit;
   if (value == "checkbox" || value == "check") return WidgetType::CheckBox;
   if (value == "list" || value == "listbox") return WidgetType::List;
+  if (value == "slider" || value == "scrollbar") return WidgetType::Slider;
   return std::nullopt;
 }
 

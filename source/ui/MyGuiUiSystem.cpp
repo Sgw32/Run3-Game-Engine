@@ -14,6 +14,7 @@
 #include <array>
 #include <cmath>
 #include <filesystem>
+#include <iomanip>
 #include <stdexcept>
 #include <sstream>
 #include <unordered_map>
@@ -160,6 +161,7 @@ std::string skin(const WidgetType type) {
   case WidgetType::Edit: return "EditBox";
   case WidgetType::CheckBox: return "CheckBox";
   case WidgetType::List: return "ListBox";
+  case WidgetType::Slider: return "ScrollBarH";
   }
   return "Panel";
 }
@@ -194,6 +196,7 @@ std::string className(const WidgetType type) {
   case WidgetType::Edit: return "EditBox";
   case WidgetType::CheckBox: return "Button";
   case WidgetType::List: return "ListBox";
+  case WidgetType::Slider: return "ScrollBar";
   }
   return "Widget";
 }
@@ -206,7 +209,8 @@ void setCaption(MyGUI::Widget &widget, const WidgetType type,
   case WidgetType::CheckBox: widget.castType<MyGUI::Button>()->setCaption(text); break;
   case WidgetType::Edit: widget.castType<MyGUI::EditBox>()->setCaption(text); break;
   case WidgetType::Panel:
-  case WidgetType::List: break;
+  case WidgetType::List:
+  case WidgetType::Slider: break;
   }
 }
 
@@ -217,7 +221,8 @@ std::string caption(MyGUI::Widget &widget, const WidgetType type) {
   case WidgetType::CheckBox: return widget.castType<MyGUI::Button>()->getCaption();
   case WidgetType::Edit: return widget.castType<MyGUI::EditBox>()->getCaption();
   case WidgetType::Panel:
-  case WidgetType::List: return {};
+  case WidgetType::List:
+  case WidgetType::Slider: return {};
   }
   return {};
 }
@@ -273,8 +278,10 @@ public:
   MyGuiUiSystem(Ogre::RenderWindow &window, Ogre::SceneManager &sceneManager,
                 Ogre::Camera &camera,
                 const std::filesystem::path &logDirectory,
-                MenuActionHandler actionHandler, const float dpiScale)
+                MenuActionHandler actionHandler, OptionsMenuSettings settings,
+                const float dpiScale)
       : window_(&window), actions_(std::move(actionHandler)), dpiScale_(dpiScale),
+        settings_(std::move(settings)),
         buttonGui_(createOgreButtonGuiSystem(window, sceneManager,
                                               camera.getName())) {
     platform_ = std::make_unique<MyGUI::OgrePlatform>();
@@ -317,6 +324,14 @@ public:
     if (event.type == InputEventType::Resized) {
       resize(event.width, event.height, dpiScale_);
       return false;
+    }
+    if (pendingBinding_ && event.type == InputEventType::KeyPressed &&
+        !event.repeated) {
+      if (event.key != Key::Escape && isBindableKey(event.key))
+        settings_.bindings.rebind(*pendingBinding_, event.key);
+      pendingBinding_.reset();
+      refreshBindingCaptions();
+      return true;
     }
     if (!computerActive() && !inventoryVisible_ && !menuVisible_ &&
         !consoleVisible_)
@@ -385,6 +400,10 @@ public:
 
   void showMenu(const bool visible) override {
     if (visible) closeInventory();
+    if (!visible && pendingBinding_) {
+      pendingBinding_.reset();
+      refreshBindingCaptions();
+    }
     menuVisible_ = visible;
     if (auto root = findWidget(Context::Main, "menu.root"))
       widget(*root).setVisible(visible);
@@ -392,6 +411,9 @@ public:
     if (!visible) MyGUI::InputManager::getInstance().resetKeyFocusWidget();
   }
   bool menuVisible() const noexcept override { return menuVisible_; }
+  bool bindingCaptureActive() const noexcept override {
+    return pendingBinding_.has_value();
+  }
 
   void setHudVisible(const bool visible) override {
     hudVisible_ = visible;
@@ -679,6 +701,10 @@ private:
       edit->eventEditTextChange += MyGUI::newDelegate(this, &MyGuiUiSystem::onEditChange);
       edit->eventEditSelectAccept += MyGUI::newDelegate(this, &MyGuiUiSystem::onEditSubmit);
     }
+    if (created.isType<MyGUI::ScrollBar>()) {
+      created.castType<MyGUI::ScrollBar>()->eventScrollChangePosition +=
+          MyGUI::newDelegate(this, &MyGuiUiSystem::onScrollChanged);
+    }
     static_cast<void>(handle);
   }
 
@@ -694,6 +720,12 @@ private:
       emitAction(MenuAction{MenuActionKind::NewGame, {}, {}, 0.0});
     else if (name == "menu.chapter.open") showPage("chapter");
     else if (name == "menu.options.open") showPage("options");
+    else if (name == "menu.options.controls") showPage("controls");
+    else if (name == "menu.back.controls") {
+      pendingBinding_.reset();
+      refreshBindingCaptions();
+      showPage("options");
+    }
     else if (name == "menu.back.chapter" || name == "menu.back.options") showPage("main");
     else if (name == "menu.chapter.start") {
       MenuAction action{MenuActionKind::SelectChapter, {}, {}, 0.0};
@@ -708,7 +740,18 @@ private:
         try { action.verticalFov = std::stod(caption(widget(*fov), WidgetType::Edit)); }
         catch (...) { action.verticalFov = 0.0; }
       }
+      action.mouseSensitivity = settings_.mouseSensitivity;
+      action.bindings = settings_.bindings;
       emitAction(action);
+    } else if (name.rfind("menu.controls.bind.", 0) == 0) {
+      const std::string_view id{name.data() + 19, name.size() - 19};
+      const auto foundAction = std::find_if(
+          inputActionDefinitions().begin(), inputActionDefinitions().end(),
+          [id](const auto &definition) { return definition.id == id; });
+      if (foundAction != inputActionDefinitions().end()) {
+        pendingBinding_ = foundAction->action;
+        refreshBindingCaptions();
+      }
     } else if (name == "menu.quit")
       emitAction(MenuAction{MenuActionKind::Quit, {}, {}, 0.0});
     registry_.emit(found->second, UiEvent::Click,
@@ -723,6 +766,17 @@ private:
     const auto found = reverse_.find(sender);
     if (found != reverse_.end())
       registry_.emit(found->second, UiEvent::Submit, sender->getCaption());
+  }
+  void onScrollChanged(MyGUI::ScrollBar *sender, const std::size_t position) {
+    const auto found = reverse_.find(sender);
+    if (found == reverse_.end() ||
+        registry_.require(found->second).name != "menu.options.sensitivity")
+      return;
+    settings_.mouseSensitivity =
+        (static_cast<double>(position) + 10.0) / 100.0;
+    refreshSensitivityCaption();
+    registry_.emit(found->second, UiEvent::Change,
+                   std::to_string(settings_.mouseSensitivity));
   }
   void emitAction(const MenuAction &action) { if (actions_) actions_(action); }
 
@@ -741,7 +795,8 @@ private:
     setWidgetVisible("hud.debug", debugVisible_);
   }
   void showPage(const std::string_view page) {
-    const std::array<std::string_view, 3> names{"main", "chapter", "options"};
+    const std::array<std::string_view, 4> names{
+        "main", "chapter", "options", "controls"};
     for (const auto name : names) {
       if (const auto handle = findWidget(Context::Main,
                                          "menu.page." + std::string(name)))
@@ -749,17 +804,40 @@ private:
     }
   }
 
+  void refreshSensitivityCaption() {
+    if (const auto label = findWidget(Context::Main,
+                                      "menu.options.sensitivity.label")) {
+      std::ostringstream text;
+      text << "Mouse sensitivity: " << std::fixed << std::setprecision(2)
+           << settings_.mouseSensitivity << 'x';
+      setCaption(widget(*label), WidgetType::Text, text.str());
+    }
+  }
+
+  void refreshBindingCaptions() {
+    for (const auto &definition : inputActionDefinitions()) {
+      if (const auto button = findWidget(
+              Context::Main,
+              "menu.controls.bind." + std::string(definition.id))) {
+        const std::string text = pendingBinding_ == definition.action
+            ? "Press a key (Esc cancels)"
+            : std::string(keyDisplayName(settings_.bindings.key(definition.action)));
+        setCaption(widget(*button), WidgetType::Button, text);
+      }
+    }
+  }
+
   void buildMainMenu() {
     const WidgetHandle root = createWidget(
         {Context::Main, {}, WidgetType::Panel, "menu.root",
-         {430, 70, 420, 580}, {}});
+         {330, 35, 620, 650}, {}});
     const WidgetHandle title = createWidget(
         {Context::Main, root, WidgetType::Text, "menu.title",
-         {35, 24, 350, 55}, "THE LONG WAY / RUN3"});
+         {35, 18, 550, 55}, "THE LONG WAY / RUN3"});
     static_cast<void>(title);
     const WidgetHandle main = createWidget(
         {Context::Main, root, WidgetType::Panel, "menu.page.main",
-         {25, 90, 370, 450}, {}});
+         {125, 80, 370, 520}, {}});
     const std::array<std::pair<std::string_view, std::string_view>, 5> buttons{{
         {"menu.resume", "Continue"}, {"menu.new", "New game"},
         {"menu.chapter.open", "Chapters"}, {"menu.options.open", "Options"},
@@ -772,7 +850,7 @@ private:
 
     const WidgetHandle chapter = createWidget(
         {Context::Main, root, WidgetType::Panel, "menu.page.chapter",
-         {25, 90, 370, 450}, {}});
+         {125, 80, 370, 520}, {}});
     createWidget({Context::Main, chapter, WidgetType::Text, "menu.chapter.label",
                   {30, 30, 310, 40}, "Chapter map name"});
     createWidget({Context::Main, chapter, WidgetType::Edit, "menu.chapter.name",
@@ -784,19 +862,54 @@ private:
 
     const WidgetHandle options = createWidget(
         {Context::Main, root, WidgetType::Panel, "menu.page.options",
-         {25, 90, 370, 450}, {}});
+         {125, 80, 370, 520}, {}});
     createWidget({Context::Main, options, WidgetType::Text, "menu.options.res.label",
                   {30, 20, 310, 35}, "Resolution (WIDTHxHEIGHT)"});
     createWidget({Context::Main, options, WidgetType::Edit,
-                  "menu.options.resolution", {30, 58, 310, 42}, "1280x720"});
+                  "menu.options.resolution", {30, 58, 310, 42},
+                  settings_.resolution});
     createWidget({Context::Main, options, WidgetType::Text, "menu.options.fov.label",
                   {30, 125, 310, 35}, "Vertical field of view"});
     createWidget({Context::Main, options, WidgetType::Edit,
-                  "menu.options.fov", {30, 163, 310, 42}, "75"});
+                  "menu.options.fov", {30, 163, 310, 42},
+                  std::to_string(static_cast<int>(std::lround(settings_.verticalFov)))});
+    createWidget({Context::Main, options, WidgetType::Text,
+                  "menu.options.sensitivity.label", {30, 218, 310, 32}, {}});
+    const WidgetHandle sensitivity = createWidget(
+        {Context::Main, options, WidgetType::Slider,
+         "menu.options.sensitivity", {30, 254, 310, 28}, {}});
+    auto *slider = widget(sensitivity).castType<MyGUI::ScrollBar>();
+    slider->setScrollRange(391);
+    slider->setScrollPosition(static_cast<std::size_t>(std::lround(
+        std::clamp(settings_.mouseSensitivity, 0.1, 4.0) * 100.0 - 10.0)));
+    refreshSensitivityCaption();
     createWidget({Context::Main, options, WidgetType::Button,
-                  "menu.options.apply", {30, 245, 310, 48}, "Apply"});
+                  "menu.options.controls", {30, 305, 310, 44}, "Keyboard controls"});
     createWidget({Context::Main, options, WidgetType::Button,
-                  "menu.back.options", {30, 350, 310, 48}, "Back"});
+                  "menu.options.apply", {30, 365, 310, 44}, "Apply and save"});
+    createWidget({Context::Main, options, WidgetType::Button,
+                  "menu.back.options", {30, 425, 310, 44}, "Back"});
+
+    const WidgetHandle controls = createWidget(
+        {Context::Main, root, WidgetType::Panel, "menu.page.controls",
+         {45, 80, 530, 540}, {}});
+    createWidget({Context::Main, controls, WidgetType::Text,
+                  "menu.controls.title", {20, 0, 490, 30},
+                  "Keyboard controls"});
+    const auto &definitions = inputActionDefinitions();
+    for (std::size_t row = 0; row < definitions.size(); ++row) {
+      const float y = 35.0F + static_cast<float>(row) * 46.0F;
+      createWidget({Context::Main, controls, WidgetType::Text,
+                    "menu.controls.label." + std::string(definitions[row].id),
+                    {20, y + 7.0F, 225, 32},
+                    std::string(definitions[row].label)});
+      createWidget({Context::Main, controls, WidgetType::Button,
+                    "menu.controls.bind." + std::string(definitions[row].id),
+                    {255, y, 255, 38}, {}});
+    }
+    createWidget({Context::Main, controls, WidgetType::Button,
+                  "menu.back.controls", {100, 465, 330, 44}, "Back"});
+    refreshBindingCaptions();
     showPage("main");
     showMenu(false);
   }
@@ -829,6 +942,8 @@ private:
   std::unordered_map<MyGUI::Widget *, WidgetHandle> reverse_;
   ScaledLayout layout_;
   float dpiScale_{1.0F};
+  OptionsMenuSettings settings_;
+  std::optional<InputAction> pendingBinding_;
   std::string computerOwner_;
   std::string consoleText_;
   int mouseX_{};
@@ -848,10 +963,12 @@ std::unique_ptr<IUiSystem> createMyGuiUiSystem(
     Ogre::RenderWindow &window, Ogre::SceneManager &sceneManager,
     Ogre::Camera &camera,
     const std::filesystem::path &userLogDirectory,
-    MenuActionHandler actionHandler, const float dpiScale) {
+    MenuActionHandler actionHandler, OptionsMenuSettings settings,
+    const float dpiScale) {
   return std::make_unique<MyGuiUiSystem>(window, sceneManager, camera,
                                         userLogDirectory,
-                                        std::move(actionHandler), dpiScale);
+                                        std::move(actionHandler),
+                                        std::move(settings), dpiScale);
 }
 
 } // namespace run3::ui

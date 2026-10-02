@@ -6,6 +6,7 @@
 #include <run3/audio/Audio.hpp>
 #include <run3/audio/MapAudio.hpp>
 #include <run3/input/Input.hpp>
+#include <run3/input/InputBindings.hpp>
 #include <run3/input/OgreBitesInputAdapter.hpp>
 #include <run3/gameplay/PlayerController.hpp>
 #include <run3/gameplay/SequenceRuntime.hpp>
@@ -65,6 +66,8 @@ struct Run3AppOptions {
   bool physicsDebug{};
   bool introEnabled{};
   float uiScale{1.0F};
+  double mouseSensitivity{1.0};
+  InputBindings inputBindings;
   std::string newGameMap{"tlwintro"};
   rendering::LightingSettings lighting;
   bool lightingLab{};

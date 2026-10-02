@@ -2,6 +2,7 @@
 #include <run3/app/Configuration.hpp>
 #include <run3/app/EngineClock.hpp>
 #include <run3/input/Input.hpp>
+#include <run3/input/InputBindings.hpp>
 #include <run3/input/OgreBitesInputAdapter.hpp>
 #include <run3/platform/OptionalDevices.hpp>
 
@@ -77,6 +78,41 @@ TEST_CASE("Configuration precedence is CLI then user then content") {
   const run3::CommandLine skippedIntro = run3::parseCommandLine(
       {"run3_shell", "--intro", "--skip-intro"}, fs::path("bin"));
   CHECK(skippedIntro.values.at("intro") == "false");
+}
+
+TEST_CASE("User configuration writes deterministically and preserves values") {
+  const fs::path path =
+      fs::temp_directory_path() / "run3-user-settings-write-test.cfg";
+  const run3::ConfigValues values{{"resolution", "1600x900"},
+                                  {"input.mouse-sensitivity", "1.75"},
+                                  {"input.bind.use", "F"}};
+  run3::Configuration::writeFile(path, values);
+  CHECK(run3::Configuration::readFile(path) == values);
+  std::error_code ignored;
+  fs::remove(path, ignored);
+}
+
+TEST_CASE("Gameplay key bindings are named, queryable, and swap conflicts") {
+  run3::InputBindings bindings;
+  CHECK(bindings.key(run3::InputAction::MoveForward) == run3::Key::W);
+  CHECK(run3::parseKey("left ctrl") == run3::Key::LeftControl);
+  CHECK(run3::parseKey("F12") == run3::Key::F12);
+  CHECK_FALSE(run3::isBindableKey(run3::Key::Escape));
+
+  bindings.rebind(run3::InputAction::MoveForward, run3::Key::E);
+  CHECK(bindings.key(run3::InputAction::MoveForward) == run3::Key::E);
+  CHECK(bindings.key(run3::InputAction::Use) == run3::Key::W);
+
+  run3::InputState state;
+  state.apply({run3::InputEventType::KeyPressed, run3::Key::E});
+  CHECK(bindings.down(state, run3::InputAction::MoveForward));
+  CHECK_FALSE(bindings.down(state, run3::InputAction::Use));
+  CHECK_THROWS(bindings.rebind(run3::InputAction::Jump, run3::Key::Escape));
+
+  for (const auto &definition : run3::inputActionDefinitions()) {
+    const run3::Key key = bindings.key(definition.action);
+    REQUIRE(run3::parseKey(run3::keyName(key)).has_value());
+  }
 }
 
 TEST_CASE("OgreBites key and mouse values translate at the platform edge") {

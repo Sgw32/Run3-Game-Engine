@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<facialanimation patched="true" subtitle_text="A test line.">
+  <node time="0" letter="A" />
+  <node time="0.5" letter="E" />
+  <node time="1.0" letter="O" />
+  <file name="run3/sounds/speech/test.wav" />
+</facialanimation>

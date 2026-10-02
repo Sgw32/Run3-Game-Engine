@@ -218,6 +218,30 @@ TEST_CASE("Step 8C warns on missing objects and preserves script execution",
   CHECK_THROWS(scripts.executeFile("run3/lua/does-not-exist.lua"));
 }
 
+TEST_CASE("Step 8C Lua npcEvent routes facial activity and its definition",
+          "[step8c][lua][npc][facial]") {
+  FixtureRuntime fixture;
+  fixture.runtime->start();
+  scripting::ScriptEngine scripts(
+      {fixture.paths.contentRoot(), fixture.paths.userRoot(), 10000},
+      [&fixture](const scripting::ScriptCall &call) {
+        return fixture.runtime->dispatchScriptCall(call);
+      });
+  REQUIRE_NOTHROW(scripts.executeText(
+      "npcEvent('guide', '27', 'run3/sounds/speech/guide.xml')",
+      "facial-event.lua"));
+  const auto command = std::find_if(
+      fixture.services.commands.rbegin(), fixture.services.commands.rend(),
+      [](const gameplay::GameCommand &item) {
+        return std::holds_alternative<gameplay::NpcRuntimeCommand>(item);
+      });
+  REQUIRE(command != fixture.services.commands.rend());
+  const auto &npc = std::get<gameplay::NpcRuntimeCommand>(*command);
+  CHECK(npc.name == "guide");
+  CHECK(npc.legacyEvent == 27);
+  CHECK(npc.argument == "run3/sounds/speech/guide.xml");
+}
+
 TEST_CASE("Step 8C persistent state round-trips entity state",
           "[step8c][save]") {
   FixtureRuntime fixture;

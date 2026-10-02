@@ -1,6 +1,7 @@
 #pragma once
 
 #include <run3/input/Input.hpp>
+#include <run3/input/InputBindings.hpp>
 
 #include <cstdint>
 #include <functional>
@@ -12,7 +13,7 @@
 namespace run3::ui {
 
 enum class Context { Main, Hud, Computer };
-enum class WidgetType { Panel, Text, Button, Edit, CheckBox, List };
+enum class WidgetType { Panel, Text, Button, Edit, CheckBox, List, Slider };
 enum class UiEvent { Click, Change, Submit };
 
 struct Rect {
@@ -104,11 +105,20 @@ enum class MenuActionKind {
   Quit
 };
 
+struct OptionsMenuSettings {
+  std::string resolution{"1280x720"};
+  double verticalFov{75.0};
+  double mouseSensitivity{1.0};
+  InputBindings bindings;
+};
+
 struct MenuAction {
   MenuActionKind kind{MenuActionKind::Resume};
   std::string chapter;
   std::string resolution;
   double verticalFov{};
+  double mouseSensitivity{1.0};
+  InputBindings bindings;
 };
 
 using MenuActionHandler = std::function<void(const MenuAction &)>;
@@ -125,6 +135,7 @@ public:
 
   virtual void showMenu(bool visible) = 0;
   [[nodiscard]] virtual bool menuVisible() const noexcept = 0;
+  [[nodiscard]] virtual bool bindingCaptureActive() const noexcept = 0;
   virtual void setHudVisible(bool visible) = 0;
   virtual void setSubtitle(std::string text, double seconds) = 0;
   virtual void setConsoleVisible(bool visible) = 0;

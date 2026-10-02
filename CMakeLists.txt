@@ -121,7 +121,8 @@ add_library(run3_core STATIC
             source/app/Configuration.cpp
             source/app/EngineClock.cpp
             source/core/Log.cpp
-            source/input/Input.cpp)
+            source/input/Input.cpp
+            source/input/InputBindings.cpp)
 add_library(run3::core ALIAS run3_core)
 target_compile_features(run3_core PUBLIC cxx_std_17)
 target_include_directories(
@@ -293,12 +294,13 @@ target_include_directories(
 target_link_libraries(run3_sequence PUBLIC run3::entities run3::scripting
                       PRIVATE run3::warnings run3::sanitizers)
 
-add_library(run3_npcs STATIC source/gameplay/NpcSystem.cpp)
+add_library(run3_npcs STATIC source/gameplay/NpcSystem.cpp
+                             source/gameplay/NpcFacialAnimation.cpp)
 add_library(run3::npcs ALIAS run3_npcs)
 target_compile_features(run3_npcs PUBLIC cxx_std_17)
 target_include_directories(run3_npcs
     PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
-target_link_libraries(run3_npcs PUBLIC run3::entities run3::air3
+target_link_libraries(run3_npcs PUBLIC run3::entities run3::air3 run3::xml
                       PRIVATE run3::warnings run3::sanitizers)
 
 add_library(run3_asset_validation STATIC source/content/AssetValidation.cpp

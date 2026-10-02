@@ -1,6 +1,7 @@
 #include <run3/app/AppPaths.hpp>
 #include <run3/content/MapDefinition.hpp>
 #include <run3/gameplay/EntityRegistry.hpp>
+#include <run3/gameplay/NpcFacialAnimation.hpp>
 #include <run3/gameplay/NpcSystem.hpp>
 
 #include <catch2/catch_approx.hpp>
@@ -171,6 +172,99 @@ TEST_CASE("Step 8D parent motion, teleport and animation commands are determinis
   fixture.services.transforms["train"] = {{30, 0, 0}, {}};
   fixture.npcs->fixedUpdate();
   CHECK(fixture.npcs->state("guide")->transform.position.x == Catch::Approx(30));
+}
+
+TEST_CASE("Step 8D facial definitions blend legacy poses on the voice timeline",
+          "[step8d][npc][facial]") {
+  const auto definition = gameplay::loadFacialAnimationDefinition(
+      sourceRoot / "tests/fixtures/step8d/facial-animation.xml");
+  CHECK(definition.sound == fs::path("run3/sounds/speech/test.wav"));
+  CHECK(definition.subtitle == "A test line.");
+  CHECK(definition.patched);
+  REQUIRE(definition.phonemes.size() == 3);
+  CHECK(definition.durationSeconds() == Catch::Approx(1.0));
+  CHECK(gameplay::facialPoseIndex("A") == 2);
+  CHECK(gameplay::facialPoseIndex("L") == -1);
+
+  const auto lead = gameplay::sampleFacialAnimation(definition, -0.1);
+  REQUIRE(lead.active);
+  REQUIRE(lead.influences.size() == 1);
+  CHECK(lead.influences[0].poseIndex == 2);
+  CHECK(lead.influences[0].weight == Catch::Approx(0.5F));
+
+  const auto transition = gameplay::sampleFacialAnimation(definition, 0.25);
+  REQUIRE(transition.influences.size() == 2);
+  CHECK(transition.influences[0].poseIndex == 2);
+  CHECK(transition.influences[0].weight == Catch::Approx(0.5F));
+  CHECK(transition.influences[1].poseIndex == 3);
+  CHECK(transition.influences[1].weight == Catch::Approx(0.5F));
+
+  const auto tail = gameplay::sampleFacialAnimation(definition, 1.1);
+  REQUIRE(tail.active);
+  REQUIRE(tail.influences.size() == 1);
+  CHECK(tail.influences[0].poseIndex == 4);
+  CHECK(tail.influences[0].weight == Catch::Approx(0.5F));
+  CHECK_FALSE(gameplay::sampleFacialAnimation(definition, 1.21).active);
+}
+
+TEST_CASE("Step 8D attached campaign facial definitions and voices resolve",
+          "[step8d][npc][facial][content]") {
+  const fs::path contentRoot = sourceRoot / "Games/The Long Way/TheLongWay";
+  const fs::path sounds = contentRoot / "run3/sounds";
+  if (!fs::exists(sounds)) SKIP("TLW content absent");
+  std::size_t definitions{};
+  for (const auto &entry : fs::recursive_directory_iterator(sounds)) {
+    if (!entry.is_regular_file() || entry.path().extension() != ".xml") continue;
+    CAPTURE(entry.path().generic_string());
+    const auto definition =
+        gameplay::loadFacialAnimationDefinition(entry.path());
+    CHECK_FALSE(definition.phonemes.empty());
+    const fs::path exact = contentRoot / definition.sound;
+    const fs::path legacySibling =
+        entry.path().parent_path() / definition.sound.filename();
+    CHECK((fs::exists(exact) || fs::exists(legacySibling)));
+    ++definitions;
+  }
+  CHECK(definitions == 41);
+
+  const std::regex facialEvent(
+      R"npc(npcEvent2?\(\s*"[^"]+"\s*,\s*"27"\s*,\s*"([^"]+)")npc");
+  std::size_t luaReferences{};
+  const fs::path luaRoot = contentRoot / "run3/lua";
+  for (const auto &entry : fs::recursive_directory_iterator(luaRoot)) {
+    if (!entry.is_regular_file() || entry.path().extension() != ".lua") continue;
+    std::ifstream stream(entry.path());
+    std::string line;
+    while (std::getline(stream, line)) {
+      if (line.find("--") < line.find("npcEvent")) continue;
+      std::smatch match;
+      if (!std::regex_search(line, match, facialEvent)) continue;
+      const fs::path definitionPath = contentRoot / match[1].str();
+      CAPTURE(entry.path().generic_string(), line,
+              definitionPath.generic_string());
+      CHECK(fs::exists(definitionPath));
+      if (fs::exists(definitionPath))
+        CHECK_FALSE(gameplay::loadFacialAnimationDefinition(definitionPath)
+                        .phonemes.empty());
+      ++luaReferences;
+    }
+  }
+  CHECK(luaReferences > 0);
+}
+
+TEST_CASE("Step 8D facial event reaches the typed NPC presentation command",
+          "[step8d][npc][facial]") {
+  RuntimeFixture fixture;
+  fixture.services.commands.clear();
+  fixture.npcs->dispatch(
+      {"guide", 27, "run3/sounds/speech/guide.xml", {}, false});
+  REQUIRE(fixture.services.count<gameplay::PlayRuntimeFacial>() == 1);
+  const auto *facial = std::get_if<gameplay::PlayRuntimeFacial>(
+      &fixture.services.commands.back());
+  REQUIRE(facial != nullptr);
+  CHECK(facial->owner == fixture.npcs->state("guide")->handle);
+  CHECK(facial->definition == fs::path("run3/sounds/speech/guide.xml"));
+  CHECK(facial->position.x == Catch::Approx(0.0));
 }
 
 TEST_CASE("Step 8D enemy perception, damage and ragdoll are bounded",

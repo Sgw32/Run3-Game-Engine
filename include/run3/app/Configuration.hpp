@@ -15,6 +15,8 @@ using ConfigValues = std::unordered_map<std::string, std::string>;
 class Configuration {
 public:
   static ConfigValues readFile(const std::filesystem::path &path);
+  static void writeFile(const std::filesystem::path &path,
+                        const ConfigValues &values);
   static Configuration merge(const ConfigValues &contentDefaults,
                              const ConfigValues &userValues,
                              const ConfigValues &commandLineValues);

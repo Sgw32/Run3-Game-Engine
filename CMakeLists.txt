@@ -250,6 +250,7 @@ target_link_libraries(
             MyGUI::OgrePlatform OgreMain)
 
 add_library(run3_rendering STATIC source/rendering/OgreEnvironment.cpp
+                                source/rendering/OgreCompositorEffects.cpp
                                 source/rendering/Lighting.cpp
                                 source/rendering/OgreLighting.cpp
                                 source/rendering/OgreLightingPost.cpp)
@@ -877,6 +878,27 @@ install(DIRECTORY "${RUN3_MYGUI_SOURCE_DIR}/Media/MyGUI_Media"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/Media")
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/media/Lighting"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/Media")
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/media/LegacyCompositors"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/Media")
+install(FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/scripts/StdQuad_vp.program"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/scripts/Bloom2.material"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/scripts/Examples.compositor"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/programs/HLSL_Cg/StdQuad_vp.cg"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/programs/HLSL_Cg/Blur_vs11.cg"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/programs/HLSL_Cg/BlurH_ps20.cg"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/programs/HLSL_Cg/BlurV_ps20.cg"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/programs/HLSL_Cg/BrightBloom2_ps20.cg"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/programs/HLSL_Cg/Bloom2_ps20.cg"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/programs/GLSL/StdQuad_vp.glsl"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/programs/GLSL/StdQuad_Tex2_vp.glsl"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/programs/GLSL/StdQuad_Tex2a_vp.glsl"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/programs/GLSL/Blur_vs.glsl"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/programs/GLSL/BlurH_ps20.glsl"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/programs/GLSL/BlurV_ps20.glsl"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/programs/GLSL/BrightBloom2_ps20.glsl"
+        "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/programs/GLSL/Bloom2_ps20.glsl"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/Media/LegacyCompositors")
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/content/"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/validation-fixture")
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/content/manifests/"

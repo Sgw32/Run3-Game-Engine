@@ -134,6 +134,7 @@ private:
   bool physicsDebug_{};
   bool gameplayMouseCapture_{};
   std::uint64_t renderedFrames_{};
+  std::optional<std::uint64_t> mapMusicStartFrame_;
   std::uint64_t simulatedSteps_{};
   bool quitRequested_{};
   bool validationFailed_{};

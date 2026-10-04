@@ -69,12 +69,33 @@ void MusicPlayer::update(const float seconds) {
   PendingTrack next = std::move(*pending_);
   pending_.reset();
   current_.reset();
-  static_cast<void>(start(next.file, next.loop, next.fadeInSeconds));
+  if (start(next.file, next.loop, next.fadeInSeconds) &&
+      next.startSeconds > 0.0F)
+    static_cast<void>(engine_.seekSeconds(current_, next.startSeconds));
 }
 
 void MusicPlayer::clear() noexcept {
   pending_.reset();
   current_.reset();
+}
+
+std::optional<float> MusicPlayer::playbackSeconds() const {
+  // During a crossfade current_ is still the outgoing map track. Expose the
+  // incoming track's clock so a newly started cutscene waits at its intended
+  // beat rather than synchronising to unrelated background music.
+  if (pending_) return pending_->startSeconds;
+  if (!current_.valid() || engine_.state(current_) == SoundState::stopped)
+    return std::nullopt;
+  return engine_.playbackSeconds(current_);
+}
+
+bool MusicPlayer::seekSeconds(const float seconds) {
+  if (seconds < 0.0F) return false;
+  if (pending_) {
+    pending_->startSeconds = seconds;
+    return true;
+  }
+  return current_.valid() && engine_.seekSeconds(current_, seconds);
 }
 
 bool MusicPlayer::start(const std::filesystem::path &file, const bool loop,
@@ -84,6 +105,9 @@ bool MusicPlayer::start(const std::filesystem::path &file, const bool loop,
   options.bus = Bus::music;
   options.loop = loop;
   options.streaming = true;
+  // Music is listener-relative by definition. Keeping this explicit prevents
+  // map/cutscene call sites from accidentally applying distance attenuation.
+  options.spatial = false;
   options.gain = volume_;
   options.pitch = pitch_;
   options.fadeInSeconds = std::max(0.0F, fadeInSeconds);

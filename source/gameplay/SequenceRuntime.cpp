@@ -371,6 +371,7 @@ public:
     std::vector<CutsceneFrame> frames;
     std::vector<CutsceneRun> runs;
     std::uint64_t lengthTicks{};
+    std::uint64_t musicLengthTicks{};
     std::uint64_t waitTicks{};
     std::uint64_t elapsedTicks{};
     double skipMultiplier{10.0};
@@ -583,6 +584,9 @@ public:
     scene.infinite = boolean(element, "inf", false);
     if (boolean(element, "music", false))
       scene.music = attribute(element, "musicFile", "");
+    if (!scene.music.empty())
+      scene.musicLengthTicks = secondsToTicks(
+          std::max(0.0, number(element, "musicLength", 0.0)));
     for (const AuthoredElement &frame : element.children) {
       if (frame.tag != "frame") continue;
       physics::Transform pose;
@@ -1221,8 +1225,21 @@ public:
           ? std::max<std::uint64_t>(1, static_cast<std::uint64_t>(
                 std::floor(scene.skipMultiplier)))
           : 1;
-      scene.elapsedTicks = std::min(scene.lengthTicks,
-                                    scene.elapsedTicks + advance);
+      const auto musicSeconds = !scene.skipping && !scene.music.empty()
+          ? services->runtimeMusicSeconds() : std::nullopt;
+      if (musicSeconds && std::isfinite(*musicSeconds) && *musicSeconds >= 0.0) {
+        std::uint64_t musicTick = secondsToTicks(*musicSeconds);
+        if (scene.musicLengthTicks > 0)
+          musicTick = std::min(musicTick, scene.musicLengthTicks);
+        if (scene.infinite && scene.lengthTicks > 0)
+          scene.elapsedTicks = musicTick % scene.lengthTicks;
+        else
+          scene.elapsedTicks = std::max(
+              scene.elapsedTicks, std::min(scene.lengthTicks, musicTick));
+      } else {
+        scene.elapsedTicks = std::min(scene.lengthTicks,
+                                      scene.elapsedTicks + advance);
+      }
       for (CutsceneRun &run : scene.runs) {
         if (!run.fired && run.tick <= scene.elapsedTicks) {
           run.fired = true;
@@ -1640,6 +1657,9 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
       impl_->services->submit(SetRuntimeFov{argumentNumber(call, 0)});
     } else if (call.name == "resetFov") {
       impl_->services->submit(SetRuntimeFov{std::nullopt});
+    } else if (call.name == "dssao") {
+      // The legacy binding's name is historical: it calls disableSSAO().
+      impl_->services->submit(SetRuntimeCompositor{"ssao", false});
     } else if (call.name == "setCompositorEnabled") {
       if (call.arguments.size() < 2)
         throw std::invalid_argument("expected enabled and compositor name");
@@ -1887,6 +1907,9 @@ void SequenceRuntime::restoreState(const PersistentSequenceState &state) {
     if (!impl_->startCutscene(state.activeCutscene))
       throw std::invalid_argument("sequence save references missing cutscene");
     impl_->activeCutscene->elapsedTicks = state.cutsceneTick;
+    if (!impl_->activeCutscene->music.empty())
+      static_cast<void>(impl_->services->seekRuntimeMusicSeconds(
+          static_cast<double>(state.cutsceneTick) * fixedStepSeconds));
     impl_->updateCutsceneCamera(*impl_->activeCutscene);
   }
   if (!state.activeComputer.empty()) {

@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace run3::audio {
 
@@ -63,6 +64,13 @@ struct AudioStats {
   std::size_t voiceCapacity{};
 };
 
+struct ActiveVoice {
+  std::filesystem::path file;
+  Bus bus{Bus::effects};
+  SoundState state{SoundState::invalid};
+  bool spatial{};
+};
+
 namespace detail {
 class HandleOwner;
 }
@@ -96,6 +104,7 @@ public:
   [[nodiscard]] virtual bool hasOutputDevice() const noexcept = 0;
   [[nodiscard]] virtual std::string lastError() const = 0;
   [[nodiscard]] virtual AudioStats stats() const noexcept = 0;
+  [[nodiscard]] virtual std::vector<ActiveVoice> activeVoices() const = 0;
 
   [[nodiscard]] virtual SoundHandle play(const PlayOptions &options) = 0;
   virtual bool stop(const SoundHandle &sound, float fadeSeconds = 0.0F) = 0;

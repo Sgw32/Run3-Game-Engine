@@ -515,6 +515,20 @@ int Run3App::run() {
         listener.up = {up.x, up.y, up.z};
         audioEngine_->setListener(listener);
         if (mapAudio_) {
+          if (mapMusicStartFrame_ &&
+              renderedFrames_ >= *mapMusicStartFrame_) {
+            const bool appointed = !mapAudio_->musicFile().empty();
+            const bool started = mapAudio_->startPendingMusic();
+            Ogre::LogManager::getSingleton().logMessage(
+                std::string("Map audio: third-frame music ") +
+                (started ? "started" :
+                 appointed ? "failed" : "not appointed"));
+            if (appointed && !started && !audioEngine_->lastError().empty()) {
+              Ogre::LogManager::getSingleton().logMessage(
+                  "Map audio backend detail: " + audioEngine_->lastError());
+            }
+            mapMusicStartFrame_.reset();
+          }
           std::optional<audio::FootstepState> footstep;
           if (player_) {
             const gameplay::PlayerState state = player_->state();
@@ -752,6 +766,15 @@ void Run3App::setup() {
   updateAspectRatio();
   lighting_ = std::make_unique<rendering::OgreLighting>(
       *sceneManager_, *camera_, *viewport, options_.lighting);
+  const fs::path compositorAssets =
+      (options_.paths.executableDir() / ".." / "share" / "run3" / "Media" /
+       "LegacyCompositors")
+          .lexically_normal();
+  lighting_->configureLegacyCompositors(options_.paths.contentRoot(),
+                                        compositorAssets,
+                                        options_.paths.cacheDir() /
+                                            "legacy-compositors",
+                                        options_.textureQuality);
   if (options_.lightingLab) lighting_->createLab();
   ui_ = ui::createMyGuiUiSystem(
       *getRenderWindow(), *sceneManager_, *camera_, options_.paths.logDir(),
@@ -862,9 +885,9 @@ void Run3App::loadMap(const std::string &mapName) {
           " failed=" + std::to_string(started.ambientFailed) +
           " script-controlled-deferred=" +
           std::to_string(loaded.scriptControlledSounds) + " music=" +
-          (started.musicStarted ? "started" : "not started"));
-      if (started.ambientFailed != 0 ||
-          (!started.musicStarted && !audioEngine_->lastError().empty())) {
+          (mapAudio_->musicPending() ? "appointed for frame 3" :
+                                       "not appointed"));
+      if (started.ambientFailed != 0 && !audioEngine_->lastError().empty()) {
         Ogre::LogManager::getSingleton().logMessage(
             "Map audio backend detail: " + audioEngine_->lastError());
       }
@@ -878,6 +901,7 @@ void Run3App::loadMap(const std::string &mapName) {
         *player_, *audioEngine_, *ui_,
         [this](std::string map) { requestMapChange(std::move(map)); },
         meshLodBias(options_.modelQuality), options_.verticalFovDegrees);
+    sequenceServices_->attachLighting(*lighting_);
     if (mapAudio_) {
       sequenceServices_->attachMapAudio(*mapAudio_);
     }
@@ -891,12 +915,16 @@ void Run3App::loadMap(const std::string &mapName) {
     sequenceServices_->attachNpcSystem(*npcSystem_);
     npcSystem_->start();
     sequenceRuntime_->start();
+    // renderedFrames_ counts completed frames. At +2, the next call to
+    // renderOneFrame is the third frame belonging to this newly loaded map.
+    mapMusicStartFrame_ = renderedFrames_ + 2;
     // A map load is the gameplay-state boundary. Never carry the menu layer
     // or its pointer through a chapter transition or cutscene restoration.
     if (ui_) ui_->showMenu(false);
 }
 
 void Run3App::unloadMap(const bool runOnExit) {
+  mapMusicStartFrame_.reset();
   std::exception_ptr failure;
   if (sequenceRuntime_) {
     try { sequenceRuntime_->unload(runOnExit); }
@@ -933,6 +961,9 @@ void Run3App::unloadMap(const bool runOnExit) {
   npcPhysicsQuery_.reset();
   sequenceRuntime_.reset();
   sequenceServices_.reset();
+  // onExit scripts are allowed to change compositors. Clear the final state
+  // only after all script-backed services have shut down.
+  if (lighting_) lighting_->clearCompositorEffects();
   mapAudio_.reset();
   player_.reset();
   if (staticMap_) {
@@ -1217,6 +1248,12 @@ void Run3App::updateDebugOverlay() {
       out << "Backend " << audioEngine_->backendName() << "  device "
           << (audioEngine_->hasOutputDevice() ? "ready" : "unavailable") << '\n'
           << "Active voices " << stats.activeVoices << '/' << stats.voiceCapacity;
+      for (const auto &voice : audioEngine_->activeVoices()) {
+        out << "\n  " << voice.file.filename().string();
+        if (voice.bus == audio::Bus::music) out << " [music]";
+        else if (voice.bus == audio::Bus::voice) out << " [voice]";
+        if (voice.spatial) out << " [3D]";
+      }
     }
     if (mapAudio_) {
       out << "\nCurrent music "

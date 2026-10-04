@@ -250,12 +250,20 @@ MapAudioStartResult MapAudioRuntime::start(MapAudioDefinition definition) {
       ++result.ambientFailed;
     }
   }
-  if (!definition_.musicFile.empty()) {
-    music_.setVolume(definition_.musicGain);
-    result.musicStarted =
-        music_.play(definition_.musicFile, definition_.musicLoop, 0.25F);
-  }
+  music_.setVolume(definition_.musicGain);
   return result;
+}
+
+bool MapAudioRuntime::startPendingMusic() {
+  musicStartAllowed_ = true;
+  if (definition_.musicFile.empty()) return false;
+  const bool started =
+      music_.play(definition_.musicFile, definition_.musicLoop, 0.0F);
+  if (started && pendingMusicSeek_) {
+    static_cast<void>(music_.seekSeconds(*pendingMusicSeek_));
+    pendingMusicSeek_.reset();
+  }
+  return started;
 }
 
 bool MapAudioRuntime::setNamedAmbientEnabled(std::string_view name,
@@ -289,6 +297,12 @@ bool MapAudioRuntime::setNamedAmbientEnabled(std::string_view name,
 }
 
 bool MapAudioRuntime::playMusic(const fs::path &file, bool loop) {
+  if (!musicStartAllowed_) {
+    definition_.musicFile = file;
+    definition_.musicLoop = loop;
+    pendingMusicSeek_.reset();
+    return !file.empty();
+  }
   if (file == definition_.musicFile && music_.active() &&
       loop == definition_.musicLoop) {
     return true;
@@ -304,6 +318,7 @@ bool MapAudioRuntime::playMusic(const fs::path &file, bool loop) {
 void MapAudioRuntime::stopMusic(float fadeSeconds) {
   music_.stop(fadeSeconds);
   definition_.musicFile.clear();
+  pendingMusicSeek_.reset();
 }
 
 void MapAudioRuntime::setMusicVolume(float gain) {
@@ -313,6 +328,19 @@ void MapAudioRuntime::setMusicVolume(float gain) {
 
 const fs::path &MapAudioRuntime::musicFile() const noexcept {
   return definition_.musicFile;
+}
+
+std::optional<float> MapAudioRuntime::musicPlaybackSeconds() const {
+  if (!musicStartAllowed_ && !definition_.musicFile.empty()) return 0.0F;
+  return music_.playbackSeconds();
+}
+
+bool MapAudioRuntime::seekMusicSeconds(const float seconds) {
+  if (!musicStartAllowed_ && !definition_.musicFile.empty()) {
+    pendingMusicSeek_ = std::max(0.0F, seconds);
+    return true;
+  }
+  return music_.seekSeconds(seconds);
 }
 
 void MapAudioRuntime::update(const float seconds, const FootstepState *player) {
@@ -334,6 +362,8 @@ void MapAudioRuntime::clear() noexcept {
   footstepTimer_ = 0.0F;
   nextFootstep_ = 0;
   footstepCount_ = 0;
+  musicStartAllowed_ = false;
+  pendingMusicSeek_.reset();
 }
 
 void MapAudioRuntime::updateFootsteps(const float seconds,

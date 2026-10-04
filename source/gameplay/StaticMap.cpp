@@ -809,6 +809,9 @@ public:
     }
     std::vector<std::string> available;
     auto &resources = Ogre::ResourceGroupManager::getSingleton();
+    for (const auto &frame : surface.diffuseAnimationFrames)
+      if (resources.resourceExists(resourceGroup_, frame))
+        available.push_back(frame);
     for (const auto *slot : {&surface.diffuseMap,&surface.normalMap,&surface.specularMap,&surface.aoMap,&surface.metalRoughnessMap,&surface.reflectionMap}) {
       if (slot->name.empty()) continue;
       bool present = resources.resourceExists(resourceGroup_, slot->name);

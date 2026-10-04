@@ -37,6 +37,13 @@ struct SourceMaterial {
   std::string parent;
   std::string aliasTexture;
   std::string directTexture;
+  std::vector<std::string> animationFrames;
+  std::string animationBase;
+  unsigned animationFrameCount{};
+  float animationDuration{};
+  std::optional<std::array<float, 2>> scroll;
+  std::optional<float> rotate;
+  std::vector<rendering::TextureWaveAnimation> waveAnimations;
   std::optional<bool> lighting;
   bool transparent{};
   bool doubleSided{};
@@ -230,6 +237,79 @@ struct LegacyMaterialCatalog::Impl {
           else if ((textureUnit.find("map") == std::string::npos || textureUnit == "diffusemap") && active->directTexture.empty())
             active->directTexture = unitTexture;
         }
+      } else if (keyword == "anim_texture" && active->techniques <= 1 &&
+                 (textureUnit.find("map") == std::string::npos ||
+                  textureUnit == "diffusemap")) {
+        std::vector<std::string> values;
+        for (std::string value; tokens >> value;)
+          values.push_back(unquote(std::move(value)));
+        if (values.size() >= 2) {
+          try {
+            std::size_t consumed{};
+            const float duration = std::stof(values.back(), &consumed);
+            if (consumed == values.back().size() && duration >= 0.0F) {
+              values.pop_back();
+              unsigned frameCount{};
+              std::size_t frameConsumed{};
+              if (values.size() == 2) {
+                try {
+                  frameCount = static_cast<unsigned>(
+                      std::stoul(values[1], &frameConsumed));
+                } catch (const std::exception &) {
+                  frameConsumed = 0;
+                }
+              }
+              if (values.size() == 2 && frameConsumed == values[1].size() &&
+                  frameCount > 0) {
+                active->animationBase = values.front();
+                active->animationFrameCount = frameCount;
+                active->animationFrames.clear();
+              } else {
+                active->animationFrames = std::move(values);
+                active->animationBase.clear();
+                active->animationFrameCount = 0;
+              }
+              active->animationDuration = duration;
+              if (!active->animationFrames.empty()) {
+                active->directTexture = active->animationFrames.front();
+              } else {
+                const fs::path base(active->animationBase);
+                active->directTexture =
+                    (base.parent_path() /
+                     (base.stem().string() + "_0" + base.extension().string()))
+                        .generic_string();
+              }
+            }
+          } catch (const std::exception &) {
+            // Leave malformed legacy effects on the ordinary texture fallback.
+          }
+        }
+      } else if (keyword == "scroll_anim" && active->techniques <= 1) {
+        std::array<float, 2> value{};
+        if (tokens >> value[0] >> value[1]) active->scroll = value;
+      } else if (keyword == "rotate_anim" && active->techniques <= 1) {
+        float value{};
+        if (tokens >> value) active->rotate = value;
+      } else if (keyword == "wave_xform" && active->techniques <= 1) {
+        std::string transform, waveform;
+        rendering::TextureWaveAnimation animation;
+        if (tokens >> transform >> waveform >> animation.base >>
+                animation.frequency >> animation.phase >> animation.amplitude) {
+          const auto transformName = lower(transform);
+          const auto waveformName = lower(waveform);
+          bool validTransform = true;
+          if (transformName == "scroll_x") animation.transform = rendering::TextureTransform::TranslateU;
+          else if (transformName == "scroll_y") animation.transform = rendering::TextureTransform::TranslateV;
+          else if (transformName == "scale_x") animation.transform = rendering::TextureTransform::ScaleU;
+          else if (transformName == "scale_y") animation.transform = rendering::TextureTransform::ScaleV;
+          else if (transformName == "rotate") animation.transform = rendering::TextureTransform::Rotate;
+          else validTransform = false;
+          if (waveformName == "triangle") animation.waveform = rendering::TextureWaveform::Triangle;
+          else if (waveformName == "square") animation.waveform = rendering::TextureWaveform::Square;
+          else if (waveformName == "sawtooth") animation.waveform = rendering::TextureWaveform::Sawtooth;
+          else if (waveformName == "inverse_sawtooth") animation.waveform = rendering::TextureWaveform::InverseSawtooth;
+          if (validTransform) active->waveAnimations.push_back(animation);
+        }
       } else if (keyword == "cubic_texture" && active->techniques <= 1) {
         std::string coordinates;
         tokens >> active->reflection >> coordinates;
@@ -325,8 +405,29 @@ struct LegacyMaterialCatalog::Impl {
     }
     auto &surface = result.surface;
     const auto &input = found->second;
+    if (!input.aliasTexture.empty() || !input.directTexture.empty()) {
+      surface.diffuseAnimationFrames.clear();
+      surface.diffuseAnimationBase.clear();
+      surface.diffuseAnimationFrameCount = 0;
+      surface.diffuseAnimationDuration = 0.0F;
+    }
     surface.name = requestedName;
     surface.diffuseMap.name = result.texture;
+    if (!input.animationFrames.empty()) {
+      surface.diffuseAnimationFrames = input.animationFrames;
+      surface.diffuseAnimationDuration = input.animationDuration;
+    } else if (!input.animationBase.empty()) {
+      surface.diffuseAnimationBase = input.animationBase;
+      surface.diffuseAnimationFrameCount = input.animationFrameCount;
+      surface.diffuseAnimationDuration = input.animationDuration;
+    }
+    if (input.scroll) {
+      surface.diffuseScrollU = (*input.scroll)[0];
+      surface.diffuseScrollV = (*input.scroll)[1];
+    }
+    if (input.rotate) surface.diffuseRotate = *input.rotate;
+    if (!input.waveAnimations.empty())
+      surface.diffuseWaveAnimations = input.waveAnimations;
     if (!input.normal.empty()) surface.normalMap.name = input.normal;
     if (!input.specularMap.empty()) surface.specularMap.name = input.specularMap;
     if (!input.ao.empty()) surface.aoMap.name = input.ao;

@@ -42,6 +42,16 @@ public:
                 [](const Slot &slot) { return slot.active; })),
             slots_.size()};
   }
+  std::vector<ActiveVoice> activeVoices() const override {
+    std::vector<ActiveVoice> result;
+    result.reserve(stats().activeVoices);
+    for (const Slot &slot : slots_)
+      if (slot.active)
+        result.push_back(
+            {slot.options.file, slot.options.bus, slot.state,
+             slot.options.spatial});
+    return result;
+  }
 
   SoundHandle play(const PlayOptions &options) override {
     if (options.file.empty()) {

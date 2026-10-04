@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -66,11 +67,16 @@ public:
   MapAudioRuntime &operator=(const MapAudioRuntime &) = delete;
 
   [[nodiscard]] MapAudioStartResult start(MapAudioDefinition definition);
+  // Opens the map music gate. Run3App calls this immediately before the third
+  // frame of the newly loaded map is rendered.
+  [[nodiscard]] bool startPendingMusic();
   [[nodiscard]] bool setNamedAmbientEnabled(std::string_view name, bool enabled);
   [[nodiscard]] bool playMusic(const std::filesystem::path &file, bool loop);
   void stopMusic(float fadeSeconds = 0.0F);
   void setMusicVolume(float gain);
   [[nodiscard]] const std::filesystem::path &musicFile() const noexcept;
+  [[nodiscard]] std::optional<float> musicPlaybackSeconds() const;
+  bool seekMusicSeconds(float seconds);
   void update(float seconds, const FootstepState *player = nullptr);
   void clear() noexcept;
 
@@ -81,6 +87,9 @@ public:
     return footstepCount_;
   }
   [[nodiscard]] bool musicActive() const noexcept { return music_.active(); }
+  [[nodiscard]] bool musicPending() const noexcept {
+    return !musicStartAllowed_ && !definition_.musicFile.empty();
+  }
 
 private:
   void updateFootsteps(float seconds, const FootstepState &player);
@@ -94,6 +103,8 @@ private:
   float footstepTimer_{};
   std::size_t nextFootstep_{};
   std::size_t footstepCount_{};
+  bool musicStartAllowed_{};
+  std::optional<float> pendingMusicSeek_;
 };
 
 } // namespace run3::audio

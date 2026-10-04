@@ -34,6 +34,7 @@ struct FakeServices final : gameplay::IGameServices {
   bool playerParented{};
   std::size_t activePresentations{};
   double fovDegrees{75.0};
+  std::optional<double> musicSeconds;
 
   void submit(const gameplay::GameCommand &command) override {
     if (const auto *script = std::get_if<gameplay::RunRuntimeScript>(&command);
@@ -63,6 +64,9 @@ struct FakeServices final : gameplay::IGameServices {
   }
   [[nodiscard]] double runtimeFovDegrees() const override {
     return fovDegrees;
+  }
+  [[nodiscard]] std::optional<double> runtimeMusicSeconds() const override {
+    return musicSeconds;
   }
 
   template <class T> std::size_t count() const {
@@ -111,6 +115,31 @@ std::vector<gameplay::SequenceEntityState> runAtRenderRate(double renderHz) {
 }
 
 } // namespace
+
+TEST_CASE("Step 8C music-synchronised cutscene follows the audio cursor",
+          "[step8c][cutscene][audio]") {
+  FixtureRuntime fixture;
+  fixture.runtime->start();
+  REQUIRE(fixture.runtime->startCutscene("music-sync"));
+  CHECK(fixture.services.count<gameplay::PlayRuntimeSound>() == 1);
+
+  fixture.services.musicSeconds = 0.5;
+  fixture.runtime->fixedUpdate();
+  REQUIRE(fixture.runtime->presentation().camera);
+  CHECK(fixture.runtime->presentation().camera->position.x ==
+        Catch::Approx(30.0));
+
+  // A repeated cursor intentionally holds the camera: simulation load cannot
+  // make the visual beat run ahead of the decoded track.
+  fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->presentation().camera->position.x ==
+        Catch::Approx(30.0));
+
+  fixture.services.musicSeconds = 1.5;
+  fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->presentation().camera->position.x ==
+        Catch::Approx(90.0));
+}
 
 TEST_CASE("Step 8C lifecycle constructs in authored order and cancels queued work",
           "[step8c][lifecycle]") {
@@ -438,6 +467,33 @@ TEST_CASE("Step 8C legacy FOV bindings return a number and drive the camera serv
   REQUIRE(commands[0].degrees.has_value());
   CHECK(*commands[0].degrees == Catch::Approx(165.8));
   CHECK_FALSE(commands[1].degrees.has_value());
+}
+
+TEST_CASE("Step 8C legacy Lua compositor bindings retain names and parameters",
+          "[step8c][lua][compositor]") {
+  FixtureRuntime fixture;
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"world", "setCompositorEnabled", {"true", "RunLSD"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"world", "fragmentGPUProgramParams",
+       {"Ogre/Compositor/BloomBlend2", "BlurWeight", "0.3"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"world", "dssao", {}}));
+
+  REQUIRE(fixture.services.commands.size() == 3);
+  const auto &effect =
+      std::get<gameplay::SetRuntimeCompositor>(fixture.services.commands[0]);
+  CHECK(effect.name == "RunLSD");
+  CHECK(effect.enabled);
+  const auto &parameter = std::get<gameplay::SetRuntimeShaderParameter>(
+      fixture.services.commands[1]);
+  CHECK(parameter.program == "Ogre/Compositor/BloomBlend2");
+  CHECK(parameter.parameter == "BlurWeight");
+  CHECK(parameter.value == "0.3");
+  const auto &ssao =
+      std::get<gameplay::SetRuntimeCompositor>(fixture.services.commands[2]);
+  CHECK(ssao.name == "ssao");
+  CHECK_FALSE(ssao.enabled);
 }
 
 TEST_CASE("Step 8C closed-door completion requires a real close transition",

@@ -43,6 +43,12 @@
       <position x="40" y="0" z="0"/>
       <scale x="5" y="5" z="5"/>
     </darkzone>
+    <cutscene name="music-sync" length="2" music="true"
+              musicFile="run3/sounds/score.ogg" musicLength="2"
+              freezeb="false" hideHUD="false">
+      <frame second="0" x="0" y="0" z="0"/>
+      <frame second="2" x="120" y="0" z="0"/>
+    </cutscene>
   </adents>
   <events>
     <trigger name="once" sec="0.033333333333">

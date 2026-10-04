@@ -7,6 +7,7 @@
 #include <run3/gameplay/NpcSystem.hpp>
 #include <run3/gameplay/PlayerController.hpp>
 #include <run3/gameplay/StaticMap.hpp>
+#include <run3/rendering/OgreLighting.hpp>
 #include <run3/scripting/ScriptEngine.hpp>
 #include <run3/ui/Ui.hpp>
 
@@ -1122,6 +1123,7 @@ public:
   SequenceRuntime *runtime{};
   NpcSystem *npcs{};
   audio::MapAudioRuntime *mapAudio{};
+  rendering::OgreLighting *lighting{};
   Ogre::SceneNode *root{};
   std::unordered_map<std::uint64_t, Presentation> presentations;
   std::unordered_map<std::string, std::uint64_t> names;
@@ -1172,6 +1174,10 @@ void OgreSequenceServices::attachNpcSystem(NpcSystem &system) noexcept {
 void OgreSequenceServices::attachMapAudio(audio::MapAudioRuntime &mapAudio) noexcept {
   impl_->mapAudio = &mapAudio;
 }
+void OgreSequenceServices::attachLighting(
+    rendering::OgreLighting &lighting) noexcept {
+  impl_->lighting = &lighting;
+}
 void OgreSequenceServices::updateAudio(float seconds) {
   impl_->oneShots.update(seconds);
   impl_->updateGameText(seconds);
@@ -1187,6 +1193,26 @@ void OgreSequenceServices::updateAudio(float seconds) {
       if (state->getEnabled()) state->addTime(seconds);
     }
   }
+}
+
+std::optional<double> OgreSequenceServices::runtimeMusicSeconds() const {
+  if (impl_->mapAudio != nullptr) {
+    if (const auto seconds = impl_->mapAudio->musicPlaybackSeconds())
+      return static_cast<double>(*seconds);
+    return std::nullopt;
+  }
+  if (!impl_->music.valid() ||
+      impl_->audio->state(impl_->music) == audio::SoundState::stopped)
+    return std::nullopt;
+  return static_cast<double>(impl_->audio->playbackSeconds(impl_->music));
+}
+
+bool OgreSequenceServices::seekRuntimeMusicSeconds(const double seconds) {
+  if (!std::isfinite(seconds) || seconds < 0.0) return false;
+  if (impl_->mapAudio != nullptr)
+    return impl_->mapAudio->seekMusicSeconds(static_cast<float>(seconds));
+  return impl_->music.valid() &&
+         impl_->audio->seekSeconds(impl_->music, static_cast<float>(seconds));
 }
 
 void OgreSequenceServices::submit(const GameCommand &command) {
@@ -1353,14 +1379,17 @@ void OgreSequenceServices::submit(const GameCommand &command) {
                 static_cast<Ogre::Real>(degrees)));
           },
           [this](const SetRuntimeCompositor &value) {
-            impl_->log("compositor '" + value.name + "' requested " +
-                       (value.enabled ? "on" : "off") +
-                       "; obsolete shader program retired, portable no-op used");
+            if (impl_->lighting == nullptr)
+              throw std::logic_error("compositor renderer is not attached");
+            impl_->lighting->setCompositorEnabled(value.name, value.enabled);
+            impl_->log("compositor '" + value.name + "' " +
+                       (value.enabled ? "enabled" : "disabled"));
           },
           [this](const SetRuntimeShaderParameter &value) {
-            impl_->log("shader parameter '" + value.program + "/" +
-                       value.parameter + "'=" + value.value +
-                       "; obsolete program is outside the required shader set");
+            if (impl_->lighting == nullptr)
+              throw std::logic_error("compositor renderer is not attached");
+            impl_->lighting->setCompositorShaderParameter(
+                value.program, value.parameter, value.value);
           },
           [this](const SetRuntimeEffectEnabled &value) {
             impl_->setEffectEnabled(value);

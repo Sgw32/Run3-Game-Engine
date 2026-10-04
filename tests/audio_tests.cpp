@@ -145,6 +145,8 @@ TEST_CASE("null backend has bounded generation-safe RAII voices") {
   options.file = "first.wav";
   SoundHandle first = engine->play(options);
   REQUIRE(first.valid());
+  REQUIRE(engine->activeVoices().size() == 1);
+  CHECK(engine->activeVoices().front().file.filename() == "first.wav");
   const std::uint64_t firstToken = first.token();
   CHECK(engine->stats().activeVoices == 1);
   CHECK_FALSE(engine->play(options).valid());
@@ -229,8 +231,23 @@ TEST_CASE("legacy map audio fixture starts static ambience music and footsteps")
       runtime.start(std::move(loaded.definition));
   CHECK(started.ambientStarted == 2);
   CHECK(started.ambientFailed == 0);
-  CHECK(started.musicStarted);
+  CHECK_FALSE(started.musicStarted);
+  CHECK(runtime.musicPending());
+  CHECK(runtime.musicPlaybackSeconds() == 0.0F);
+  CHECK(engine->stats().activeVoices == 2);
+  CHECK(runtime.seekMusicSeconds(1.25F));
+  REQUIRE(runtime.startPendingMusic());
+  CHECK_FALSE(runtime.musicPending());
+  REQUIRE(runtime.musicPlaybackSeconds());
+  CHECK(*runtime.musicPlaybackSeconds() == Catch::Approx(1.25F));
   CHECK(engine->stats().activeVoices == 3);
+  const auto activeVoices = engine->activeVoices();
+  const auto musicVoice = std::find_if(
+      activeVoices.begin(), activeVoices.end(),
+      [](const ActiveVoice &voice) { return voice.bus == Bus::music; });
+  REQUIRE(musicVoice != activeVoices.end());
+  CHECK_FALSE(musicVoice->spatial);
+  CHECK(musicVoice->file.filename() == "background.wav");
   CHECK(runtime.setNamedAmbientEnabled("script_alarm", true));
   CHECK(engine->stats().activeVoices == 4);
   CHECK(runtime.setNamedAmbientEnabled("script_alarm", false));
@@ -272,6 +289,8 @@ TEST_CASE("music player streams, loops, transitions, fades, and changes pitch") 
   player.setVolume(0.6F);
   player.setPitch(0.8F);
   REQUIRE(player.play("track-b.flac", false, 1.0F));
+  REQUIRE(player.playbackSeconds());
+  CHECK(*player.playbackSeconds() == Catch::Approx(0.0F));
   engine->update(0.5F);
   player.update(0.5F);
   CHECK(player.current().token() == firstToken);

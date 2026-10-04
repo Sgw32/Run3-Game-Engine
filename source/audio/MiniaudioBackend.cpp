@@ -79,6 +79,22 @@ public:
                 [](const Slot &slot) { return slot.active; })),
             slots_.size()};
   }
+  std::vector<ActiveVoice> activeVoices() const override {
+    std::vector<ActiveVoice> result;
+    result.reserve(stats().activeVoices);
+    for (const Slot &slot : slots_) {
+      if (!slot.active) continue;
+      const SoundState current = slot.paused
+          ? SoundState::paused
+          : (ma_sound_is_playing(&slot.sound) == MA_TRUE
+                 ? SoundState::playing
+                 : SoundState::stopped);
+      result.push_back(
+          {slot.options.file, slot.options.bus, current,
+           slot.options.spatial});
+    }
+    return result;
+  }
 
   SoundHandle play(const PlayOptions &options) override {
     if (options.file.empty()) {

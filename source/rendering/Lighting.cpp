@@ -58,6 +58,35 @@ std::vector<std::string> resolveMaterial(
       slot->name.clear();
     }
   }
+  if (!material.diffuseAnimationFrames.empty()) {
+    const auto missing = [&](const std::string &frame) {
+      return std::find(available.begin(), available.end(), frame) ==
+             available.end();
+    };
+    const auto firstMissing = std::find_if(material.diffuseAnimationFrames.begin(),
+                                           material.diffuseAnimationFrames.end(),
+                                           missing);
+    if (firstMissing != material.diffuseAnimationFrames.end()) {
+      warnings.push_back(material.name + ": incomplete animated texture; "
+                         "using the first available frame");
+      material.diffuseAnimationFrames.clear();
+      material.diffuseAnimationDuration = 0.0F;
+    }
+  }
+  if (material.diffuseMap.name.empty()) {
+    material.diffuseAnimationFrames.clear();
+    material.diffuseAnimationBase.clear();
+    material.diffuseAnimationFrameCount = 0;
+    material.diffuseAnimationDuration = 0.0F;
+  }
+  if (material.specularMap.name.empty()) {
+    // A mask can legitimately author strong reflections. Without one, keep a
+    // small, tight fallback instead of washing the whole mesh in a broad lobe.
+    for (float &channel : material.specular)
+      channel = std::clamp(channel, 0.0F, 0.08F);
+    material.shininess = std::max(material.shininess, 64.0F);
+    material.roughness = std::min(material.roughness, 0.35F);
+  }
   return warnings;
 }
 } // namespace run3::rendering

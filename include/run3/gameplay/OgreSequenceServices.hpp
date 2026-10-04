@@ -42,6 +42,9 @@ class NpcSystem;
 namespace run3::audio {
 class MapAudioRuntime;
 }
+namespace run3::rendering {
+class OgreLighting;
+}
 namespace run3::ui {
 class IUiSystem;
 }
@@ -67,6 +70,7 @@ public:
   void attach(SequenceRuntime &runtime) noexcept;
   void attachNpcSystem(NpcSystem &system) noexcept;
   void attachMapAudio(audio::MapAudioRuntime &mapAudio) noexcept;
+  void attachLighting(rendering::OgreLighting &lighting) noexcept;
   void updateAudio(float seconds);
   void submit(const GameCommand &command) override;
   void setComputerPresentation(
@@ -84,6 +88,8 @@ public:
   [[nodiscard]] std::optional<physics::Transform>
   settleRuntimeNpc(EntityHandle handle) override;
   [[nodiscard]] double runtimeFovDegrees() const override;
+  [[nodiscard]] std::optional<double> runtimeMusicSeconds() const override;
+  bool seekRuntimeMusicSeconds(double seconds) override;
   [[nodiscard]] std::optional<EntityHandle>
   handleForPhysicsEntity(std::uint64_t physicsEntity) const;
   [[nodiscard]] OgreSequenceResourceCounts resourceCounts() const noexcept;

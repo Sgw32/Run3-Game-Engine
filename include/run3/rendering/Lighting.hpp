@@ -16,10 +16,25 @@ struct TextureSlot {
   std::string name;
   ColourSpace colourSpace{ColourSpace::Linear};
 };
+enum class TextureTransform { TranslateU, TranslateV, ScaleU, ScaleV, Rotate };
+enum class TextureWaveform { Sine, Triangle, Square, Sawtooth, InverseSawtooth };
+struct TextureWaveAnimation {
+  TextureTransform transform{TextureTransform::TranslateU};
+  TextureWaveform waveform{TextureWaveform::Sine};
+  float base{}, frequency{1.0F}, phase{}, amplitude{1.0F};
+};
 struct MaterialDescription {
   std::string name;
   Surface surface{Surface::Opaque};
   TextureSlot diffuseMap{{}, ColourSpace::Srgb};
+  // Legacy anim_texture frames share the diffuse texture unit. An empty list
+  // is an ordinary static diffuse texture.
+  std::vector<std::string> diffuseAnimationFrames;
+  std::string diffuseAnimationBase;
+  unsigned diffuseAnimationFrameCount{};
+  float diffuseAnimationDuration{};
+  float diffuseScrollU{}, diffuseScrollV{}, diffuseRotate{};
+  std::vector<TextureWaveAnimation> diffuseWaveAnimations;
   TextureSlot normalMap, specularMap, metalRoughnessMap, aoMap;
   TextureSlot reflectionMap{{}, ColourSpace::Srgb};
   ReflectionMapping reflectionMapping{ReflectionMapping::None};
@@ -27,8 +42,8 @@ struct MaterialDescription {
   bool lighting{true}; // Independent of opacity: unlit leaves still alpha-test.
   std::vector<std::string> compatibilityNotes;
   std::array<float, 4> diffuse{1, 1, 1, 1};
-  std::array<float, 3> specular{0.04F, 0.04F, 0.04F}, emissive{0, 0, 0};
-  float shininess{32}, roughness{0.5F}, metallic{}, alphaCutoff{0.5F};
+  std::array<float, 3> specular{0.025F, 0.025F, 0.025F}, emissive{0, 0, 0};
+  float shininess{64}, roughness{0.35F}, metallic{}, alphaCutoff{0.5F};
   unsigned lightLimit{8};
   bool doubleSided{}, castShadows{true}, receiveShadows{true};
 };

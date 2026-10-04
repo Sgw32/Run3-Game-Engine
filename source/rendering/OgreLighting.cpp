@@ -1,5 +1,6 @@
 #include <run3/rendering/OgreLighting.hpp>
 #include "OgreLightingPost.hpp"
+#include "OgreCompositorEffects.hpp"
 #include "SurfaceMaps.hpp"
 #include "GBufferGeometry.hpp"
 #include <Ogre.h>
@@ -61,6 +62,7 @@ public:
   Ogre::SceneNode *moving{};
   Ogre::SceneNode *caster{};
   std::unique_ptr<LightingPost> post;
+  std::unique_ptr<OgreCompositorEffects> compositorEffects;
   SurfaceMapsFactory mapsFactory;
   GBufferSurfaceFactory gbufferFactory;
   GBufferGeometryFactory geometryFactory;
@@ -114,6 +116,14 @@ public:
       casterPass->setDepthWriteEnabled(true);
       casterPass->setDepthCheckEnabled(true);
       casterMaterial->setReceiveShadows(false);
+      // TextureShadowRenderer stores technique zero directly. Fast-forward is
+      // the legacy-content path, so reuse Ogre's renderer-portable programs
+      // there instead of a fixed-function pass. Deferred/PBR derive their
+      // caster state from their own generated geometry schemes.
+      if (settings.pipeline == LightingPipeline::FastForward) {
+        casterPass->setVertexProgram("Ogre/ShadowBlendVP");
+        casterPass->setFragmentProgram("Ogre/ShadowBlendFP");
+      }
       scene.setShadowTextureCasterMaterial(casterMaterial);
       scene.setShadowTechnique(Ogre::SHADOWTYPE_TEXTURE_MODULATIVE_INTEGRATED);
       scene.setShadowTextureCountPerLightType(Ogre::Light::LT_DIRECTIONAL, budget.splits);
@@ -137,9 +147,13 @@ public:
     generator.invalidateScheme(Ogre::MSN_SHADERGEN);
     if(settings.pipeline==LightingPipeline::Pbr || settings.pipeline==LightingPipeline::Deferred)
       post=std::make_unique<LightingPost>(scene,camera,viewport,settings);
+    // The authored Ogre compositor chain is independent of the lighting
+    // pipeline and follows LightingPost so effects process its final image.
+    compositorEffects = std::make_unique<OgreCompositorEffects>(viewport);
     message("requested/effective pipeline=" + std::string(pipelineName(settings.pipeline)));
   }
   ~Impl() {
+    compositorEffects.reset();
     post.reset();
     for (auto *entity : entities) scene.destroyEntity(entity);
     for (auto *light : lights) scene.destroyLight(light);
@@ -164,6 +178,15 @@ OgreLighting::OgreLighting(Ogre::SceneManager &s, Ogre::Camera &c,
                          Ogre::Viewport &v, LightingSettings settings)
     : impl_(std::make_unique<Impl>(s, c, v, settings)) { impl_->initialise(); }
 OgreLighting::~OgreLighting() = default;
+
+void OgreLighting::configureLegacyCompositors(
+    const std::filesystem::path &contentRoot,
+    const std::filesystem::path &supportAssets,
+    const std::filesystem::path &programCache,
+    const std::string_view textureQuality) {
+  impl_->compositorEffects->configure(contentRoot, supportAssets, programCache,
+                                      textureQuality);
+}
 
 void OgreLighting::configureMaterial(Ogre::Material &material,
                                     const MaterialDescription &description,
@@ -192,7 +215,50 @@ void OgreLighting::configureMaterial(Ogre::Material &material,
   material.setReceiveShadows(description.receiveShadows && lit);
   material.setTransparencyCastsShadows(false);
   if (!description.diffuseMap.name.empty()) {
-    auto *texture = pass->createTextureUnitState(description.diffuseMap.name);
+    auto *texture = pass->createTextureUnitState();
+    if (!description.diffuseAnimationFrames.empty()) {
+      std::vector<Ogre::String> frames(description.diffuseAnimationFrames.begin(),
+                                       description.diffuseAnimationFrames.end());
+      texture->setAnimatedTextureName(frames,
+                                      description.diffuseAnimationDuration);
+    } else if (!description.diffuseAnimationBase.empty() &&
+               description.diffuseAnimationFrameCount > 0) {
+      texture->setAnimatedTextureName(description.diffuseAnimationBase,
+                                      description.diffuseAnimationFrameCount,
+                                      description.diffuseAnimationDuration);
+    } else {
+      texture->setTextureName(description.diffuseMap.name);
+    }
+    if (description.diffuseScrollU != 0.0F || description.diffuseScrollV != 0.0F)
+      texture->setScrollAnimation(description.diffuseScrollU,
+                                  description.diffuseScrollV);
+    if (description.diffuseRotate != 0.0F)
+      texture->setRotateAnimation(description.diffuseRotate);
+    const auto transform = [](const TextureTransform value) {
+      switch (value) {
+      case TextureTransform::TranslateU: return Ogre::TextureUnitState::TT_TRANSLATE_U;
+      case TextureTransform::TranslateV: return Ogre::TextureUnitState::TT_TRANSLATE_V;
+      case TextureTransform::ScaleU: return Ogre::TextureUnitState::TT_SCALE_U;
+      case TextureTransform::ScaleV: return Ogre::TextureUnitState::TT_SCALE_V;
+      case TextureTransform::Rotate: return Ogre::TextureUnitState::TT_ROTATE;
+      }
+      return Ogre::TextureUnitState::TT_TRANSLATE_U;
+    };
+    const auto waveform = [](const TextureWaveform value) {
+      switch (value) {
+      case TextureWaveform::Sine: return Ogre::WFT_SINE;
+      case TextureWaveform::Triangle: return Ogre::WFT_TRIANGLE;
+      case TextureWaveform::Square: return Ogre::WFT_SQUARE;
+      case TextureWaveform::Sawtooth: return Ogre::WFT_SAWTOOTH;
+      case TextureWaveform::InverseSawtooth: return Ogre::WFT_INVERSE_SAWTOOTH;
+      }
+      return Ogre::WFT_SINE;
+    };
+    for (const auto &animation : description.diffuseWaveAnimations)
+      texture->setTransformAnimation(
+          transform(animation.transform), waveform(animation.waveform),
+          animation.base, animation.frequency, animation.phase,
+          animation.amplitude);
     texture->setHardwareGammaEnabled(settings.pipeline == LightingPipeline::Pbr || settings.pipeline == LightingPipeline::Deferred);
     texture->setTextureFiltering(Ogre::TFO_ANISOTROPIC);
     texture->setTextureAnisotropy(settings.pipeline == LightingPipeline::FastForward ? 2 : 8);
@@ -251,10 +317,10 @@ void OgreLighting::configureMaterial(Ogre::Material &material,
       message(description.name + ": normal-map fallback (mesh has no tangent basis)");
     }
   }
-  if (!lit || !description.specularMap.name.empty() || !description.aoMap.name.empty()) {
+  if (!description.specularMap.name.empty() || !description.aoMap.name.empty()) {
     auto *maps=static_cast<SurfaceMaps *>(generator.createSubRenderState("Run3SurfaceMaps"));
     maps->pbr=lit && settings.pipeline==LightingPipeline::Pbr;
-    maps->unlitTint=!lit;
+    maps->unlitTint=false;
     auto dataMap=[&](const std::string &name) {
       const int index=static_cast<int>(pass->getNumTextureUnitStates());
       auto *texture=pass->createTextureUnitState(name);
@@ -371,6 +437,7 @@ void OgreLighting::createLab() {
   message("LightingLab: deterministic 60-Hz presentation time; local-light shadow atlas not implemented");
 }
 void OgreLighting::update(double seconds) {
+  impl_->compositorEffects->update(seconds);
   impl_->shaderErrors.check();
   if (impl_->settings.pipeline == LightingPipeline::Pbr &&
       impl_->scene.getAmbientLight() != impl_->probeAmbient) {
@@ -401,6 +468,18 @@ void OgreLighting::update(double seconds) {
   ++impl_->frames;
   if(impl_->moving) impl_->moving->setPosition(static_cast<float>(500*std::sin(seconds)),350,200);
   if(impl_->caster) impl_->caster->setOrientation(Ogre::Quaternion(Ogre::Radian(static_cast<float>(seconds)),Ogre::Vector3::UNIT_Y));
+}
+void OgreLighting::setCompositorEnabled(const std::string_view name,
+                                        const bool enabled) {
+  impl_->compositorEffects->setEnabled(name, enabled);
+}
+void OgreLighting::setCompositorShaderParameter(
+    const std::string_view material, const std::string_view parameter,
+    const std::string_view value) {
+  impl_->compositorEffects->setShaderParameter(material, parameter, value);
+}
+void OgreLighting::clearCompositorEffects() noexcept {
+  impl_->compositorEffects->clear();
 }
 void OgreLighting::writeReport(const std::filesystem::path &path, Ogre::RenderWindow &window) {
   impl_->shaderErrors.check();

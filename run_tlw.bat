@@ -15,12 +15,12 @@ REM cd /d C:\Run3-Game-Engine
 "%~dp0build\install\windows-release\bin\run3_shell.exe" ^
     --renderer d3d11 ^
     --content-root "C:\Run3-Game-Engine\Games\The Long Way\TheLongWay" ^
-    --map tlwstations02 ^
+    --map tlwcao ^
     --user-dir ".\build\user\windows-release" ^
     --fullscreen ^
-    --lighting-pipeline fast-forward --shadow-quality low --exposure 0.2 ^
+    --lighting-pipeline legacy-forward --shadow-quality low --exposure 0.2 ^
     --resolution 1920x1080 --fov 75 ^
-    --texture-quality low --model-quality low --scene-quality low ^
+    --texture-quality low --model-quality low --scene-quality high ^
     --audio-backend miniaudio ^
     %*
 

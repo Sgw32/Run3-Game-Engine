@@ -252,6 +252,12 @@ public:
   [[nodiscard]] virtual std::optional<physics::Transform>
   settleRuntimeNpc(EntityHandle) { return std::nullopt; }
   [[nodiscard]] virtual double runtimeFovDegrees() const { return 75.0; }
+  // Cutscenes may use the real decoded music cursor as their presentation
+  // clock. Services without audio retain the deterministic fixed-step clock.
+  [[nodiscard]] virtual std::optional<double> runtimeMusicSeconds() const {
+    return std::nullopt;
+  }
+  virtual bool seekRuntimeMusicSeconds(double) { return false; }
 };
 
 } // namespace run3::gameplay

@@ -48,6 +48,18 @@ TEST_CASE("Legacy gloss maps monotonically to PBR roughness") {
   CHECK(roughnessFromShininess(1e8F)==Catch::Approx(.045));
   CHECK_THROWS(roughnessFromShininess(-1));
 }
+TEST_CASE("Specular fallback stays dim and tight without a mask") {
+  MaterialDescription surface;
+  surface.name = "glossless";
+  surface.specular = {.8F, .7F, .6F};
+  surface.shininess = 16.0F;
+  surface.roughness = .8F;
+  static_cast<void>(resolveMaterial(surface, {}));
+  CHECK(surface.specular[0] == Catch::Approx(.08F));
+  CHECK(surface.specular[1] == Catch::Approx(.08F));
+  CHECK(surface.shininess == Catch::Approx(64.0F));
+  CHECK(surface.roughness == Catch::Approx(.35F));
+}
 TEST_CASE("Material inheritance preserves separate per-material light budgets") {
   gameplay::LegacyMaterialCatalog catalog;
   catalog.scan(std::filesystem::path(RUN3_TEST_SOURCE_DIR)/"tests/fixtures/lighting/materials");
@@ -62,6 +74,32 @@ TEST_CASE("Material inheritance preserves separate per-material light budgets") 
   CHECK(catalog.find("Two")->surface.lightLimit==2);
   CHECK(catalog.find("Eight")->surface.lightLimit==8);
   CHECK(catalog.find("Cutout")->surface.surface==Surface::Cutout);
+  const auto animated = catalog.find("AnimatedScreen");
+  REQUIRE(animated);
+  CHECK_FALSE(animated->surface.lighting);
+  CHECK(animated->surface.diffuseMap.name == "screen1.png");
+  CHECK(animated->surface.diffuseAnimationFrames ==
+        std::vector<std::string>{"screen1.png", "screen2.png", "screen3.png"});
+  CHECK(animated->surface.diffuseAnimationDuration == Catch::Approx(1.5F));
+  const auto generated = catalog.find("GeneratedAnimation");
+  REQUIRE(generated);
+  CHECK(generated->surface.diffuseAnimationBase == "caustic.png");
+  CHECK(generated->surface.diffuseAnimationFrameCount == 32);
+  CHECK(generated->surface.diffuseAnimationDuration == Catch::Approx(5.0F));
+  CHECK(generated->surface.diffuseScrollU == Catch::Approx(0.25F));
+  CHECK(generated->surface.diffuseScrollV == Catch::Approx(-0.5F));
+  CHECK(generated->surface.diffuseRotate == Catch::Approx(0.125F));
+  REQUIRE(generated->surface.diffuseWaveAnimations.size() == 1);
+  CHECK(generated->surface.diffuseWaveAnimations.front().transform ==
+        TextureTransform::ScaleU);
+  CHECK(generated->surface.diffuseWaveAnimations.front().waveform ==
+        TextureWaveform::Triangle);
+  const auto unmapped = catalog.find("UnmappedGloss");
+  REQUIRE(unmapped);
+  auto unmappedGloss = unmapped->surface;
+  static_cast<void>(resolveMaterial(unmappedGloss, {"glossless.png"}));
+  CHECK(unmappedGloss.specular[0] == Catch::Approx(.08F));
+  CHECK(unmappedGloss.shininess == Catch::Approx(64.0F));
 }
 TEST_CASE("Derived overlay only replaces core and maps and keeps original fallback") {
   const auto root=std::filesystem::path(RUN3_TEST_SOURCE_DIR)/"tests/fixtures/lighting";
@@ -124,4 +162,27 @@ TEST_CASE("Legacy buttonGUI texture aliases resolve from shipped content") {
   const auto inventory = catalog.find("Inventory/Portmone");
   REQUIRE(inventory);
   CHECK_FALSE(inventory->surface.diffuseMap.name.empty());
+  const auto homeTv = catalog.find("TLW/HomeTvAnim");
+  REQUIRE(homeTv);
+  CHECK_FALSE(homeTv->surface.lighting);
+  REQUIRE(homeTv->surface.diffuseAnimationFrames.size() == 5);
+  CHECK(homeTv->surface.diffuseAnimationFrames.front() == "vesti_anim1.jpg");
+  CHECK(homeTv->surface.diffuseAnimationFrames.back() == "vesti_anim5.jpg");
+  CHECK(homeTv->surface.diffuseAnimationDuration == Catch::Approx(30.0F));
+  const auto tvHum = catalog.find("TV_HUM");
+  REQUIRE(tvHum);
+  CHECK_FALSE(tvHum->surface.lighting);
+  CHECK(tvHum->surface.diffuseAnimationFrames ==
+        std::vector<std::string>{"kvan01.dds", "kvan02.dds", "kvan03.dds"});
+  CHECK(tvHum->surface.diffuseAnimationDuration == Catch::Approx(0.3F));
+  const auto tvHum2 = catalog.find("TV_HUM2");
+  REQUIRE(tvHum2);
+  CHECK(tvHum2->surface.diffuseAnimationFrames ==
+        std::vector<std::string>{"petr01.dds", "petr02.dds", "petr03.dds"});
+  CHECK(tvHum2->surface.diffuseAnimationDuration == Catch::Approx(5.0F));
+  const auto scope = catalog.find("SCOPE_MATERIAL01");
+  REQUIRE(scope);
+  CHECK(scope->surface.diffuseMap.name == "scope_phl.dds");
+  CHECK(scope->surface.diffuseScrollU == Catch::Approx(2.0F));
+  CHECK(scope->surface.diffuseScrollV == Catch::Approx(0.0F));
 }

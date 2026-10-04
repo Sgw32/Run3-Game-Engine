@@ -3,6 +3,7 @@
 #include <OgrePrerequisites.h>
 #include <filesystem>
 #include <memory>
+#include <string_view>
 
 namespace run3::rendering {
 // Renderer ownership is confined to this adapter. Gameplay uses Lighting.hpp.
@@ -13,8 +14,17 @@ public:
   ~OgreLighting();
   OgreLighting(const OgreLighting &) = delete;
   OgreLighting &operator=(const OgreLighting &) = delete;
+  void configureLegacyCompositors(const std::filesystem::path &contentRoot,
+                                  const std::filesystem::path &supportAssets,
+                                  const std::filesystem::path &programCache,
+                                  std::string_view textureQuality);
   void createLab();
   void update(double seconds);
+  void setCompositorEnabled(std::string_view name, bool enabled);
+  void setCompositorShaderParameter(std::string_view material,
+                                    std::string_view parameter,
+                                    std::string_view value);
+  void clearCompositorEffects() noexcept;
   void writeReport(const std::filesystem::path &, Ogre::RenderWindow &);
   static void configureMaterial(Ogre::Material &, const MaterialDescription &,
                                 LightingSettings, bool tangents = false);

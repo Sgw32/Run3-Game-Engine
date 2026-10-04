@@ -23,6 +23,8 @@ public:
 
   [[nodiscard]] bool active() const noexcept { return current_.valid(); }
   [[nodiscard]] const SoundHandle &current() const noexcept { return current_; }
+  [[nodiscard]] std::optional<float> playbackSeconds() const;
+  bool seekSeconds(float seconds);
 
 private:
   struct PendingTrack {
@@ -30,6 +32,7 @@ private:
     bool loop{};
     float delay{};
     float fadeInSeconds{};
+    float startSeconds{};
   };
 
   bool start(const std::filesystem::path &file, bool loop,

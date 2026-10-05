@@ -71,6 +71,10 @@ public:
   void attachNpcSystem(NpcSystem &system) noexcept;
   void attachMapAudio(audio::MapAudioRuntime &mapAudio) noexcept;
   void attachLighting(rendering::OgreLighting &lighting) noexcept;
+  void toggleFlashlight();
+  void setFlashlightAllowed(bool allowed);
+  [[nodiscard]] bool flashlightEnabled() const noexcept;
+  [[nodiscard]] bool flashlightAllowed() const noexcept;
   void updateAudio(float seconds);
   void submit(const GameCommand &command) override;
   void setComputerPresentation(

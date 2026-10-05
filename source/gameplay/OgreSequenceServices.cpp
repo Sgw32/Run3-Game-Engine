@@ -54,6 +54,41 @@ namespace {
 constexpr const char *computerResourceGroup = "Run3Step9A";
 constexpr std::string_view facialAnimationPrefix = "Run3/Facial/";
 
+struct FlashlightConfig {
+  Ogre::Real innerDegrees{60.0F};
+  Ogre::Real outerDegrees{80.0F};
+  Ogre::Real range{3000.0F};
+  bool allowed{true};
+};
+
+FlashlightConfig loadFlashlightConfig(const AppPaths &paths) {
+  FlashlightConfig result;
+  std::ifstream stream(paths.contentPath("run3/core/player.cfg"));
+  std::string line;
+  while (std::getline(stream, line)) {
+    const auto separator = line.find(':');
+    if (separator == std::string::npos) continue;
+    const std::string key = line.substr(0, separator);
+    const std::string value = line.substr(separator + 1);
+    try {
+      if (key == "flashConeI") result.innerDegrees = std::stof(value);
+      else if (key == "flashConeO") result.outerDegrees = std::stof(value);
+      else if (key == "Range") result.range = std::stof(value);
+      else if (key == "allowFlashLight")
+        result.allowed = value == "true" || value == "1";
+    } catch (const std::exception &) {
+      Ogre::LogManager::getSingleton().logMessage(
+          "Step 8C: invalid flashlight setting '" + line +
+          "'; using the previous value");
+    }
+  }
+  result.innerDegrees = std::clamp(result.innerDegrees, 1.0F, 175.0F);
+  result.outerDegrees =
+      std::clamp(result.outerDegrees, result.innerDegrees, 175.0F);
+  result.range = std::clamp(result.range, 1.0F, 100000.0F);
+  return result;
+}
+
 void ensureComputerResourceGroup() {
   auto &groups = Ogre::ResourceGroupManager::getSingleton();
   if (!groups.resourceGroupExists(computerResourceGroup))
@@ -178,7 +213,9 @@ public:
                   }
                   return runtime->dispatchScriptCall(call);
                 }),
-        meshLodBias(lodBias), defaultFovDegrees(configuredFovDegrees) {
+        flashlightConfig(loadFlashlightConfig(paths)),
+        flashlightAllowed(flashlightConfig.allowed), meshLodBias(lodBias),
+        defaultFovDegrees(configuredFovDegrees) {
     root = sceneManager->getRootSceneNode()->createChildSceneNode(
         "Run3Step8CSequenceRoot");
     setHudVisible(true);
@@ -188,6 +225,61 @@ public:
 
   void log(const std::string &message) const {
     Ogre::LogManager::getSingleton().logMessage("Step 8C: " + message);
+  }
+
+  void destroyFlashlight() noexcept {
+    if ((flashlight == nullptr && flashlightNode == nullptr) ||
+        sceneManager == nullptr) return;
+    try {
+      if (flashlight != nullptr) {
+        flashlight->detachFromParent();
+        sceneManager->destroyLight(flashlight);
+      }
+      if (flashlightNode != nullptr)
+        sceneManager->destroySceneNode(flashlightNode);
+    } catch (...) {}
+    flashlight = nullptr;
+    flashlightNode = nullptr;
+  }
+
+  void setFlashlightAllowed(const bool allowed) {
+    flashlightAllowed = allowed;
+    if (!allowed) destroyFlashlight();
+    log(std::string("flashlight ") + (allowed ? "allowed" : "blocked"));
+  }
+
+  void toggleFlashlight() {
+    if (!flashlightAllowed) {
+      log("flashlight toggle ignored while blocked by the map");
+      return;
+    }
+    static_cast<void>(oneShots.emit(
+        paths.contentPath("run3/sounds/flash01.wav"), 2.0F, false,
+        audio::Bus::effects));
+    if (flashlight != nullptr) {
+      destroyFlashlight();
+      log("player flashlight off");
+      return;
+    }
+    Ogre::SceneNode *viewNode = camera->getParentSceneNode();
+    if (viewNode == nullptr)
+      throw std::logic_error("player camera has no scene node for flashlight");
+    flashlight = sceneManager->createLight("Run3PlayerFlashlight");
+    flashlight->setType(Ogre::Light::LT_SPOTLIGHT);
+    flashlight->setDiffuseColour(0.5F, 0.5F, 0.5F);
+    flashlight->setSpecularColour(0.0F, 0.0F, 0.0F);
+    flashlight->setSpotlightRange(Ogre::Degree(flashlightConfig.innerDegrees),
+                                  Ogre::Degree(flashlightConfig.outerDegrees));
+    // The legacy shader ignored the linear/quadratic coefficients. Constant
+    // attenuation retains its authored range in Ogre's modern light path.
+    flashlight->setAttenuation(flashlightConfig.range, 1.0F, 0.0F, 0.0F);
+    flashlight->setCastShadows(true);
+    flashlightNode = viewNode->createChildSceneNode(
+        "Run3PlayerFlashlightNode", Ogre::Vector3(0.0F, 0.0F, -20.0F));
+    flashlightNode->setDirection(Ogre::Vector3::NEGATIVE_UNIT_Z,
+                                 Ogre::Node::TS_PARENT);
+    flashlightNode->attachObject(flashlight);
+    log("player flashlight on");
   }
 
   Presentation &require(EntityHandle handle) {
@@ -730,6 +822,7 @@ public:
   }
 
   void destroyAll() noexcept {
+    destroyFlashlight();
     if (ui != nullptr) ui->resetMapState();
     if (gameTextOverlay != nullptr) {
       try { gameTextOverlay->hide(); } catch (...) {}
@@ -1141,6 +1234,10 @@ public:
   std::set<std::string> reportedDeferred;
   std::unordered_map<std::string, bool> effectStates;
   std::unordered_map<std::uint64_t, ComputerMaterialBinding> computerMaterialBindings;
+  FlashlightConfig flashlightConfig;
+  Ogre::Light *flashlight{};
+  Ogre::SceneNode *flashlightNode{};
+  bool flashlightAllowed{true};
   Ogre::Overlay *gameTextOverlay{};
   Ogre::OverlayElement *gameTextElement{};
   Ogre::Overlay *crosshairOverlay{};
@@ -1177,6 +1274,16 @@ void OgreSequenceServices::attachMapAudio(audio::MapAudioRuntime &mapAudio) noex
 void OgreSequenceServices::attachLighting(
     rendering::OgreLighting &lighting) noexcept {
   impl_->lighting = &lighting;
+}
+void OgreSequenceServices::toggleFlashlight() { impl_->toggleFlashlight(); }
+void OgreSequenceServices::setFlashlightAllowed(const bool allowed) {
+  impl_->setFlashlightAllowed(allowed);
+}
+bool OgreSequenceServices::flashlightEnabled() const noexcept {
+  return impl_->flashlight != nullptr;
+}
+bool OgreSequenceServices::flashlightAllowed() const noexcept {
+  return impl_->flashlightAllowed;
 }
 void OgreSequenceServices::updateAudio(float seconds) {
   impl_->oneShots.update(seconds);
@@ -1365,8 +1472,10 @@ void OgreSequenceServices::submit(const GameCommand &command) {
             impl_->ui->setInventoryEnabled(value.enabled);
           },
           [this](const SetRuntimeFlashlightAllowed &value) {
-            impl_->log(std::string("flashlight ") +
-                        (value.allowed ? "allowed" : "blocked"));
+            impl_->setFlashlightAllowed(value.allowed);
+          },
+          [this](const ToggleRuntimeFlashlight &) {
+            impl_->toggleFlashlight();
           },
           [this](const SetRuntimeFov &value) {
             const double degrees = value.degrees.value_or(

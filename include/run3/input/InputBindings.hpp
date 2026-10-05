@@ -21,6 +21,7 @@ enum class InputAction {
   Crouch,
   Use,
   Inventory,
+  Flashlight,
   Count
 };
 

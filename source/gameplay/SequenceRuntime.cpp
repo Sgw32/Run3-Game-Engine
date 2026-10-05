@@ -1651,6 +1651,8 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
       const std::string value = requireName();
       impl_->services->submit(SetRuntimeFlashlightAllowed{
           value == "true" || value == "1"});
+    } else if (call.name == "player__toggleFlash") {
+      impl_->services->submit(ToggleRuntimeFlashlight{});
     } else if (call.name == "getFov") {
       return impl_->services->runtimeFovDegrees();
     } else if (call.name == "setFov") {

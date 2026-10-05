@@ -95,6 +95,7 @@ TEST_CASE("User configuration writes deterministically and preserves values") {
 TEST_CASE("Gameplay key bindings are named, queryable, and swap conflicts") {
   run3::InputBindings bindings;
   CHECK(bindings.key(run3::InputAction::MoveForward) == run3::Key::W);
+  CHECK(bindings.key(run3::InputAction::Flashlight) == run3::Key::F);
   CHECK(run3::parseKey("left ctrl") == run3::Key::LeftControl);
   CHECK(run3::parseKey("F12") == run3::Key::F12);
   CHECK_FALSE(run3::isBindableKey(run3::Key::Escape));

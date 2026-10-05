@@ -1139,6 +1139,11 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
       Ogre::LogManager::getSingleton().logMessage(
           std::string("Player noclip: ") +
           (player_->state().noclip ? "enabled" : "disabled"));
+    } else if (sequenceServices_ &&
+               event.type == InputEventType::KeyPressed && !event.repeated &&
+               event.key ==
+                   options_.inputBindings.key(InputAction::Flashlight)) {
+      sequenceServices_->toggleFlashlight();
     } else if (staticMap_ && event.type == InputEventType::KeyPressed &&
                !event.repeated && event.key == Key::F3) {
       physicsDebug_ = !physicsDebug_;

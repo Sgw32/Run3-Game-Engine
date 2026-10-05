@@ -901,7 +901,7 @@ private:
                   "Keyboard controls"});
     const auto &definitions = inputActionDefinitions();
     for (std::size_t row = 0; row < definitions.size(); ++row) {
-      const float y = 35.0F + static_cast<float>(row) * 46.0F;
+      const float y = 35.0F + static_cast<float>(row) * 43.0F;
       createWidget({Context::Main, controls, WidgetType::Text,
                     "menu.controls.label." + std::string(definitions[row].id),
                     {20, y + 7.0F, 225, 32},

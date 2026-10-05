@@ -35,6 +35,7 @@ const std::vector<InputActionDefinition> &inputActionDefinitions() noexcept {
       {InputAction::Crouch, "crouch", "Crouch / down", Key::LeftControl},
       {InputAction::Use, "use", "Use", Key::E},
       {InputAction::Inventory, "inventory", "Inventory", Key::I},
+      {InputAction::Flashlight, "flashlight", "Flashlight", Key::F},
   };
   return definitions;
 }

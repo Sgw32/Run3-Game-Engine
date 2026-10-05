@@ -127,6 +127,7 @@ struct SetRuntimeHudVisible { bool visible{true}; };
 struct SetRuntimeSubtitle { std::string text; double seconds{}; };
 struct SetRuntimeInventoryEnabled { bool enabled{true}; };
 struct SetRuntimeFlashlightAllowed { bool allowed{true}; };
+struct ToggleRuntimeFlashlight {};
 struct SetRuntimeFov {
   // An empty value restores the configured gameplay FOV.
   std::optional<double> degrees;
@@ -222,7 +223,8 @@ using GameCommand =
                  ApplyRuntimeParentMotion, SetRuntimePlayerParented,
                  SetRuntimeHudVisible,
                   SetRuntimeSubtitle, SetRuntimeInventoryEnabled,
-                  SetRuntimeFlashlightAllowed, SetRuntimeFov,
+                  SetRuntimeFlashlightAllowed, ToggleRuntimeFlashlight,
+                  SetRuntimeFov,
                   SetRuntimeCompositor,
                  SetRuntimeShaderParameter, SetRuntimeEffectEnabled,
                  CreateRuntimeParticle, DestroyRuntimeParticle,

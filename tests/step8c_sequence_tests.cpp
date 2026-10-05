@@ -469,6 +469,20 @@ TEST_CASE("Step 8C legacy FOV bindings return a number and drive the camera serv
   CHECK_FALSE(commands[1].degrees.has_value());
 }
 
+TEST_CASE("Step 8C legacy flashlight bindings remain typed",
+          "[step8c][lua][flashlight]") {
+  FixtureRuntime fixture;
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"player", "player__allowFlash", {"false"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"player", "player__toggleFlash", {}}));
+  REQUIRE(fixture.services.commands.size() == 2);
+  CHECK_FALSE(std::get<gameplay::SetRuntimeFlashlightAllowed>(
+                  fixture.services.commands[0]).allowed);
+  CHECK(std::holds_alternative<gameplay::ToggleRuntimeFlashlight>(
+      fixture.services.commands[1]));
+}
+
 TEST_CASE("Step 8C legacy Lua compositor bindings retain names and parameters",
           "[step8c][lua][compositor]") {
   FixtureRuntime fixture;

@@ -58,6 +58,8 @@ Ogre::MaterialPtr fullscreen(const std::string &name, const std::string &fragmen
         parameters->setNamedConstant("surfaceBuffer",2);
       if(parameters->_findNamedConstantDefinition("shadowBuffer",false))
         parameters->setNamedConstant("shadowBuffer",3);
+      if(parameters->_findNamedConstantDefinition("localShadowBuffer",false))
+        parameters->setNamedConstant("localShadowBuffer",4);
     }
   }
   return material;
@@ -84,14 +86,14 @@ public:
       generator.getRenderState(transparent)->addTemplateSubRenderState(
           generator.createSubRenderState("SGX_PerPixelLighting"));
       auto *state=generator.getRenderState(gbuffer);
-      state->setLightCountAutoUpdate(false);state->setLightCount(1);
+      state->setLightCountAutoUpdate(false);state->setLightCount(6);
       state->addTemplateSubRenderState(generator.createSubRenderState("Run3GBufferGeometry"));
       state->addTemplateSubRenderState(generator.createSubRenderState("Run3GBufferSurface"));
       if(auto *shadow=generator.getRenderState(Ogre::MSN_SHADERGEN)->getSubRenderState(Ogre::RTShader::SRS_SHADOW_MAPPING)) {
         auto *copy=generator.createSubRenderState(Ogre::RTShader::SRS_SHADOW_MAPPING);
         copy->copyFrom(*shadow);state->addTemplateSubRenderState(copy);
       }
-      auto *resolvePass=fullscreen("Run3/DeferredLighting","deferred.frag",4)->getTechnique(0)->getPass(0);
+      auto *resolvePass=fullscreen("Run3/DeferredLighting","deferred.frag",5)->getTechnique(0)->getPass(0);
       resolvePass->setDepthWriteEnabled(true);
       resolvePass->setDepthCheckEnabled(true);
       resolvePass->setDepthFunction(Ogre::CMPF_ALWAYS_PASS);
@@ -104,7 +106,9 @@ public:
     Ogre::CompositionTargetPass *target{};
     if(deferred) {
       auto *gb=technique->createTextureDefinition("gbuffer");
-      gb->formatList={Ogre::PF_FLOAT16_RGBA,Ogre::PF_FLOAT16_RGBA,Ogre::PF_FLOAT16_RGBA,Ogre::PF_FLOAT16_RGBA};
+      gb->formatList={Ogre::PF_FLOAT16_RGBA,Ogre::PF_FLOAT16_RGBA,
+                      Ogre::PF_FLOAT16_RGBA,Ogre::PF_FLOAT16_RGBA,
+                      Ogre::PF_FLOAT16_RGBA};
       auto *geometry=technique->createTargetPass();geometry->setOutputName("gbuffer");
       geometry->setMaterialScheme(gbuffer);geometry->setShadowsEnabled(settings.shadows!=ShadowQuality::Off);
       geometry->createPass(Ogre::CompositionPass::PT_CLEAR)->setClearColour(Ogre::ColourValue(0,0,0,0));
@@ -116,6 +120,7 @@ public:
       resolve->setInput(0,"gbuffer",0);resolve->setInput(1,"gbuffer",1);
       resolve->setInput(2,"gbuffer",2);
       resolve->setInput(3,"gbuffer",3);
+      resolve->setInput(4,"gbuffer",4);
       target->setMaterialScheme(transparent);
       target->createPass(Ogre::CompositionPass::PT_RENDERSCENE)->setLastRenderQueue(Ogre::RENDER_QUEUE_SKIES_LATE);
     } else {
@@ -171,12 +176,9 @@ public:
     const auto ambient=scene.getAmbientLight();
     params->setNamedConstant("ambient",Ogre::Vector3(ambient.r,ambient.g,ambient.b));
     std::array<Ogre::Vector4,64> positions{},directions{},colours{},attenuations{},cones{};
-    std::vector<Ogre::Light *> lights;
-    for(const auto &[name,object]:scene.getMovableObjects("Light")) {
-      static_cast<void>(name);
-      if(object->isVisible() && object->isAttached()) lights.push_back(static_cast<Ogre::Light *>(object));
-    }
-    std::sort(lights.begin(),lights.end(),[](const auto *a,const auto *b){return a->getName()<b->getName();});
+    // Ogre orders this list with shadow casters first. Keeping that exact
+    // order makes G-buffer factor N refer to deferred light N.
+    const auto &lights=scene._getLightsAffectingFrustum();
     if(lights.size()>64) throw std::runtime_error("Deferred light budget exceeded: 64; no lights silently discarded");
     const auto view=camera.getViewMatrix();
     for(std::size_t i=0;i<lights.size();++i) {
@@ -187,7 +189,7 @@ public:
           light->getType()==Ogre::Light::LT_POINT?1.0F:2.0F;
       positions[i]={pos.x,pos.y,pos.z,type};directions[i]={dir.x,dir.y,dir.z,0};
       const auto c=light->getDiffuseColour()*light->getPowerScale();
-      colours[i]={c.r,c.g,c.b,light->getCastShadows() && type==0.0F ? 1.0F:0.0F};
+      colours[i]={c.r,c.g,c.b,light->getCastShadows() ? 1.0F:0.0F};
       attenuations[i]={light->getAttenuationRange(),light->getAttenuationConstant(),light->getAttenuationLinear(),light->getAttenuationQuadric()};
       cones[i]={std::cos(light->getSpotlightInnerAngle().valueRadians()*.5F),std::cos(light->getSpotlightOuterAngle().valueRadians()*.5F),light->getSpotlightFalloff(),0};
     }
@@ -207,7 +209,7 @@ nlohmann::json LightingPost::report() const {
   result["hdr_batches"]=impl_->instance->getRenderTarget("hdr")->getStatistics().batchCount;
   if(!impl_->deferred) return result;
   result["gbuffer_batches"]=impl_->instance->getRenderTarget("gbuffer")->getStatistics().batchCount;
-  for(unsigned index=0;index<4;++index) {
+  for(unsigned index=0;index<5;++index) {
     const auto &texture=impl_->instance->getTextureInstance("gbuffer",index);
     std::vector<float> data(texture->getWidth()*texture->getHeight()*4);
     texture->getBuffer()->blitToMemory(Ogre::PixelBox(texture->getWidth(),texture->getHeight(),1,Ogre::PF_FLOAT32_RGBA,data.data()));

@@ -7,8 +7,8 @@
 #include <OgreShaderGenerator.h>
 #include <OgreShaderRenderState.h>
 #include <OgreShaderSubRenderState.h>
-#include <OgreShadowCameraSetupPSSM.h>
 #include <nlohmann/json.hpp>
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <mutex>
@@ -48,6 +48,56 @@ private:
   std::mutex mutex_;
   std::string failure_;
 };
+
+// Ogre 14.5.2's multi-light shadow fallback assumes that the first shadow
+// texture has a corresponding light. If no shadow-casting light intersects the
+// current frustum, getShadowTexIndex(0) returns the end of the texture array;
+// resolving the second RTSS shadow sampler then underflows an unsigned camera
+// index and leaves AutoParamDataSource with an invalid projector pointer.
+//
+// Keep Ogre on its valid, ordinary shadow-texture path by supplying an
+// invisible, zero-power light only for an otherwise caster-free frustum. Its
+// light mask is empty, so its shadow target is just the cleared depth texture
+// and it cannot alter the scene. Real authored lights retain all atlas slots.
+class ShadowFallbackGuard final : public Ogre::ShadowTextureListener {
+public:
+  explicit ShadowFallbackGuard(Ogre::SceneManager &scene) : scene_(scene) {
+    anchor_ = scene_.createLight("Run3/InternalShadowFallback");
+    anchor_->setType(Ogre::Light::LT_DIRECTIONAL);
+    anchor_->setDiffuseColour(Ogre::ColourValue::Black);
+    anchor_->setSpecularColour(Ogre::ColourValue::Black);
+    anchor_->setPowerScale(0.0F);
+    anchor_->setLightMask(0);
+    anchor_->setCastShadows(true);
+    anchor_->setVisible(false);
+    node_ = scene_.getRootSceneNode()->createChildSceneNode(
+        "Run3/InternalShadowFallbackNode");
+    node_->attachObject(anchor_);
+    node_->setDirection(Ogre::Vector3(0.0F, -1.0F, 0.0F));
+    scene_.addShadowTextureListener(this);
+  }
+
+  ~ShadowFallbackGuard() override {
+    scene_.removeShadowTextureListener(this);
+    node_->detachObject(anchor_);
+    scene_.destroySceneNode(node_);
+    scene_.destroyLight(anchor_);
+  }
+
+  bool sortLightsAffectingFrustum(Ogre::LightList &lights) override {
+    const auto caster = std::find_if(lights.begin(), lights.end(),
+        [](const Ogre::Light *light) { return light->getCastShadows(); });
+    if (caster == lights.end())
+      lights.push_back(anchor_);
+    // Let Ogre retain its normal stable ordering after the fallback is added.
+    return false;
+  }
+
+private:
+  Ogre::SceneManager &scene_;
+  Ogre::Light *anchor_{};
+  Ogre::SceneNode *node_{};
+};
 }
 
 class OgreLighting::Impl {
@@ -63,6 +113,7 @@ public:
   Ogre::SceneNode *caster{};
   std::unique_ptr<LightingPost> post;
   std::unique_ptr<OgreCompositorEffects> compositorEffects;
+  std::unique_ptr<ShadowFallbackGuard> shadowFallback;
   SurfaceMapsFactory mapsFactory;
   GBufferSurfaceFactory gbufferFactory;
   GBufferGeometryFactory geometryFactory;
@@ -84,8 +135,7 @@ public:
     generator.addSubRenderStateFactory(&mapsFactory);
     generator.addSubRenderStateFactory(&gbufferFactory);
     generator.addSubRenderStateFactory(&geometryFactory);
-    generator.getRenderState(Ogre::MSN_SHADERGEN)->addTemplateSubRenderState(
-        generator.createSubRenderState("SGX_PerPixelLighting"));
+    auto *globalState = generator.getRenderState(Ogre::MSN_SHADERGEN);
     viewport.setMaterialScheme(Ogre::MSN_SHADERGEN);
     if (settings.pipeline == LightingPipeline::Pbr) {
       // Neutral, deterministic fallback probe; authored HDR probes can replace it.
@@ -116,33 +166,30 @@ public:
       casterPass->setDepthWriteEnabled(true);
       casterPass->setDepthCheckEnabled(true);
       casterMaterial->setReceiveShadows(false);
-      // TextureShadowRenderer stores technique zero directly. Fast-forward is
-      // the legacy-content path, so reuse Ogre's renderer-portable programs
-      // there instead of a fixed-function pass. Deferred/PBR derive their
-      // caster state from their own generated geometry schemes.
-      if (settings.pipeline == LightingPipeline::FastForward) {
-        casterPass->setVertexProgram("Ogre/ShadowBlendVP");
-        casterPass->setFragmentProgram("Ogre/ShadowBlendFP");
-      }
+      // Let RTSS generate the position-only caster for every programmable
+      // pipeline. Ogre/ShadowBlend is a colour-shadow receiver/caster pair;
+      // binding it to our PF_DEPTH16 atlas crashes D3D11 when local lights
+      // begin rendering their shadow cameras.
       scene.setShadowTextureCasterMaterial(casterMaterial);
       scene.setShadowTechnique(Ogre::SHADOWTYPE_TEXTURE_MODULATIVE_INTEGRATED);
-      scene.setShadowTextureCountPerLightType(Ogre::Light::LT_DIRECTIONAL, budget.splits);
+      scene.setShadowTextureCountPerLightType(Ogre::Light::LT_DIRECTIONAL, 1);
+      scene.setShadowTextureCountPerLightType(Ogre::Light::LT_SPOTLIGHT, 1);
+      scene.setShadowTextureCountPerLightType(Ogre::Light::LT_POINT, 1);
       scene.setShadowTextureSettings(static_cast<Ogre::uint16>(budget.resolution),
                                     static_cast<Ogre::uint16>(budget.textures), Ogre::PF_DEPTH16);
       scene.setShadowTextureSelfShadow(true);
       scene.setShadowFarDistance(budget.distance);
+      shadowFallback = std::make_unique<ShadowFallbackGuard>(scene);
       auto *shadow = generator.createSubRenderState("SGX_IntegratedPSSM3");
-      if (budget.splits > 1) {
-        auto *setup = new Ogre::PSSMShadowCameraSetup();
-        setup->calculateSplitPoints(budget.splits, camera.getNearClipDistance(), budget.distance);
-        setup->setSplitPadding(camera.getNearClipDistance() * 2);
-        scene.setShadowCameraSetup(Ogre::ShadowCameraSetupPtr(setup));
-        shadow->setParameter("split_points", Ogre::Any(setup->getSplitPoints()));
-      }
+      parameter(shadow, "light_count", std::to_string(budget.textures));
       parameter(shadow, "filter", budget.filterSamples == 16 ? "pcf16" : "pcf4");
-      generator.getRenderState(Ogre::MSN_SHADERGEN)->addTemplateSubRenderState(shadow);
-      message("directional shadow budget=" + std::to_string(budget.textures) + "x" +
-              std::to_string(budget.resolution) + "; PSSM is a shadow technique, not a lighting model");
+      globalState->setLightCountAutoUpdate(false);
+      globalState->setLightCount(budget.textures);
+      globalState->addTemplateSubRenderState(shadow);
+      message("local shadow atlas=" + std::to_string(budget.textures) + "x" +
+              std::to_string(budget.resolution) +
+              "; spotlights use authored cones; point lights use Ogre's "
+              "view-prioritized 120-degree shadow camera");
     }
     generator.invalidateScheme(Ogre::MSN_SHADERGEN);
     if(settings.pipeline==LightingPipeline::Pbr || settings.pipeline==LightingPipeline::Deferred)
@@ -162,6 +209,7 @@ public:
       scene.destroySceneNode(lab);
     }
     scene.setShadowTechnique(Ogre::SHADOWTYPE_NONE);
+    shadowFallback.reset();
     scene.setShadowTextureCasterMaterial(Ogre::MaterialPtr{});
     auto &generator = Ogre::RTShader::ShaderGenerator::getSingleton();
     generator.getRenderState(Ogre::MSN_SHADERGEN)->resetToBuiltinSubRenderStates();
@@ -203,7 +251,7 @@ void OgreLighting::configureMaterial(Ogre::Material &material,
   pass->setSelfIllumination(colour(description.emissive));
   pass->setShininess(description.shininess);
   pass->setMaxSimultaneousLights(static_cast<unsigned short>(
-      std::min(description.lightLimit, settings.pipeline == LightingPipeline::FastForward ? 2U : 8U)));
+      std::min(description.lightLimit, 6U)));
   pass->setDepthCheckEnabled(true);
   pass->setDepthWriteEnabled(description.surface != Surface::Transparent);
   if (description.surface == Surface::Transparent)
@@ -302,6 +350,12 @@ void OgreLighting::configureMaterial(Ogre::Material &material,
     parameter(ibl, "texture", "Run3/NeutralProbe");
     parameter(ibl, "luminance", "1");
     state->addTemplateSubRenderState(ibl);
+  } else if (lit) {
+    // Lighting implementations share the FFP_LIGHTING execution slot. Keep
+    // the standard per-pixel implementation local to non-PBR materials so it
+    // cannot collide with CookTorrance's output semantics.
+    state->addTemplateSubRenderState(
+        generator.createSubRenderState("SGX_PerPixelLighting"));
   }
   if (lit && !description.normalMap.name.empty()) {
     if (tangents) {
@@ -426,15 +480,13 @@ void OgreLighting::createLab() {
     light->setSpecularColour(light->getDiffuseColour());
     light->setAttenuation(2500,1,.0005F,.000001F);
     if (i==1) light->setSpotlightRange(Ogre::Degree(25),Ogre::Degree(65));
-    // Directional PSSM currently owns the shadow atlas. Local lights remain lit,
-    // with a visible diagnostic rather than pretending to have cube shadows.
-    light->setCastShadows(false);
+    light->setCastShadows(true);
     auto *node=s.lab->createChildSceneNode(); node->attachObject(light);
     node->setPosition(i==0 ? -350.0F : 400.0F, 350, 200);
     node->setDirection({0,-1,-.5F});
     if(i==0) s.moving=node;
   }
-  message("LightingLab: deterministic 60-Hz presentation time; local-light shadow atlas not implemented");
+  message("LightingLab: deterministic 60-Hz presentation time; point and spot shadows enabled");
 }
 void OgreLighting::update(double seconds) {
   impl_->compositorEffects->update(seconds);

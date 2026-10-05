@@ -14,8 +14,16 @@ TEST_CASE("Lighting pipeline and shadow keys reject typos") {
   CHECK_THROWS(parseLightingPipeline("PBR"));
   CHECK_THROWS(parseShadowQuality("automatic"));
   CHECK(shadowBudget(ShadowQuality::Off,LightingPipeline::Pbr).textures==0);
-  CHECK(shadowBudget(ShadowQuality::High,LightingPipeline::Pbr).splits==3);
-  CHECK(shadowBudget(ShadowQuality::High,LightingPipeline::FastForward).textures==1);
+  CHECK(shadowBudget(ShadowQuality::High,LightingPipeline::Pbr).splits==1);
+  for (const auto pipeline : {LightingPipeline::LegacyForward,
+                              LightingPipeline::FastForward,
+                              LightingPipeline::Pbr,
+                              LightingPipeline::Deferred})
+    CHECK(shadowBudget(ShadowQuality::High,pipeline).textures==6);
+  CHECK(shadowBudget(ShadowQuality::Low,LightingPipeline::Pbr).resolution==512);
+  CHECK(shadowBudget(ShadowQuality::Ultra,LightingPipeline::Pbr).resolution==4096);
+  CHECK(shadowBudget(ShadowQuality::Low,LightingPipeline::Pbr).distance==2500);
+  CHECK(shadowBudget(ShadowQuality::Ultra,LightingPipeline::Pbr).distance==20000);
 }
 TEST_CASE("Lighting CLI overrides user and content config") {
   const auto cli=parseCommandLine({"run3_shell","--lighting-pipeline","pbr",

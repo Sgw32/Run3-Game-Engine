@@ -380,6 +380,23 @@ public:
     sequence_ = 0;
     processSceneElement(definition_->scene, rootNode_, "Run3Step6BMapRoot",
                         sceneMultiplier, firstPlayer);
+    if (lightingSettings_.shadows != rendering::ShadowQuality::Off) {
+      const auto budget = rendering::shadowBudget(lightingSettings_.shadows,
+                                                   lightingSettings_.pipeline);
+      const auto casters = static_cast<unsigned>(std::count_if(
+          mapLights_.begin(), mapLights_.end(),
+          [](const Ogre::Light *light) { return light->getCastShadows(); }));
+      if (casters > budget.textures) {
+        throw std::runtime_error(
+            "Map '" + map + "' has " + std::to_string(casters) +
+            " shadow-casting lights but the renderer supports " +
+            std::to_string(budget.textures) +
+            "; no authored shadow light may be silently dropped");
+      }
+      Ogre::LogManager::getSingleton().logMessage(
+          "Step 9B: map local-light shadows=" + std::to_string(casters) +
+          "/" + std::to_string(budget.textures));
+    }
     Ogre::LogManager::getSingleton().logMessage(
         "Step 6C map " + map + ": visuals=" +
         std::to_string(stats_.visualSections) + " collision=" +
@@ -527,9 +544,15 @@ public:
         }
       }
       const bool shadow = values.find("castShadows") == values.end() || values.at("castShadows") != "false";
-      light->setCastShadows(shadow && light->getType()==Ogre::Light::LT_DIRECTIONAL);
-      if(shadow && light->getType()!=Ogre::Light::LT_DIRECTIONAL && lightingSettings_.shadows!=rendering::ShadowQuality::Off)
-        Ogre::LogManager::getSingleton().logMessage("Step 9B: local-light shadows unavailable for '"+name+"'; light retained");
+      light->setCastShadows(shadow &&
+                            lightingSettings_.shadows != rendering::ShadowQuality::Off);
+      if (light->getCastShadows() && light->getType() != Ogre::Light::LT_DIRECTIONAL) {
+        const auto budget = rendering::shadowBudget(lightingSettings_.shadows,
+                                                     lightingSettings_.pipeline);
+        light->setShadowFarDistance(budget.distance);
+        light->setShadowFarClipDistance(
+            std::min(light->getAttenuationRange(), budget.distance));
+      }
       return;
     }
 

@@ -31,10 +31,12 @@ std::string_view pipelineName(LightingPipeline value) {
 ShadowBudget shadowBudget(ShadowQuality quality, LightingPipeline pipeline) {
   if (quality == ShadowQuality::Off) return {};
   const unsigned tier = static_cast<unsigned>(quality);
-  const bool fast = pipeline == LightingPipeline::FastForward;
-  return {512U << (std::min(tier, 4U) - 1U), fast ? 1U : 3U,
-          fast ? 1U : 3U, tier >= 3 && !fast ? 16U : 4U,
-          fast ? 5000.0F : 20000.0F};
+  static_cast<void>(pipeline);
+  // One texture is assigned to each shadow-casting light. Six covers the
+  // largest authored light set in the shipped maps and leaves enough D3D11
+  // sampler slots for the complete legacy/PBR surface texture set.
+  return {512U << (std::min(tier, 4U) - 1U), 6U, 1U,
+          tier >= 3 ? 16U : 4U, 2500.0F * static_cast<float>(1U << (tier - 1U))};
 }
 float roughnessFromShininess(float shininess) {
   if (!std::isfinite(shininess) || shininess < 0)

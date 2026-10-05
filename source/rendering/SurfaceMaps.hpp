@@ -53,7 +53,11 @@ public:
         ps->addDependency("Run3SurfaceMaps");
         auto pixel = fragment->getLocalParameter("pixel");
         if (!pixel) throw std::runtime_error("PBR specular map requires PixelParams");
-        stage.callFunction("Run3_ApplySpecularMask", In(texel).xyz(), InOut(pixel));
+        // Use the generic operand-vector overload. The two-argument helper is
+        // specifically (in, out) and would reinterpret this inout PixelParams
+        // as a pure output, triggering Ogre's OPS_OUT assertion.
+        stage.callFunction("Run3_ApplySpecularMask",
+                           std::vector<Operand>{In(texel).xyz(), InOut(pixel)});
       } else {
         auto specular=fragment->resolveLocalParameter(Parameter::SPC_COLOR_SPECULAR);
         stage.mul(In(specular).xyz(),In(texel).xyz(),Out(specular).xyz());

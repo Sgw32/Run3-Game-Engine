@@ -738,14 +738,17 @@ void Run3App::setup() {
 #endif
   sceneManager_->setAmbientLight(Ogre::ColourValue(0.25F, 0.25F, 0.25F));
 
-  Ogre::Light *light = sceneManager_->createLight("Run3ShellLight");
-  light->setType(Ogre::Light::LT_DIRECTIONAL);
-  light->setCastShadows(true);
-  Ogre::SceneNode *lightNode =
-      sceneManager_->getRootSceneNode()->createChildSceneNode();
-  lightNode->setDirection(Ogre::Vector3(-1.0F, -1.0F, -1.0F).normalisedCopy(),
-                          Ogre::Node::TS_WORLD);
-  lightNode->attachObject(light);
+  // The shell light is a diagnostic fixture, never part of authored maps.
+  if (options_.mapName.empty()) {
+    Ogre::Light *light = sceneManager_->createLight("Run3ShellLight");
+    light->setType(Ogre::Light::LT_DIRECTIONAL);
+    light->setCastShadows(true);
+    Ogre::SceneNode *lightNode =
+        sceneManager_->getRootSceneNode()->createChildSceneNode();
+    lightNode->setDirection(Ogre::Vector3(-1.0F, -1.0F, -1.0F).normalisedCopy(),
+                            Ogre::Node::TS_WORLD);
+    lightNode->attachObject(light);
+  }
   if (options_.mapName.empty() && !options_.lightingLab) {
     Ogre::Entity *cube =
         sceneManager_->createEntity("Run3ShellCube", Ogre::SceneManager::PT_CUBE);
@@ -844,6 +847,20 @@ void Run3App::setup() {
 }
 
 void Run3App::loadMap(const std::string &mapName) {
+    if (sceneManager_->hasLight("Run3ShellLight")) {
+      Ogre::Light *shellLight = sceneManager_->getLight("Run3ShellLight");
+      Ogre::SceneNode *node = shellLight->getParentSceneNode();
+      shellLight->detachFromParent();
+      sceneManager_->destroyLight(shellLight);
+      if (node != nullptr)
+        sceneManager_->destroySceneNode(node);
+    }
+    if (cubeNode_ != nullptr) {
+      if (sceneManager_->hasEntity("Run3ShellCube"))
+        sceneManager_->destroyEntity("Run3ShellCube");
+      sceneManager_->destroySceneNode(cubeNode_);
+      cubeNode_ = nullptr;
+    }
     options_.mapName = mapName;
     physicsWorld_ = std::make_unique<physics::PhysicsWorld>(
         physics::createBulletPhysicsWorld());

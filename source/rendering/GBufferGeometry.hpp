@@ -37,7 +37,8 @@ public:
     }
     auto diffuse=fragment->resolveOutputParameter(Parameter::SPC_COLOR_DIFFUSE);
     auto normalDepth=fragment->resolveOutputParameter(Parameter::SPC_COLOR_SPECULAR);
-    auto shadow=fragment->resolveOutputParameter(Parameter::SPS_COLOR,3,Parameter::SPC_UNKNOWN,GCT_FLOAT4);
+    auto shadow0=fragment->resolveOutputParameter(Parameter::SPS_COLOR,3,Parameter::SPC_UNKNOWN,GCT_FLOAT4);
+    auto shadow1=fragment->resolveOutputParameter(Parameter::SPS_COLOR,4,Parameter::SPC_UNKNOWN,GCT_FLOAT4);
     auto surface=ps->resolveParameter(GpuProgramParameters::ACT_SURFACE_DIFFUSE_COLOUR);
     fragment->getStage(FFP_PS_COLOUR_BEGIN+1).assign(surface,diffuse);
     auto stage=fragment->getStage(FFP_PS_COLOUR_END+2);
@@ -48,9 +49,16 @@ public:
     auto farClip=ps->resolveParameter(GpuProgramParameters::ACT_FAR_CLIP_DISTANCE);
     stage.callBuiltin("length",positionIn,Out(normalDepth).w());
     stage.div(In(normalDepth).w(),farClip,Out(normalDepth).w());
-    stage.assign(Vector4(1),shadow);
-    if(auto factor=fragment->getLocalParameter("lShadowFactor"))
-      stage.assign({In(factor),At(0),Out(shadow).x()});
+    stage.assign(Vector4(1),shadow0);
+    stage.assign(Vector4(1),shadow1);
+    if(auto factor=fragment->getLocalParameter("lShadowFactor")) {
+      stage.assign({In(factor),At(0),Out(shadow0).x()});
+      stage.assign({In(factor),At(1),Out(shadow0).y()});
+      stage.assign({In(factor),At(2),Out(shadow0).z()});
+      stage.assign({In(factor),At(3),Out(shadow0).w()});
+      stage.assign({In(factor),At(4),Out(shadow1).x()});
+      stage.assign({In(factor),At(5),Out(shadow1).y()});
+    }
     return true;
   }
 };

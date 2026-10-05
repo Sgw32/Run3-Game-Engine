@@ -1,6 +1,6 @@
 # Step 9B lighting workbench
 
-Status: **in progress, not campaign-ready** (2026-09-28). Ogre **classic
+Status: **in progress, not campaign-ready** (2026-10-05). Ogre **classic
 14.5.2**, using the existing pinned vcpkg dependency. No Ogre-next or Cg.
 The controls below are available for evaluation, not a claim of visual parity.
 
@@ -76,23 +76,34 @@ the selected user directory. `--lighting-resize` exercises lab resize;
 
 | Pipeline | Implemented approach | Important limits |
 |---|---|---|
-| legacy-forward | RTSS per-pixel diffuse/specular, per-material light limit | Maximum 8 lights per pass; old multipass look still needs comparisons |
-| fast-forward | RTSS forward, maximum 2 lights, lower filtering/shadow budget | Fast budget, not yet a measured performance guarantee |
+| legacy-forward | RTSS per-pixel diffuse/specular, six local lights and integrated texture shadows | Old multipass look still needs comparisons |
+| fast-forward | RTSS per-pixel forward, six local lights and integrated texture shadows | Fast budget is not yet a measured performance guarantee |
 | pbr | RTSS Cook-Torrance metal-roughness, neutral IBL, floating-point HDR and tone mapping | Neutral procedural probe, not authored environment lighting; campaign shader compatibility under investigation |
-| deferred | Four floating-point MRTs, directional/point/spot resolve, forward transparent/unlit pass, HDR tone mapping | Full-screen loop capped at 64 lights, **not yet light volumes**; forward composition and campaign coverage incomplete |
+| deferred | Five floating-point MRTs, directional/point/spot resolve, forward transparent/unlit pass, HDR tone mapping | Full-screen loop capped at 64 lights, **not yet light volumes**; forward composition and campaign coverage incomplete |
 
 All paths preserve ordinary Ogre light types, colours, transforms, attenuation
-and spotlight cones. Directional shadows use three PSSM splits except fast
-(one map). PSSM is a **shadow technique**, not a BRDF. Low/medium/high/ultra
-allocate 512/1024/2048/4096-square depth textures. Forward/PBR/deferred shadow
-range is 20,000 game units; fast range is 5,000. Low/medium and fast use PCF4;
-high/ultra other pipelines use PCF16. Point/spot illumination works, but their
-shadow atlas is **not implemented** and this is logged. Stable main-directional
-caster selection, bias tuning and device-capability fallback remain required.
+and spotlight cones. The shared Ogre texture-shadow renderer allocates one map
+per shadow-casting light, up to the six-light maximum found in the shipped map
+definitions. This covers every authored spotlight in high-quality `tlwcao` and
+`outro`; exceeding the budget is a hard load error instead of silently dropping
+a light. Low/medium/high/ultra allocate 512/1024/2048/4096-square depth textures
+with 2,500/5,000/10,000/20,000 game-unit ranges. Low/medium use PCF4 and
+high/ultra use PCF16. Spotlights use their authored cone. Ogre's one-map point
+shadow mode is supported but view-prioritized (a 120-degree projection), not an
+omnidirectional six-face cubemap. Bias tuning and device-capability fallback
+remain required.
+
+Ogre 14.5.2 has an out-of-range projector lookup when a multi-light RTSS
+receiver is rendered while no shadow-casting light intersects the camera
+frustum. The renderer adapter keeps that transition valid with an internal
+zero-power, zero-mask fallback light used only for Ogre's shadow-texture update.
+It is not attached to map gameplay or presentation, does not replace an atlas
+slot while an authored caster is present, and prevents stale projector pointers
+as lights enter or leave the view.
 
 Deferred buffers: diffuse RGB + shininess; view normal + normalized Euclidean
-view distance; specular RGB + AO; directional shadow factor. The resolve writes
-depth for the subsequent forward pass. The GLSL full-screen varying uses the
+view distance; specular RGB + AO; and two RGBA local-shadow-factor buffers for
+lights 0..5. The resolve writes depth for the subsequent forward pass. The GLSL full-screen varying uses the
 same explicit `TEXCOORD0` location as its vertex shader; a previous mismatch
 produced a blank image despite a successful exit.
 
@@ -173,7 +184,7 @@ used to claim a performance win. Warmed timings and reviewed image-regression
 tolerances are still needed.
 
 Open: owner confirmation of campaign reload/PBR repairs; complete transparent and cutout-shadow
-comparisons; light volumes and local-light shadows; capability fallback;
+comparisons; omnidirectional point-light cubemap shadows; light volumes; capability fallback;
 exception-path lifetime checks; warmed performance measurements; reviewed
 tlwcao then indoor/outdoor/tlwhome02 overlay tuning; matched original/derived
 captures; Linux Release build verification. Windows Debug/Release and WSL GCC

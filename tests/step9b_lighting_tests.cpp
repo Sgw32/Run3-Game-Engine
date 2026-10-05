@@ -109,12 +109,14 @@ TEST_CASE("Material inheritance preserves separate per-material light budgets") 
   CHECK(unmappedGloss.specular[0] == Catch::Approx(.08F));
   CHECK(unmappedGloss.shininess == Catch::Approx(64.0F));
 }
-TEST_CASE("Derived overlay only replaces core and maps and keeps original fallback") {
+TEST_CASE("Derived overlay replaces core maps and game and keeps original fallback") {
   const auto root=std::filesystem::path(RUN3_TEST_SOURCE_DIR)/"tests/fixtures/lighting";
   auto paths=AppPaths::resolve(root/"shell",root/"original",root/"user");
   paths.setContentOverlay(root/"overlay");
   CHECK(paths.contentPath("run3/maps/test.scene")==root/"overlay/run3/maps/test.scene");
   CHECK(paths.contentPath("run3/maps/absent.scene")==root/"original/run3/maps/absent.scene");
+  CHECK(paths.contentPath("run3/game/test.material")==root/"overlay/run3/game/test.material");
+  CHECK(paths.contentPath("run3/game/absent.material")==root/"original/run3/game/absent.material");
   CHECK(paths.contentPath("run3/lua/denied.lua")==root/"original/run3/lua/denied.lua");
   CHECK_THROWS(paths.contentPath("../escape"));
   CHECK_THROWS(paths.setContentOverlay(root/"missing"));

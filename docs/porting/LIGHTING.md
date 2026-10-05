@@ -88,10 +88,13 @@ definitions. This covers every authored spotlight in high-quality `tlwcao` and
 `outro`; exceeding the budget is a hard load error instead of silently dropping
 a light. Low/medium/high/ultra allocate 512/1024/2048/4096-square depth textures
 with 2,500/5,000/10,000/20,000 game-unit ranges. Low/medium use PCF4 and
-high/ultra use PCF16. Spotlights use their authored cone. Ogre's one-map point
-shadow mode is supported but view-prioritized (a 120-degree projection), not an
-omnidirectional six-face cubemap. Bias tuning and device-capability fallback
-remain required.
+high/ultra use PCF16. Spotlights use their authored cone. Point-light
+illumination is omnidirectional, but point lights do not cast texture shadows:
+Ogre Classic's built-in point path is a camera-facing 120-degree projection,
+not an omnidirectional shadow, and produces a moving clipping plane when the
+viewer rotates. A proper six-face cubemap or dual-paraboloid implementation
+remains required before point shadows can be enabled. Bias tuning and
+device-capability fallback also remain required.
 
 Ogre 14.5.2 has an out-of-range projector lookup when a multi-light RTSS
 receiver is rendered while no shadow-casting light intersects the camera

@@ -35,6 +35,7 @@ ShadowBudget shadowBudget(ShadowQuality quality, LightingPipeline pipeline) {
   // One texture is assigned to each shadow-casting light. Six covers the
   // largest authored light set in the shipped maps and leaves enough D3D11
   // sampler slots for the complete legacy/PBR surface texture set.
+  // 512, 1024, 2048, 4096 - shadow map size depending on quality
   return {512U << (std::min(tier, 4U) - 1U), 6U, 1U,
           tier >= 3 ? 16U : 4U, 2500.0F * static_cast<float>(1U << (tier - 1U))};
 }

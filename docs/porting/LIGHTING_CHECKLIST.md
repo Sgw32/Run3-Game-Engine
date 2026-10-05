@@ -142,9 +142,10 @@ For each visual case check:
   Specular mask: highlights vary across the authored surface, not uniformly.
   Compare a material that actually authors these maps; flat normal/white masks
   are intentional no-detail defaults, not evidence of a failure.
-- Shadows: moving casters and directional contact shadows; check off/high at the
-  same camera. Local point/spot shadows remain a documented unsupported atlas
-  feature; don't mark directional success as local-shadow support.
+- Shadows: moving casters and spotlight contact shadows; check off/high at the
+  same camera. Point illumination must remain stable while rotating the camera;
+  omnidirectional point shadows remain unsupported until a cubemap or
+  dual-paraboloid path replaces Ogre's camera-facing single-map approximation.
 - Brightness: same scene quality, time, camera, FOV and exposure. PBR should
   respect the scene ambient colour, but its BRDF/tone curve is not expected to
   pixel-match legacy-forward. Report clipping, loss of detail or required

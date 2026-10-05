@@ -337,9 +337,12 @@ public:
         !consoleVisible_)
       return false;
 
-    // Full-screen computers use the original Ogre-overlay buttonGUI renderer.
-    // No computer input is injected into MyGUI in this mode.
-    if (inventoryVisible_ || (computerActive() && !computerRenderToTexture_)) {
+    // Direct computers use buttonGUI exclusively. RTT computers normally use
+    // typed MyGUI, but original scripts may create a full-screen buttonGUI
+    // compatibility layer after activation; that layer then owns input.
+    if (inventoryVisible_ ||
+        (computerActive() &&
+         (!computerRenderToTexture_ || buttonGui_->hasContent()))) {
       static_cast<void>(buttonGui_->handleInput(event));
       return true;
     }

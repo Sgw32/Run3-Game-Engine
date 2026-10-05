@@ -345,7 +345,7 @@ public:
     }
     // Particle templates bind their material names while being parsed, so
     // load them only after the compatibility aliases above are published.
-    loadParticleTemplates(options.paths->contentRoot(), options.textureQuality);
+    loadParticleTemplates(*options.paths, options.textureQuality);
     configureEnvironment(definition_->scene);
     class CompatibilityListener final : public Ogre::MeshSerializerListener {
     public:
@@ -544,8 +544,22 @@ public:
         }
       }
       const bool shadow = values.find("castShadows") == values.end() || values.at("castShadows") != "false";
-      light->setCastShadows(shadow &&
-                            lightingSettings_.shadows != rendering::ShadowQuality::Off);
+      const bool point = light->getType() == Ogre::Light::LT_POINT;
+      const bool shadowsEnabled =
+          lightingSettings_.shadows != rendering::ShadowQuality::Off;
+      // Ogre Classic's default texture-shadow camera represents a point light
+      // as a single 120-degree projector aimed at the viewing camera. It is
+      // not an omnidirectional point shadow: rotating the view rotates its
+      // frustum and visibly clips the light contribution. Keep point-light
+      // illumination genuinely omnidirectional until a six-face cubemap (or
+      // dual-paraboloid) shadow implementation is available.
+      light->setCastShadows(shadow && shadowsEnabled && !point);
+      if (point && shadow && shadowsEnabled) {
+        Ogre::LogManager::getSingleton().logMessage(
+            "Step 9B: point light '" + name +
+            "' uses stable omnidirectional lighting without texture shadows; "
+            "Ogre's camera-facing single-map approximation is disabled");
+      }
       if (light->getCastShadows() && light->getType() != Ogre::Light::LT_DIRECTIONAL) {
         const auto budget = rendering::shadowBudget(lightingSettings_.shadows,
                                                      lightingSettings_.pipeline);
@@ -958,14 +972,14 @@ public:
     // RTSS materials instead.
   }
 
-  void loadParticleTemplates(const fs::path &contentRoot,
+  void loadParticleTemplates(const AppPaths &paths,
                              const std::string &textureQuality) {
     Ogre::ParticleSystemManager &particles =
         Ogre::ParticleSystemManager::getSingleton();
     particles.removeTemplatesByResourceGroup(resourceGroup_);
     const std::array<fs::path, 3> roots{
-        contentRoot / "run3" / "mats" / textureQuality,
-        contentRoot / "run3" / "game", contentRoot / "run3" / "particle"};
+        paths.contentPath(fs::path("run3") / "mats" / textureQuality),
+        paths.contentPath("run3/game"), paths.contentPath("run3/particle")};
     std::set<fs::path> scripts;
     for (const fs::path &root : roots) {
       if (!fs::is_directory(root)) continue;

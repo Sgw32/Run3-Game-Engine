@@ -281,12 +281,15 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
   if (options.lightingLab && !options.mapName.empty())
     throw std::runtime_error("--lighting-lab and --map are mutually exclusive");
   const auto variant = configuration.valueOr("content.variant", "original");
-  if (variant != "original" && variant != "nextgen")
-    throw std::runtime_error("content.variant must be original or nextgen");
+  if (variant != "original" && variant != "nextgen" && variant != "tlwrm")
+    throw std::runtime_error(
+        "content.variant must be original, nextgen or tlwrm");
   if (const auto overlay = configuration.find("content.overlay"))
     options.paths.setContentOverlay(configuredPath(*overlay, executableDir));
   else if (variant == "nextgen")
     options.paths.setContentOverlay(options.paths.userPath("derived-content/nextgen"));
+  else if (variant == "tlwrm")
+    options.paths.setContentOverlay(options.paths.userPath("derived-content/tlwrm"));
   options.mapQuality = configuredQuality(
       configuration, "scene-quality",
       configuration.valueOr("map-quality", "low"));
@@ -365,7 +368,7 @@ void printRun3AppUsage() {
       << "       [--lighting-pipeline legacy-forward|deferred|pbr|fast-forward]\n"
       << "       [--shadow-quality off|low|medium|high|ultra] [--exposure N]\n"
       << "       [--lighting-lab] [--lighting-capture]\n"
-      << "       [--content-variant original|nextgen] [--content-overlay PATH]\n"
+      << "       [--content-variant original|nextgen|tlwrm] [--content-overlay PATH]\n"
       << "Precedence: command line > user config > content defaults.\n"
       << "Relative paths are resolved from the executable directory.\n";
 }

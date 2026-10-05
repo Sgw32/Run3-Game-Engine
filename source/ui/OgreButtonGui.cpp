@@ -43,7 +43,7 @@ public:
   ~OgreButtonGuiSystem() override { shutdown(); }
 
   bool handleInput(const InputEvent &event) override {
-    if (!manager_ || renderToTexture_) return false;
+    if (!manager_) return false;
     switch (event.type) {
     case InputEventType::MouseMoved:
       mouseX_ = event.x;
@@ -75,7 +75,7 @@ public:
   }
 
   void update() override {
-    if (!manager_ || renderToTexture_) return;
+    if (!manager_) return;
     manager_->update();
     std::vector<UiCallback> pending;
     for (buttonGUI::buttonEvent *event = manager_->getEvent(); event != nullptr;
@@ -102,9 +102,12 @@ public:
     shutdown();
     mode_ = Mode::Computer;
     renderToTexture_ = renderToTexture;
-    if (renderToTexture_) return;
-
     createManager();
+
+    // The typed MyGUI surface owns the texture for RTT computers. Legacy Lua
+    // can nevertheless create buttonGUI controls; those remain a full-screen
+    // compatibility layer and therefore need a live manager in both modes.
+    if (renderToTexture_) return;
 
     Ogre::OverlayManager &overlays = Ogre::OverlayManager::getSingleton();
     backgroundOverlay_ = overlays.create("Run3ComputerButtonGuiBackground");
@@ -143,12 +146,15 @@ public:
     }
   }
 
+  bool hasContent() const noexcept override { return hasContent_; }
+
   void activate(const int layoutMode) override { layoutMode_ = layoutMode; }
   void deactivate() noexcept override { layoutMode_ = 0; }
 
   void clear() noexcept override {
     callbacks_.clear();
     if (manager_) manager_->deleteAllButtons();
+    hasContent_ = false;
   }
 
   std::string createButton(std::string name, std::string material, Rect rect,
@@ -166,6 +172,7 @@ public:
     buttonGUI::button *created = manager_->createButton(
         name, material, position, extent(rect.width), extent(rect.height), 0,
         true, !dummy, Ogre::String{});
+    hasContent_ = true;
     if (callback && !dummy) callbacks_[name] = std::move(callback);
     return *created->getName();
   }
@@ -186,6 +193,7 @@ public:
     buttonGUI::button *created = manager_->createButton(
         name, "BLANK", position, extent(rect.width), extent(rect.height), 0,
         true, true, Ogre::String{});
+    hasContent_ = true;
     created->setMovable(true);
     buttonGUI::buttonMesh *createdMesh = created->addButtonMesh(
         name + "_mesh", mesh, 0, 0, pixel(rect.width), pixel(rect.height));
@@ -257,6 +265,7 @@ private:
     backgroundOverlay_ = nullptr;
     backgroundPanel_ = nullptr;
     renderToTexture_ = false;
+    hasContent_ = false;
     layoutMode_ = 0;
     mode_ = Mode::None;
   }
@@ -298,6 +307,7 @@ private:
   int mouseY_{};
   bool cursorVisible_{true};
   bool renderToTexture_{};
+  bool hasContent_{};
   Mode mode_{Mode::None};
 };
 

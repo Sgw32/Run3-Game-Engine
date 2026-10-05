@@ -174,7 +174,10 @@ public:
       scene.setShadowTechnique(Ogre::SHADOWTYPE_TEXTURE_MODULATIVE_INTEGRATED);
       scene.setShadowTextureCountPerLightType(Ogre::Light::LT_DIRECTIONAL, 1);
       scene.setShadowTextureCountPerLightType(Ogre::Light::LT_SPOTLIGHT, 1);
-      scene.setShadowTextureCountPerLightType(Ogre::Light::LT_POINT, 1);
+      // Ogre Classic's one-map point shadow is a camera-facing 120-degree
+      // approximation, not an omnidirectional shadow. Never allocate it: it
+      // creates a view-dependent clipping plane through point-light volume.
+      scene.setShadowTextureCountPerLightType(Ogre::Light::LT_POINT, 0);
       scene.setShadowTextureSettings(static_cast<Ogre::uint16>(budget.resolution),
                                     static_cast<Ogre::uint16>(budget.textures), Ogre::PF_DEPTH16);
       scene.setShadowTextureSelfShadow(true);
@@ -188,8 +191,8 @@ public:
       globalState->addTemplateSubRenderState(shadow);
       message("local shadow atlas=" + std::to_string(budget.textures) + "x" +
               std::to_string(budget.resolution) +
-              "; spotlights use authored cones; point lights use Ogre's "
-              "view-prioritized 120-degree shadow camera");
+              "; spotlights use authored cones; point lights remain "
+              "omnidirectional and do not use Ogre's camera-facing shadow approximation");
     }
     generator.invalidateScheme(Ogre::MSN_SHADERGEN);
     if(settings.pipeline==LightingPipeline::Pbr || settings.pipeline==LightingPipeline::Deferred)
@@ -480,13 +483,13 @@ void OgreLighting::createLab() {
     light->setSpecularColour(light->getDiffuseColour());
     light->setAttenuation(2500,1,.0005F,.000001F);
     if (i==1) light->setSpotlightRange(Ogre::Degree(25),Ogre::Degree(65));
-    light->setCastShadows(true);
+    light->setCastShadows(i == 1);
     auto *node=s.lab->createChildSceneNode(); node->attachObject(light);
     node->setPosition(i==0 ? -350.0F : 400.0F, 350, 200);
     node->setDirection({0,-1,-.5F});
     if(i==0) s.moving=node;
   }
-  message("LightingLab: deterministic 60-Hz presentation time; point and spot shadows enabled");
+  message("LightingLab: deterministic 60-Hz presentation time; stable point lighting and spot shadows enabled");
 }
 void OgreLighting::update(double seconds) {
   impl_->compositorEffects->update(seconds);

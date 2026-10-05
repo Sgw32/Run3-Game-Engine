@@ -117,9 +117,12 @@ fs::path AppPaths::defaultUserRoot() {
 fs::path AppPaths::contentPath(const fs::path &relative) const {
   const auto original = checkedRelative(contentRoot_, relative);
   const auto key = relative.lexically_normal().generic_string();
-  if (!contentOverlay_.empty() &&
-      (key == "run3/core" || key == "run3/maps" ||
-       key.rfind("run3/core/", 0) == 0 || key.rfind("run3/maps/", 0) == 0)) {
+  const bool overlayNamespace =
+      key == "run3/core" || key == "run3/maps" || key == "run3/game" ||
+      key.rfind("run3/core/", 0) == 0 ||
+      key.rfind("run3/maps/", 0) == 0 ||
+      key.rfind("run3/game/", 0) == 0;
+  if (!contentOverlay_.empty() && overlayNamespace) {
     const auto derived = checkedRelative(contentOverlay_, relative);
     if (fs::exists(derived)) {
       const auto canonicalRoot = fs::weakly_canonical(contentOverlay_);

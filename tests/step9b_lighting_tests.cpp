@@ -27,12 +27,14 @@ TEST_CASE("Lighting pipeline and shadow keys reject typos") {
 }
 TEST_CASE("Lighting CLI overrides user and content config") {
   const auto cli=parseCommandLine({"run3_shell","--lighting-pipeline","pbr",
-      "--shadow-quality","high","--exposure","2","--lighting-lab"},
+      "--shadow-quality","high","--shadow-update-interval","3",
+      "--exposure","2","--lighting-lab"},
       std::filesystem::path(RUN3_TEST_SOURCE_DIR));
   const auto config=Configuration::merge({{"render.lighting_pipeline","legacy-forward"}},
       {{"render.lighting_pipeline","fast-forward"},{"render.shadow_quality","off"}},cli.values);
   CHECK(config.valueOr("render.lighting_pipeline","")=="pbr");
   CHECK(config.valueOr("render.shadow_quality","")=="high");
+  CHECK(config.valueOr("render.shadow_update_interval","")=="3");
   CHECK(config.valueOr("render.exposure","")=="2");
 }
 TEST_CASE("Optional surface maps fall back without discarding base colour") {

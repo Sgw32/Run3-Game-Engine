@@ -20,7 +20,7 @@ REM cd /d C:\Run3-Game-Engine
     --map tlwcao ^
     --user-dir ".\build\user\windows-release" ^
     --fullscreen ^
-    --lighting-pipeline legacy-forward --shadow-quality high --exposure 0.6 ^
+    --lighting-pipeline legacy-forward --shadow-quality low --exposure 0.6 ^
     --resolution 1920x1080 --fov 75 ^
     --texture-quality high --model-quality high --scene-quality high ^
     --audio-backend miniaudio ^

@@ -199,6 +199,8 @@ CommandLine parseCommandLine(const std::vector<std::string> &arguments,
       result.values["render.lighting_pipeline"] = value;
     } else if (argument == "--shadow-quality") {
       result.values["render.shadow_quality"] = value;
+    } else if (argument == "--shadow-update-interval") {
+      result.values["render.shadow_update_interval"] = value;
     } else if (argument == "--exposure") {
       result.values["render.exposure"] = value;
     } else if (argument == "--content-variant") {

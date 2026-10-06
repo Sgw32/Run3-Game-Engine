@@ -28,6 +28,7 @@ class Camera;
 class ManualObject;
 class RenderWindow;
 class SceneManager;
+class SceneManagerFactory;
 class SceneNode;
 } // namespace Ogre
 
@@ -117,6 +118,7 @@ private:
   EventQueueInput input_;
   OgreBitesInputAdapter inputAdapter_;
   EngineClock clock_;
+  std::unique_ptr<Ogre::SceneManagerFactory> sceneManagerFactory_;
   Ogre::SceneManager *sceneManager_{};
   Ogre::SceneNode *cubeNode_{};
   Ogre::SceneNode *cameraNode_{};

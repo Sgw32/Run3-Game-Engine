@@ -10,6 +10,7 @@
 #include <run3/gameplay/SequenceRuntime.hpp>
 #include <run3/gameplay/StaticMap.hpp>
 #include <run3/physics/Physics.hpp>
+#include <run3/rendering/Run3SceneManager.hpp>
 #include <run3/ui/OgreMyGui.hpp>
 #include <run3/ui/Ui.hpp>
 
@@ -279,6 +280,15 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
       configuredDouble(configuration, "render.exposure", 1.0));
   if (options.lighting.exposure <= 0 || options.lighting.exposure > 32)
     throw std::runtime_error("render.exposure must be in (0,32]");
+  const bool forwardPipeline =
+      options.lighting.pipeline == rendering::LightingPipeline::LegacyForward ||
+      options.lighting.pipeline == rendering::LightingPipeline::FastForward;
+  const std::uint64_t shadowUpdateInterval = configuration.unsignedOr(
+      "render.shadow_update_interval", forwardPipeline ? 2U : 1U);
+  if (shadowUpdateInterval < 1 || shadowUpdateInterval > 8)
+    throw std::runtime_error("shadow-update-interval must be in [1,8]");
+  options.lighting.shadowUpdateInterval =
+      static_cast<unsigned>(shadowUpdateInterval);
   options.lightingLab = configuredBool(configuration, "lighting-lab");
   options.lightingCapture = configuredBool(configuration, "lighting-capture");
   options.lightingReload = configuredBool(configuration, "lighting-reload");
@@ -372,6 +382,7 @@ void printRun3AppUsage() {
       << "       [--render-hz 30|60|144]\n"
       << "       [--lighting-pipeline legacy-forward|deferred|pbr|fast-forward]\n"
       << "       [--shadow-quality off|low|medium|high|ultra] [--exposure N]\n"
+      << "       [--shadow-update-interval 1..8]\n"
       << "       [--lighting-lab] [--lighting-capture]\n"
       << "       [--content-variant original|nextgen|tlwrm] [--content-overlay PATH]\n"
       << "Precedence: command line > user config > content defaults.\n"
@@ -739,7 +750,11 @@ void Run3App::locateResources() {
 void Run3App::setup() {
   OgreBites::ApplicationContext::setup();
   addInputListener(&inputAdapter_);
-  sceneManager_ = mRoot->createSceneManager();
+  sceneManagerFactory_ = std::make_unique<rendering::Run3SceneManagerFactory>(
+      options_.lighting.shadowUpdateInterval);
+  mRoot->addSceneManagerFactory(sceneManagerFactory_.get());
+  sceneManager_ =
+      mRoot->createSceneManager(sceneManagerFactory_->getTypeName());
   sceneManager_->addRenderQueueListener(mOverlaySystem);
 #ifdef OGRE_BUILD_COMPONENT_RTSHADERSYSTEM
   mShaderGenerator->addSceneManager(sceneManager_);

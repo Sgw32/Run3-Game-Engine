@@ -55,9 +55,13 @@ run_tlw.bat --map tlwhome02 --lighting-pipeline legacy-forward
 `run3.bat` accepts the same overrides and starts at the menu. Both scripts
 preserve their high texture/model/scene settings. CLI overrides user config,
 which overrides content defaults. Config keys: `render.lighting_pipeline`,
-`render.shadow_quality`, `render.exposure`. Pipeline values are exactly those
+`render.shadow_quality`, `render.shadow_update_interval`, `render.exposure`.
+Pipeline values are exactly those
 above; shadow values are `off`, `low`, `medium`, `high`, `ultra`. Defaults are
-`legacy-forward`, `off`, exposure `1`. Invalid values fail with an error.
+`legacy-forward`, `off`, exposure `1`. Legacy/fast-forward refresh their shadow
+textures every two rendered frames by default; deferred/PBR and
+`--shadow-update-interval 1` retain Ogre's every-frame behaviour. Valid refresh
+intervals are 1..8. Invalid values fail with an error.
 
 Asset-independent lab (do not combine `--lighting-lab` with `--map`):
 
@@ -95,6 +99,14 @@ not an omnidirectional shadow, and produces a moving clipping plane when the
 viewer rotates. A proper six-face cubemap or dual-paraboloid implementation
 remains required before point shadows can be enabled. Bias tuning and
 device-capability fallback also remain required.
+
+Run3's scene-manager overlay caches the completed spotlight shadow textures
+between refreshes. It forces an immediate refresh whenever the active caster
+light set, mask, type, position, or direction changes; otherwise the forward
+pipelines use the configured frame interval. This reduces shadow-caster scene
+batches without skipping the main world or compositor render. Lighting JSON
+captures record refresh/skipped counts and rendered/estimated-avoided shadow
+batches; window-target batch statistics still exclude off-screen passes.
 
 Ogre 14.5.2 has an out-of-range projector lookup when a multi-light RTSS
 receiver is rendered while no shadow-casting light intersects the camera

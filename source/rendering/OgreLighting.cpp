@@ -3,6 +3,7 @@
 #include "OgreCompositorEffects.hpp"
 #include "SurfaceMaps.hpp"
 #include "GBufferGeometry.hpp"
+#include <run3/rendering/Run3SceneManager.hpp>
 #include <Ogre.h>
 #include <OgreShaderGenerator.h>
 #include <OgreShaderRenderState.h>
@@ -12,6 +13,7 @@
 #include <chrono>
 #include <fstream>
 #include <mutex>
+#include <numeric>
 
 namespace run3::rendering {
 namespace {
@@ -193,6 +195,8 @@ public:
               std::to_string(budget.resolution) +
               "; spotlights use authored cones; point lights remain "
               "omnidirectional and do not use Ogre's camera-facing shadow approximation");
+      message("shadow texture refresh interval=" +
+              std::to_string(settings.shadowUpdateInterval) + " frame(s)");
     }
     generator.invalidateScheme(Ogre::MSN_SHADERGEN);
     if(settings.pipeline==LightingPipeline::Pbr || settings.pipeline==LightingPipeline::Deferred)
@@ -554,12 +558,23 @@ void OgreLighting::writeReport(const std::filesystem::path &path, Ogre::RenderWi
     {"gpu_timing_note","No GPU timer query; FPS is not GPU timing"},
     {"shadow_maps",budget.textures},{"shadow_resolution",budget.resolution},
     {"cpu_wall_seconds",std::chrono::duration<double>(std::chrono::steady_clock::now()-s.started).count()}};
+  if (const auto *scene = dynamic_cast<const Run3SceneManager *>(&s.scene)) {
+    report["shadow_update_interval_frames"] = scene->shadowUpdateInterval();
+    report["shadow_texture_updates"] = scene->shadowTextureUpdates();
+    report["shadow_texture_updates_skipped"] =
+        scene->shadowTextureUpdatesSkipped();
+    report["shadow_batches_rendered"] = scene->shadowBatchesRendered();
+    report["shadow_batches_avoided_estimate"] =
+        scene->shadowBatchesAvoidedEstimate();
+  }
   if(s.post) report["offscreen"]=s.post->report();
   auto samples = s.frameMilliseconds;
   std::sort(samples.begin(), samples.end());
   report["frame_wall_samples_after_three_warmup_frames"] = samples.size();
   report["frame_wall_note"] = "Between frame updates, including render, gameplay and pacing; not CPU/GPU isolation";
   if (!samples.empty()) {
+    report["frame_wall_mean_ms"] = std::accumulate(
+        samples.begin(), samples.end(), 0.0) / samples.size();
     report["frame_wall_median_ms"] = samples[samples.size() / 2];
     report["frame_wall_p95_ms"] = samples[static_cast<std::size_t>((samples.size() - 1) * .95)];
   }

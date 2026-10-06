@@ -253,7 +253,8 @@ add_library(run3_rendering STATIC source/rendering/OgreEnvironment.cpp
                                 source/rendering/OgreCompositorEffects.cpp
                                 source/rendering/Lighting.cpp
                                 source/rendering/OgreLighting.cpp
-                                source/rendering/OgreLightingPost.cpp)
+                                source/rendering/OgreLightingPost.cpp
+                                source/rendering/Run3SceneManager.cpp)
 add_library(run3::rendering ALIAS run3_rendering)
 target_compile_features(run3_rendering PUBLIC cxx_std_17)
 target_include_directories(

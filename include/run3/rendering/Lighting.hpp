@@ -51,6 +51,9 @@ struct LightingSettings {
   LightingPipeline pipeline{LightingPipeline::LegacyForward};
   ShadowQuality shadows{ShadowQuality::Off};
   float exposure{1.0F};
+  // One is Ogre's original every-frame behaviour. The application selects a
+  // conservative interval of two for legacy/fast-forward authored lighting.
+  unsigned shadowUpdateInterval{1};
 };
 struct ShadowBudget {
   unsigned resolution{}, textures{}, splits{}, filterSamples{};

@@ -15,6 +15,7 @@ public:
   OgreLighting(const OgreLighting &) = delete;
   OgreLighting &operator=(const OgreLighting &) = delete;
   void configureLegacyCompositors(const std::filesystem::path &contentRoot,
+                                  const std::filesystem::path &shaderRoot,
                                   const std::filesystem::path &supportAssets,
                                   const std::filesystem::path &programCache,
                                   std::string_view textureQuality);

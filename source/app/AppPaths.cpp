@@ -119,9 +119,11 @@ fs::path AppPaths::contentPath(const fs::path &relative) const {
   const auto key = relative.lexically_normal().generic_string();
   const bool overlayNamespace =
       key == "run3/core" || key == "run3/maps" || key == "run3/game" ||
+      key == "run3/shaders" ||
       key.rfind("run3/core/", 0) == 0 ||
       key.rfind("run3/maps/", 0) == 0 ||
-      key.rfind("run3/game/", 0) == 0;
+      key.rfind("run3/game/", 0) == 0 ||
+      key.rfind("run3/shaders/", 0) == 0;
   if (!contentOverlay_.empty() && overlayNamespace) {
     const auto derived = checkedRelative(contentOverlay_, relative);
     if (fs::exists(derived)) {

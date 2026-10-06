@@ -27,6 +27,8 @@ This document describes how NPCs are created and controlled in Run3, including:
 ### Transform / physics shape
 - Child nodes: `<position>`, `<rotate>`, `<scale>`
 - Child nodes: `<physPosit>`, `<physSize>`, `<axis>`, `<angle>`
+- `autoPosition="true"` ignores `physPosit` and aligns the model's Idle-pose
+  center with the physical body origin. It defaults to `false`.
 
 ### Movement / behavior tuning
 - `velocity`

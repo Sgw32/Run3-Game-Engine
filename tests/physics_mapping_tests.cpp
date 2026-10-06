@@ -155,6 +155,29 @@ TEST_CASE("box capsule and indexed mesh shapes are readable by Bullet") {
             .has_value());
 }
 
+TEST_CASE("Bullet exposes enabled collision bounds as renderer-neutral lines") {
+  PhysicsConfig config;
+  config.gravity = {};
+  PhysicsWorld world = run3::physics::createBulletPhysicsWorld(config);
+  auto handle = world.createBody(
+      body(Shape::box({20.0, 30.0, 40.0}), BodyMotion::Static,
+           {100.0, 200.0, 300.0}));
+
+  const auto lines = world.debugLines();
+  REQUIRE(lines.size() == 12);
+  double minimumX = lines.front().from.x;
+  double maximumX = minimumX;
+  for (const auto &line : lines) {
+    minimumX = std::min({minimumX, line.from.x, line.to.x});
+    maximumX = std::max({maximumX, line.from.x, line.to.x});
+  }
+  CHECK_THAT(minimumX, WithinAbs(80.0, 1e-4));
+  CHECK_THAT(maximumX, WithinAbs(120.0, 1e-4));
+
+  world.setEnabled(handle, false);
+  CHECK(world.debugLines().empty());
+}
+
 TEST_CASE("raycast results are nearest-first and honor groups and masks") {
   PhysicsConfig config;
   config.gravity = {};

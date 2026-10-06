@@ -86,7 +86,10 @@ authored station timing control without reviving `NPCManager`.
   Newton dynamic body while retaining the predictable kinematic navigation
   controller. `physPosit` remains a visual mesh offset and `physSize` remains
   the collision-box scale; neither is incorrectly added to the authored world
-  position.
+  position. The opt-in `autoPosition="true"` mode replaces `physPosit` with a
+  visual offset calculated from the NPC's Idle skeletal pose at creation;
+  authored visual rotation is included in that calculation and `physSize`
+  remains independent.
 - Parent-relative NPC teleports multiply the authored local offset by the
   parent's derived scale before applying its orientation, matching Ogre scene
   child inheritance and the legacy `TELEPORT_PARENT_NPC` calculation. This is

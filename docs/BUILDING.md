@@ -175,7 +175,7 @@ available.
 - `--intro` to request the retired intro-video slot; the portable runtime logs
   the skip and continues (`--skip-intro`, the default, is explicit)
 - `--noclip` to start with collision and gravity disabled
-- `--physics-debug` to show collision-section bounds at startup
+- `--physics-debug` to show Bullet physical-body bounds at startup
 - `--audio-backend auto|miniaudio|null` to select real audio, safe fallback,
   or deterministic silence
 - `--render-hz 30|60|144` for deterministic bounded validation runs

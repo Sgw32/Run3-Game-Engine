@@ -674,11 +674,12 @@ public:
     }
   }
 
-  void configure(const fs::path &contentRoot, const fs::path &supportAssets,
+  void configure(const fs::path &contentRoot, const fs::path &shaderRoot,
+                 const fs::path &supportAssets,
                  const fs::path &programCache,
                  const std::string_view textureQuality) {
     if (configured) return;
-    const fs::path shaders = contentRoot / "run3" / "shaders";
+    const fs::path shaders = shaderRoot;
     const fs::path sampleScripts =
         contentRoot / "media" / "materials" / "scripts";
     const fs::path stockCompositors = supportAssets;
@@ -1047,10 +1048,12 @@ OgreCompositorEffects::OgreCompositorEffects(Ogre::Viewport &viewport)
 OgreCompositorEffects::~OgreCompositorEffects() = default;
 
 void OgreCompositorEffects::configure(const fs::path &contentRoot,
+                                      const fs::path &shaderRoot,
                                       const fs::path &supportAssets,
                                       const fs::path &programCache,
                                       const std::string_view textureQuality) {
-  impl_->configure(contentRoot, supportAssets, programCache, textureQuality);
+  impl_->configure(contentRoot, shaderRoot, supportAssets, programCache,
+                   textureQuality);
 }
 void OgreCompositorEffects::setEnabled(const std::string_view name,
                                        const bool enabled) {

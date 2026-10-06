@@ -25,6 +25,7 @@
 
 namespace Ogre {
 class Camera;
+class ManualObject;
 class RenderWindow;
 class SceneManager;
 class SceneNode;
@@ -103,6 +104,8 @@ private:
   void captureScreenshot();
   void cycleDebugOverlay();
   void updateDebugOverlay();
+  void initialisePhysicsDebugDraw();
+  void updatePhysicsDebugDraw();
   void loadMap(const std::string &mapName);
   void unloadMap(bool runOnExit);
   void requestMapChange(std::string mapName);
@@ -118,6 +121,8 @@ private:
   Ogre::SceneNode *cubeNode_{};
   Ogre::SceneNode *cameraNode_{};
   Ogre::Camera *camera_{};
+  Ogre::ManualObject *physicsDebugObject_{};
+  Ogre::SceneNode *physicsDebugNode_{};
   std::unique_ptr<physics::PhysicsWorld> physicsWorld_;
   std::unique_ptr<gameplay::StaticMap> staticMap_;
   std::unique_ptr<gameplay::PlayerController> player_;

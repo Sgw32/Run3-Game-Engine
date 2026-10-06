@@ -54,9 +54,12 @@ struct RuntimeEntitySpec {
   physics::Vec3 scale{1.0, 1.0, 1.0};
   physics::Vec3 halfExtents{1.0, 1.0, 1.0};
   // Legacy NPC physPosit is a local visual offset (scaled by the parent),
-  // while physSize scales the collision box independently.
+  // while physSize scales the collision box independently. autoPosition
+  // replaces physPosit with an offset derived from the posed animation bounds.
   physics::Vec3 visualOffset{};
   physics::Vec3 collisionScale{1.0, 1.0, 1.0};
+  bool autoPosition{};
+  std::string autoPositionAnimation;
   physics::Vec3 visualRotationAxis{0.0, 1.0, 0.0};
   double visualRotationDegrees{};
   double visualYawDegrees{};

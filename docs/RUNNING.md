@@ -108,7 +108,8 @@ available with GL3+.
 - `E`: cast the use ray (the hit is logged)
 - Left mouse button: cast the weapon ray (the hit is logged)
 - `N`: toggle noclip
-- `F3`: toggle collision-section bounds
+- `F3`: toggle the original map-section bounds plus Bullet-computed bounds for
+  every enabled runtime physical body
 - `F5`: save a timestamped PNG under the Run3 user directory's `screenshots`
   folder
 - `P`: cycle performance, player, active-sound, and NPC diagnostics; press once
@@ -126,8 +127,9 @@ smoke runs deliberately do not capture the pointer.
 Noclip can be enabled before the map opens by adding `--noclip` to either map
 command. In noclip, `W/A/S/D` move horizontally, Space moves up, and Ctrl moves
 down. Press `N` to return to collision/gravity at the current location. Add
-`--physics-debug` to show collision bounds immediately instead of toggling them
-with `F3`.
+`--physics-debug` to show Bullet bounds immediately instead of toggling them
+with `F3`. Static bodies are blue, dynamic bodies green, kinematic bodies
+purple, and triggers yellow.
 
 The map loader preserves legacy diffuse textures through generated
 RTSS-compatible materials. It intentionally does not load the old D3D9 shader

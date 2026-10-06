@@ -130,11 +130,22 @@ TEST_CASE("Step 8D constructs typed neutral and enemy NPCs", "[step8d][npc]") {
       });
   REQUIRE(spawned != fixture.services.commands.end());
   const auto &spec = std::get<gameplay::SpawnRuntimeEntity>(*spawned).spec;
+  CHECK(spec.autoPosition);
+  CHECK(spec.autoPositionAnimation == "Idle1");
   CHECK(spec.visualOffset.y == Catch::Approx(-8.0));
   CHECK(spec.collisionScale.x == Catch::Approx(0.3));
   CHECK(spec.collisionScale.y == Catch::Approx(0.7));
   CHECK(spec.visualRotationAxis.y == Catch::Approx(1.0));
   CHECK(spec.visualRotationDegrees == Catch::Approx(15.0));
+  const auto raiderSpawned = std::find_if(
+      fixture.services.commands.begin(), fixture.services.commands.end(),
+      [](const gameplay::GameCommand &command) {
+        const auto *spawn = std::get_if<gameplay::SpawnRuntimeEntity>(&command);
+        return spawn != nullptr && spawn->spec.name == "raider";
+      });
+  REQUIRE(raiderSpawned != fixture.services.commands.end());
+  CHECK_FALSE(std::get<gameplay::SpawnRuntimeEntity>(*raiderSpawned)
+                  .spec.autoPosition);
   const auto handle = fixture.npcs->state("guide")->handle;
   fixture.npcs->dispatch({"guide", 19, "run3/lua/use.lua", {}, false});
   CHECK(fixture.npcs->use(handle));

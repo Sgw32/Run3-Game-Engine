@@ -19,13 +19,18 @@
 #include <OgreException.h>
 #include <OgreLight.h>
 #include <OgreLogManager.h>
+#include <OgreManualObject.h>
+#include <OgreMaterialManager.h>
 #include <OgreOverlaySystem.h>
+#include <OgrePass.h>
 #include <OgreRenderSystem.h>
+#include <OgreRenderQueue.h>
 #include <OgreRenderWindow.h>
 #include <OgreResourceGroupManager.h>
 #include <OgreRoot.h>
 #include <OgreSceneManager.h>
 #include <OgreSceneNode.h>
+#include <OgreTechnique.h>
 #include <OgreViewport.h>
 
 #include <SDL.h>
@@ -558,6 +563,7 @@ int Run3App::run() {
         ui_->update(static_cast<float>(frame.elapsed.count()));
         ui_->renderComputerSurface();
       }
+      updatePhysicsDebugDraw();
       if (lighting_) lighting_->update(static_cast<double>(renderedFrames_) / 60.0);
       if (!getRoot()->renderOneFrame(
               static_cast<Ogre::Real>(frame.elapsed.count()))) {
@@ -772,11 +778,14 @@ void Run3App::setup() {
   updateAspectRatio();
   lighting_ = std::make_unique<rendering::OgreLighting>(
       *sceneManager_, *camera_, *viewport, options_.lighting);
+  initialisePhysicsDebugDraw();
   const fs::path compositorAssets =
       (options_.paths.executableDir() / ".." / "share" / "run3" / "Media" /
        "LegacyCompositors")
           .lexically_normal();
   lighting_->configureLegacyCompositors(options_.paths.contentRoot(),
+                                        options_.paths.contentPath(
+                                            "run3/shaders"),
                                         compositorAssets,
                                         options_.paths.cacheDir() /
                                             "legacy-compositors",
@@ -1060,6 +1069,86 @@ void Run3App::updateAspectRatio() {
                           static_cast<Ogre::Real>(getRenderWindow()->getHeight()));
 }
 
+void Run3App::initialisePhysicsDebugDraw() {
+  constexpr const char *materialName = "Run3/BulletBounds";
+  auto &materials = Ogre::MaterialManager::getSingleton();
+  Ogre::MaterialPtr material = materials.getByName(
+      materialName, Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
+  if (!material) {
+    material = materials.create(
+        materialName, Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
+    material->removeAllTechniques();
+    Ogre::Pass *sourcePass = material->createTechnique()->createPass();
+    // RTSS reads vertex-colour tracking while it generates the technique.
+    sourcePass->setVertexColourTracking(Ogre::TVC_DIFFUSE);
+    rendering::MaterialDescription description;
+    description.name = materialName;
+    description.surface = rendering::Surface::Unlit;
+    description.lighting = false;
+    description.castShadows = false;
+    description.receiveShadows = false;
+    rendering::OgreLighting::configureMaterial(
+        *material, description, options_.lighting);
+    // Debug bounds must remain visible when they coincide with or sit inside
+    // the rendered mesh. The legacy SceneNode bounding boxes behave the same
+    // way, and depth testing made the Bullet overlay appear entirely absent.
+    for (unsigned techniqueIndex = 0;
+         techniqueIndex < material->getNumTechniques(); ++techniqueIndex) {
+      Ogre::Technique *technique = material->getTechnique(techniqueIndex);
+      for (unsigned passIndex = 0; passIndex < technique->getNumPasses();
+           ++passIndex) {
+        Ogre::Pass *pass = technique->getPass(passIndex);
+        pass->setDepthCheckEnabled(false);
+        pass->setDepthWriteEnabled(false);
+      }
+    }
+    material->load();
+  }
+  physicsDebugObject_ =
+      sceneManager_->createManualObject("Run3BulletBoundsObject");
+  physicsDebugObject_->setDynamic(true);
+  physicsDebugObject_->setCastShadows(false);
+  // Authored compositors render the ordinary scene queues into intermediate
+  // textures and may replace their output. Submit physics diagnostics with
+  // Ogre's overlays so they are drawn after the compositor chain.
+  physicsDebugObject_->setRenderQueueGroup(Ogre::RENDER_QUEUE_OVERLAY);
+  physicsDebugNode_ = sceneManager_->getRootSceneNode()->createChildSceneNode(
+      "Run3BulletBoundsNode");
+  physicsDebugNode_->attachObject(physicsDebugObject_);
+}
+
+void Run3App::updatePhysicsDebugDraw() {
+  if (physicsDebugObject_ == nullptr) return;
+  physicsDebugObject_->clear();
+  if (!physicsDebug_ || physicsWorld_ == nullptr) return;
+  const auto lines = physicsWorld_->debugLines();
+  if (lines.empty()) return;
+
+  physicsDebugObject_->estimateVertexCount(
+      static_cast<Ogre::uint32>(lines.size() * 2));
+  physicsDebugObject_->begin("Run3/BulletBounds",
+                             Ogre::RenderOperation::OT_LINE_LIST);
+  for (const physics::PhysicsDebugLine &line : lines) {
+    physicsDebugObject_->position(
+        static_cast<Ogre::Real>(line.from.x),
+        static_cast<Ogre::Real>(line.from.y),
+        static_cast<Ogre::Real>(line.from.z));
+    physicsDebugObject_->colour(
+        static_cast<Ogre::Real>(line.colour.x),
+        static_cast<Ogre::Real>(line.colour.y),
+        static_cast<Ogre::Real>(line.colour.z));
+    physicsDebugObject_->position(
+        static_cast<Ogre::Real>(line.to.x),
+        static_cast<Ogre::Real>(line.to.y),
+        static_cast<Ogre::Real>(line.to.z));
+    physicsDebugObject_->colour(
+        static_cast<Ogre::Real>(line.colour.x),
+        static_cast<Ogre::Real>(line.colour.y),
+        static_cast<Ogre::Real>(line.colour.z));
+  }
+  physicsDebugObject_->end();
+}
+
 void Run3App::handleInput(const std::vector<InputEvent> &events) {
   for (const InputEvent &event : events) {
     if (event.type == InputEventType::Quit) {
@@ -1148,6 +1237,18 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
                !event.repeated && event.key == Key::F3) {
       physicsDebug_ = !physicsDebug_;
       staticMap_->setDebugDraw(physicsDebug_);
+      updatePhysicsDebugDraw();
+      const std::size_t bodyCount =
+          physicsWorld_ != nullptr ? physicsWorld_->bodyCount() : 0;
+      const std::size_t lineCount =
+          physicsDebug_ && physicsWorld_ != nullptr
+              ? physicsWorld_->debugLines().size()
+              : 0;
+      Ogre::LogManager::getSingleton().logMessage(
+          std::string("Bullet bounds: ") +
+          (physicsDebug_ ? "enabled" : "disabled") +
+          ", bodies=" + std::to_string(bodyCount) +
+          ", lines=" + std::to_string(lineCount));
     } else if (player_ && event.type == InputEventType::KeyPressed &&
                !event.repeated &&
                event.key == options_.inputBindings.key(InputAction::Use)) {

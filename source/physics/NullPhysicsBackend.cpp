@@ -129,6 +129,7 @@ public:
     return {};
   }
   std::vector<ContactEvent> drainContactEvents() override { return {}; }
+  std::vector<PhysicsDebugLine> debugLines() const override { return {}; }
 
 private:
   NullBody &requireBody(BodyId id) {

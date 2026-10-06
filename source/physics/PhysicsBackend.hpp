@@ -44,6 +44,7 @@ public:
   [[nodiscard]] virtual std::vector<RaycastHit>
   raycastAll(const RaycastQuery &query) const = 0;
   [[nodiscard]] virtual std::vector<ContactEvent> drainContactEvents() = 0;
+  [[nodiscard]] virtual std::vector<PhysicsDebugLine> debugLines() const = 0;
 
 protected:
   [[nodiscard]] BodyHandle makeBodyHandle(BodyId id) {

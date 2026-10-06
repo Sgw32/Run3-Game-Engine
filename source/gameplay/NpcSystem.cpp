@@ -127,6 +127,7 @@ struct NpcSystem::Impl {
     double farFind{1000.0}, attackDistance{130.0}, headshotDistance{20.0};
     double movementMultiplier{1.0}, yShift{};
     bool stopAtDistance{}, animated{true}, ragdoll{}, spawned{};
+    bool autoPosition{};
     bool headshotEnabled{}, suspended{}, nearFired{};
     bool flashlight{};
     bool gravityEnabled{true};
@@ -167,6 +168,7 @@ struct NpcSystem::Impl {
       npc.publicState.health = number(*element, "health", 30.0);
       npc.stopAtDistance = boolean(*element, "stopAtDist", false);
       npc.animated = boolean(*element, "animated", true);
+      npc.autoPosition = boolean(*element, "autoPosition", false);
       npc.ragdoll = boolean(*element, "ragdoll", false);
       npc.gravityEnabled = boolean(*element, "applyGravity", true);
       npc.headshotEnabled = boolean(*element, "headshot", false);
@@ -297,6 +299,8 @@ void NpcSystem::start() {
     spec.scale = impl_->scales[i];
     spec.visualOffset = npc.visualOffset;
     spec.collisionScale = npc.collisionScale;
+    spec.autoPosition = npc.autoPosition;
+    spec.autoPositionAnimation = npc.publicState.animation;
     spec.visualRotationAxis = npc.visualRotationAxis;
     spec.visualRotationDegrees = npc.visualRotationDegrees;
     spec.visualYawDegrees = npc.yShift;

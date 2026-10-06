@@ -37,9 +37,11 @@
 #include <OgreScriptCompiler.h>
 #include <OgreShaderGenerator.h>
 #include <OgreSkeletonInstance.h>
+#include <OgreStringConverter.h>
 #include <OgreDataStream.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <fstream>
 #include <set>
@@ -108,6 +110,49 @@ physics::Vec3 fromOgre(const Ogre::Vector3 &value) {
 }
 physics::Quaternion fromOgre(const Ogre::Quaternion &value) {
   return {value.w, value.x, value.y, value.z};
+}
+
+Ogre::AnimationState *findIdleAnimation(Ogre::Entity &entity,
+                                        const std::string &preferred) {
+  if (!preferred.empty() && entity.hasAnimationState(preferred))
+    return entity.getAnimationState(preferred);
+  if (entity.hasAnimationState("Idle"))
+    return entity.getAnimationState("Idle");
+  if (entity.hasAnimationState("Idle1"))
+    return entity.getAnimationState("Idle1");
+  if (entity.getAllAnimationStates() == nullptr) return nullptr;
+
+  auto iterator = entity.getAllAnimationStates()->getAnimationStateIterator();
+  while (iterator.hasMoreElements()) {
+    Ogre::AnimationState *state = iterator.getNext();
+    std::string name = state->getAnimationName();
+    std::transform(name.begin(), name.end(), name.begin(),
+                   [](const unsigned char character) {
+                     return static_cast<char>(std::tolower(character));
+                   });
+    if (name.rfind("idle", 0) == 0) return state;
+  }
+  return nullptr;
+}
+
+std::optional<Ogre::AxisAlignedBox> idlePoseBounds(
+    Ogre::Entity &entity, const std::string &preferred) {
+  Ogre::AnimationState *idle = findIdleAnimation(entity, preferred);
+  if (idle == nullptr || !entity.hasSkeleton()) return std::nullopt;
+
+  if (entity.getAllAnimationStates() != nullptr) {
+    auto iterator = entity.getAllAnimationStates()->getAnimationStateIterator();
+    while (iterator.hasMoreElements()) iterator.getNext()->setEnabled(false);
+  }
+  idle->setTimePosition(0);
+  idle->setLoop(true);
+  idle->setEnabled(true);
+  entity.setUpdateBoundingBoxFromSkeleton(true);
+  entity._updateAnimation();
+  const Ogre::AxisAlignedBox bounds = entity.getBoundingBox();
+  entity.setUpdateBoundingBoxFromSkeleton(false);
+  if (bounds.isNull() || bounds.isInfinite()) return std::nullopt;
+  return bounds;
 }
 
 physics::BodyType bodyType(RuntimeEntityKind kind) {
@@ -494,8 +539,26 @@ public:
       (presentation.visualNode != nullptr ? presentation.visualNode
                                           : presentation.node)
           ->attachObject(presentation.entity);
-      const Ogre::Vector3 meshHalf = presentation.entity->getBoundingBox().getHalfSize();
+      const Ogre::AxisAlignedBox meshBounds =
+          presentation.entity->getBoundingBox();
+      const Ogre::Vector3 meshHalf = meshBounds.getHalfSize();
       if (spec.kind == RuntimeEntityKind::Npc) {
+        if (spec.autoPosition) {
+          if (const auto posedBounds = idlePoseBounds(
+                  *presentation.entity, spec.autoPositionAnimation)) {
+            const Ogre::Vector3 posedCentre = posedBounds->getCenter();
+            const Ogre::Vector3 offset =
+                -(presentation.visualNode->getOrientation() * posedCentre);
+            presentation.visualNode->setPosition(offset);
+            presentation.spec.visualOffset = fromOgre(offset);
+            log("NPC '" + spec.name + "' auto-positioned from Idle pose at " +
+                Ogre::StringConverter::toString(offset));
+          } else {
+            log("warning: NPC '" + spec.name +
+                "' requested autoPosition but has no usable Idle skeletal "
+                "animation; retaining physPosit");
+          }
+        }
         half = {std::abs(meshHalf.x * spec.scale.x * spec.collisionScale.x),
                 std::abs(meshHalf.y * spec.scale.y * spec.collisionScale.y),
                 std::abs(meshHalf.z * spec.scale.z * spec.collisionScale.z)};
@@ -504,8 +567,7 @@ public:
                 std::abs(meshHalf.y * spec.scale.y),
                 std::abs(meshHalf.z * spec.scale.z)};
       }
-      presentation.localCentre =
-          presentation.entity->getBoundingBox().getCenter() * toOgre(spec.scale);
+      presentation.localCentre = meshBounds.getCenter() * toOgre(spec.scale);
     }
     presentations.emplace(spec.handle.id.value, std::move(presentation));
     Presentation &stored = presentations.at(spec.handle.id.value);

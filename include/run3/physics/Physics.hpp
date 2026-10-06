@@ -207,6 +207,13 @@ struct RaycastHit {
   bool trigger{};
 };
 
+// Renderer-neutral line data derived from Bullet collision-shape AABBs.
+struct PhysicsDebugLine {
+  Vec3 from;
+  Vec3 to;
+  Vec3 colour{1.0, 1.0, 1.0};
+};
+
 namespace detail {
 class PhysicsBackend;
 }
@@ -309,6 +316,7 @@ public:
   [[nodiscard]] std::optional<RaycastHit>
   raycastClosest(const RaycastQuery &query) const;
   [[nodiscard]] std::vector<ContactEvent> drainContactEvents();
+  [[nodiscard]] std::vector<PhysicsDebugLine> debugLines() const;
 
 private:
   explicit PhysicsWorld(std::shared_ptr<detail::PhysicsBackend> backend);

@@ -384,6 +384,11 @@ std::vector<ContactEvent> PhysicsWorld::drainContactEvents() {
   return backend_->drainContactEvents();
 }
 
+std::vector<PhysicsDebugLine> PhysicsWorld::debugLines() const {
+  if (!backend_) return {};
+  return backend_->debugLines();
+}
+
 PhysicsWorld createBulletPhysicsWorld(const PhysicsConfig &config) {
   validateConfig(config);
   return PhysicsWorld{

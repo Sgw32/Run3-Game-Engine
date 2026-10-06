@@ -460,6 +460,44 @@ public:
     return result;
   }
 
+  std::vector<PhysicsDebugLine> debugLines() const override {
+    static constexpr unsigned edges[][2] = {
+        {0, 1}, {1, 3}, {3, 2}, {2, 0},
+        {4, 5}, {5, 7}, {7, 6}, {6, 4},
+        {0, 4}, {1, 5}, {2, 6}, {3, 7}};
+    std::vector<PhysicsDebugLine> result;
+    result.reserve(bodies_.size() * std::size(edges));
+    for (const auto &[id, record] : bodies_) {
+      static_cast<void>(id);
+      if (!record->enabled) continue;
+      btVector3 minimum;
+      btVector3 maximum;
+      record->shape->getAabb(record->body->getWorldTransform(), minimum,
+                             maximum);
+      const btVector3 corners[]{
+          {minimum.x(), minimum.y(), minimum.z()},
+          {maximum.x(), minimum.y(), minimum.z()},
+          {minimum.x(), maximum.y(), minimum.z()},
+          {maximum.x(), maximum.y(), minimum.z()},
+          {minimum.x(), minimum.y(), maximum.z()},
+          {maximum.x(), minimum.y(), maximum.z()},
+          {minimum.x(), maximum.y(), maximum.z()},
+          {maximum.x(), maximum.y(), maximum.z()}};
+      const Vec3 colour = record->trigger
+                              ? Vec3{1.0, 0.8, 0.0}
+                              : record->body->isKinematicObject()
+                                    ? Vec3{0.8, 0.4, 1.0}
+                                    : record->body->isStaticObject()
+                                          ? Vec3{0.35, 0.75, 1.0}
+                                          : Vec3{0.3, 1.0, 0.35};
+      for (const auto &edge : edges) {
+        result.push_back({fromBullet(corners[edge[0]], units_),
+                          fromBullet(corners[edge[1]], units_), colour});
+      }
+    }
+    return result;
+  }
+
 private:
   std::unique_ptr<btCollisionShape>
   makeShape(const Shape &shape, std::unique_ptr<btTriangleMesh> &triangleMesh) {

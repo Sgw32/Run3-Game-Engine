@@ -232,11 +232,12 @@ OgreLighting::~OgreLighting() = default;
 
 void OgreLighting::configureLegacyCompositors(
     const std::filesystem::path &contentRoot,
+    const std::filesystem::path &shaderRoot,
     const std::filesystem::path &supportAssets,
     const std::filesystem::path &programCache,
     const std::string_view textureQuality) {
-  impl_->compositorEffects->configure(contentRoot, supportAssets, programCache,
-                                      textureQuality);
+  impl_->compositorEffects->configure(contentRoot, shaderRoot, supportAssets,
+                                      programCache, textureQuality);
 }
 
 void OgreLighting::configureMaterial(Ogre::Material &material,

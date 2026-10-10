@@ -34,6 +34,7 @@ std::size_t count(std::string_view value, char character) {
 }
 
 struct SourceMaterial {
+  enum class Blend { Alpha, Additive };
   std::string parent;
   std::string aliasTexture;
   std::string directTexture;
@@ -46,6 +47,7 @@ struct SourceMaterial {
   std::vector<rendering::TextureWaveAnimation> waveAnimations;
   std::optional<bool> lighting;
   bool transparent{};
+  std::optional<Blend> blend;
   bool doubleSided{};
   std::string normal, specularMap, ao, metalRoughness;
   std::optional<std::array<float, 4>> diffuse;
@@ -55,6 +57,7 @@ struct SourceMaterial {
   std::optional<float> alphaCutoff;
   unsigned fixedLightCount{};
   unsigned techniques{};
+  unsigned passes{};
   bool oncePerLight{};
   std::string reflection;
   rendering::ReflectionMapping reflectionMapping{rendering::ReflectionMapping::None};
@@ -175,6 +178,8 @@ struct LegacyMaterialCatalog::Impl {
         }
       } else if (keyword == "technique") {
         ++active->techniques;
+      } else if (keyword == "pass" && active->techniques <= 1) {
+        ++active->passes;
       } else if (keyword == "iteration" && active->techniques <= 1) {
         std::string mode; tokens >> mode;
         active->oncePerLight = mode == "once_per_light";
@@ -333,7 +338,14 @@ struct LegacyMaterialCatalog::Impl {
         // Ordinary opaque Run3 materials use an additive second pass for
         // per-light accumulation. That does not make the whole material
         // transparent and must not disable compatibility-material depth writes.
-        active->transparent = active->transparent || mode == "alpha_blend";
+        if (mode == "alpha_blend") {
+          active->blend = SourceMaterial::Blend::Alpha;
+          active->transparent = true;
+        } else if (mode == "add" && active->techniques <= 1 &&
+                   active->passes <= 1) {
+          active->blend = SourceMaterial::Blend::Additive;
+          active->transparent = true;
+        }
       } else if (keyword == "lighting") {
         std::string value;
         tokens >> value;
@@ -455,7 +467,14 @@ struct LegacyMaterialCatalog::Impl {
       surface.surface = rendering::Surface::Cutout;
       surface.alphaCutoff = *input.alphaCutoff;
     }
-    if (result.transparent && !input.alphaCutoff) surface.surface = rendering::Surface::Transparent;
+    if (!input.alphaCutoff) {
+      if (input.blend == SourceMaterial::Blend::Additive ||
+          (!input.blend && surface.surface == rendering::Surface::Additive)) {
+        surface.surface = rendering::Surface::Additive;
+      } else if (result.transparent) {
+        surface.surface = rendering::Surface::Transparent;
+      }
+    }
     surface.lighting = result.lighting;
     visiting.erase(found->first);
     return result;

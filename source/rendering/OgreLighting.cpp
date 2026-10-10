@@ -261,9 +261,18 @@ void OgreLighting::configureMaterial(Ogre::Material &material,
   pass->setMaxSimultaneousLights(static_cast<unsigned short>(
       std::min(description.lightLimit, 6U)));
   pass->setDepthCheckEnabled(true);
-  pass->setDepthWriteEnabled(description.surface != Surface::Transparent);
+  pass->setDepthWriteEnabled(description.surface != Surface::Transparent &&
+                             description.surface != Surface::Additive);
   if (description.surface == Surface::Transparent)
     pass->setSceneBlending(Ogre::SBT_TRANSPARENT_ALPHA);
+  if (description.surface == Surface::Additive) {
+    // Add colour exactly as legacy `scene_blend add` did, but retain the
+    // destination alpha of the compositor render target. Accumulating alpha
+    // here makes the billboard rectangle opaque to later fullscreen passes.
+    pass->setSeparateSceneBlending(Ogre::SBF_ONE, Ogre::SBF_ONE,
+                                   Ogre::SBF_ZERO, Ogre::SBF_ONE);
+    pass->setSeparateSceneBlendingOperation(Ogre::SBO_ADD, Ogre::SBO_ADD);
+  }
   if (description.surface == Surface::Cutout)
     pass->setAlphaRejectSettings(Ogre::CMPF_GREATER_EQUAL,
                                 static_cast<unsigned char>(description.alphaCutoff * 255));
@@ -437,7 +446,9 @@ void OgreLighting::createLab() {
     }
     configureMaterial(*material, description, s.settings,tangents);
     entity->setMaterial(material);
-    entity->setCastShadows(description.castShadows && description.surface != Surface::Transparent);
+    entity->setCastShadows(description.castShadows &&
+                           description.surface != Surface::Transparent &&
+                           description.surface != Surface::Additive);
     return node;
   };
   for(const auto *name:{"Checker","Normal","Specular","MR","AO","Cutout"}) {

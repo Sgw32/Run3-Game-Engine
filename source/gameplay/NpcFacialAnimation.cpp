@@ -73,6 +73,9 @@ loadFacialAnimationDefinition(const std::filesystem::path &path) {
   if (const std::string *subtitle =
           document.root.attribute("subtitle_text"))
     result.subtitle = *subtitle;
+  else if (const std::string *legacySubtitle =
+               document.root.attribute("subtitle_text2"))
+    result.subtitle = *legacySubtitle;
   result.patched = boolean(document.root, "patched", false, path);
 
   for (const content::XmlNode &node : document.root.children) {

@@ -118,6 +118,28 @@ physics::Quaternion fromOgre(const Ogre::Quaternion &value) {
   return {value.w, value.x, value.y, value.z};
 }
 
+int legacyFacialPoseFromName(std::string name) {
+  std::transform(name.begin(), name.end(), name.begin(),
+                 [](const unsigned char character) {
+                   return static_cast<char>(std::tolower(character));
+                 });
+  name.erase(std::remove_if(name.begin(), name.end(),
+                            [](const char character) {
+                              return character == '_' || character == '-';
+                            }),
+             name.end());
+  if (name == "sad") return 0;
+  if (name == "angry") return 1;
+  if (name == "lettera") return 2;
+  if (name == "lettere") return 3;
+  if (name == "lettero") return 4;
+  if (name == "letteru") return 5;
+  if (name == "letteri") return 6;
+  if (name == "lettersogl1" || name == "lettersogl01") return 7;
+  if (name == "lettersogl2" || name == "lettersogl02") return 8;
+  return -1;
+}
+
 Ogre::AnimationState *findBoundsAnimation(Ogre::Entity &entity,
                                           const std::string &preferred) {
   if (!preferred.empty() && entity.hasAnimationState(preferred))
@@ -281,14 +303,19 @@ public:
   };
   struct FacialPresentation {
     FacialAnimationDefinition definition;
+    std::string ownerName;
     physics::Vec3 position;
     Ogre::MeshPtr mesh;
+    Ogre::Entity *entity{};
     std::string animationName;
     Ogre::AnimationState *state{};
     std::unordered_map<unsigned short, Ogre::VertexPoseKeyFrame *> keyframes;
+    std::unordered_map<int, std::vector<unsigned short>> namedPoses;
     double leadInElapsed{};
+    double nextProgressLog{};
     bool voiceStarted{};
     bool active{};
+    bool softwareAnimationRequested{};
   };
 
   Impl(const AppPaths &appPaths, Ogre::SceneManager &manager,
@@ -480,6 +507,34 @@ public:
     }
   }
 
+  bool setNamedBodyFrozen(const std::string_view name, const bool frozen) {
+    if (staticMap->setNamedObjectFrozen(name, frozen)) return true;
+    const auto named = names.find(std::string(name));
+    if (named != names.end()) {
+      Presentation &presentation = presentations.at(named->second);
+      if (presentation.physicsEntity) {
+        try {
+          dynamicPhysics.setEntityFrozen(*presentation.physicsEntity, frozen);
+          return true;
+        } catch (const std::invalid_argument &) {
+        }
+      }
+    }
+    for (auto &[id, presentation] : presentations) {
+      static_cast<void>(id);
+      for (Presentation::Part &part : presentation.parts) {
+        if (part.spec.name != name || !part.physicsEntity) continue;
+        try {
+          dynamicPhysics.setEntityFrozen(*part.physicsEntity, frozen);
+          return true;
+        } catch (const std::invalid_argument &) {
+          return false;
+        }
+      }
+    }
+    return false;
+  }
+
   void createPartPhysics(Presentation &owner, Presentation::Part &part) {
     if (!part.spec.collision || part.entity == nullptr || part.node == nullptr)
       return;
@@ -532,6 +587,7 @@ public:
           std::to_string(particleSequence++) + "/" + spec.name;
       Ogre::ParticleSystem *system = sceneManager->createParticleSystem(
           objectName, spec.templateName);
+      staticMap->prepareParticleSystem(*system);
       Ogre::SceneNode *node = parent.createChildSceneNode(
           objectName + "/Node", toOgre(spec.position));
       node->setScale(toOgre(spec.scale));
@@ -635,9 +691,13 @@ public:
                 -(presentation.visualNode->getOrientation() * posedCentre);
             presentation.visualNode->setPosition(offset);
             presentation.spec.visualOffset = fromOgre(offset);
-            half = {std::abs(posedHalf.x * spec.scale.x),
-                    std::abs(posedHalf.y * spec.scale.y),
-                    std::abs(posedHalf.z * spec.scale.z)};
+            half = {
+                std::abs(posedHalf.x * spec.scale.x *
+                         spec.autoPositionCorrection.x),
+                std::abs(posedHalf.y * spec.scale.y *
+                         spec.autoPositionCorrection.y),
+                std::abs(posedHalf.z * spec.scale.z *
+                         spec.autoPositionCorrection.z)};
             fittedFromAnimation = true;
             log("NPC '" + spec.name +
                 "' auto-fitted from walking pose: offset " +
@@ -1182,6 +1242,10 @@ public:
       facial.state->setEnabled(false);
       facial.state->getParent()->_notifyDirty();
     }
+    if (facial.softwareAnimationRequested && facial.entity != nullptr) {
+      facial.entity->removeSoftwareAnimationRequest(false);
+      facial.softwareAnimationRequested = false;
+    }
   }
 
   FacialPresentation &facialRig(Presentation &owner) {
@@ -1192,7 +1256,9 @@ public:
       throw std::invalid_argument("facial animation owner is not a presented NPC");
 
     FacialPresentation facial;
+    facial.ownerName = owner.spec.name;
     facial.mesh = owner.entity->getMesh();
+    facial.entity = owner.entity;
     facial.animationName = std::string(facialAnimationPrefix) +
                            std::to_string(id) + "/" +
                            std::to_string(owner.spec.handle.generation) + "/" +
@@ -1203,6 +1269,11 @@ public:
           facial.mesh->createAnimation(facial.animationName, 1.0F);
       for (std::size_t index = 0; index < poses.size(); ++index) {
         const unsigned short target = poses[index]->getTarget();
+        const int legacyIndex =
+            legacyFacialPoseFromName(poses[index]->getName());
+        if (legacyIndex >= 0)
+          facial.namedPoses[legacyIndex].push_back(
+              static_cast<unsigned short>(index));
         auto found = facial.keyframes.find(target);
         if (found == facial.keyframes.end()) {
           Ogre::VertexAnimationTrack *track = animation->createVertexTrack(
@@ -1218,6 +1289,11 @@ public:
       facial.state = owner.entity->getAnimationState(facial.animationName);
       facial.state->setLoop(true);
       facial.state->setTimePosition(0.0F);
+      log("facial rig ready for NPC '" + owner.spec.name + "': mesh '" +
+          facial.mesh->getName() + "', poses=" +
+          std::to_string(poses.size()) + ", pose targets=" +
+          std::to_string(facial.keyframes.size()) + ", named phoneme poses=" +
+          std::to_string(facial.namedPoses.size()));
     } else {
       log("warning: NPC '" + owner.spec.name +
           "' mesh has no vertex poses for facial animation");
@@ -1240,6 +1316,18 @@ public:
     const std::size_t submeshes =
         std::max<std::size_t>(1, facial.mesh->getNumSubMeshes());
     for (const FacialPoseInfluence &influence : sample.influences) {
+      const auto named = facial.namedPoses.find(influence.poseIndex);
+      if (named != facial.namedPoses.end()) {
+        for (const unsigned short pose : named->second) {
+          if (pose >= facial.mesh->getPoseList().size()) continue;
+          const unsigned short target =
+              facial.mesh->getPoseList()[pose]->getTarget();
+          const auto keyframe = facial.keyframes.find(target);
+          if (keyframe != facial.keyframes.end())
+            keyframe->second->updatePoseReference(pose, influence.weight);
+        }
+        continue;
+      }
       if (facial.definition.patched) {
         for (std::size_t ordinal = 0; ordinal < submeshes; ++ordinal) {
           const std::size_t pose =
@@ -1294,6 +1382,8 @@ public:
                                "' failed: " + audio->lastError());
     voices.insert_or_assign(owner, std::move(sound));
     facial.voiceStarted = true;
+    log("facial voice started for NPC '" + facial.ownerName + "': '" +
+        options.file.generic_string() + "'");
   }
 
   void playFacial(const PlayRuntimeFacial &command) {
@@ -1306,8 +1396,25 @@ public:
     facial.definition = std::move(definition);
     facial.position = command.position;
     facial.leadInElapsed = 0.0;
+    facial.nextProgressLog = 0.0;
     facial.voiceStarted = false;
     facial.active = true;
+    if (facial.state != nullptr && facial.entity != nullptr) {
+      // RTSS skeletal programs do not advertise pose-animation inputs. Force
+      // Ogre's software vertex-animation path while speaking so the facial
+      // pose is applied before the ordinary skeletal skinning stage.
+      facial.entity->addSoftwareAnimationRequest(false);
+      facial.softwareAnimationRequested = true;
+    }
+    log("facial animation started for NPC '" + owner.spec.name + "': '" +
+        facial.definition.source.generic_string() + "', phonemes=" +
+        std::to_string(facial.definition.phonemes.size()) +
+        ", duration=" +
+        Ogre::StringConverter::toString(
+            static_cast<Ogre::Real>(facial.definition.durationSeconds())) +
+        "s, patched=" + (facial.definition.patched ? "true" : "false") +
+        (facial.state == nullptr ? ", visual poses unavailable" :
+                                   ", software pose blending enabled"));
     applyFacialPose(facial,
                     sampleFacialAnimation(facial.definition,
                                           -facialAnimationLeadInSeconds));
@@ -1335,6 +1442,8 @@ public:
         if (voice == voices.end()) {
           resetFacialPose(facial);
           facial.active = false;
+          log("facial animation stopped for NPC '" + facial.ownerName +
+              "': voice handle missing");
           continue;
         }
         soundSecond = audio->playbackSeconds(voice->second);
@@ -1342,16 +1451,37 @@ public:
             soundSecond < facial.definition.durationSeconds()) {
           resetFacialPose(facial);
           facial.active = false;
+          log("facial animation stopped early for NPC '" +
+              facial.ownerName + "': voice playback stopped at " +
+              Ogre::StringConverter::toString(
+                  static_cast<Ogre::Real>(soundSecond)) + "s");
           continue;
         }
       }
       const FacialPoseSample sample =
           sampleFacialAnimation(facial.definition, soundSecond);
       applyFacialPose(facial, sample);
+      if (sample.active && soundSecond >= facial.nextProgressLog) {
+        std::string influences;
+        for (const FacialPoseInfluence &influence : sample.influences) {
+          if (!influences.empty()) influences += ", ";
+          influences += std::to_string(influence.poseIndex) + "=" +
+              Ogre::StringConverter::toString(
+                  static_cast<Ogre::Real>(influence.weight));
+        }
+        log("facial animation NPC '" + facial.ownerName + "' at " +
+            Ogre::StringConverter::toString(
+                static_cast<Ogre::Real>(soundSecond)) +
+            "s: pose weights [" + influences + "]");
+        facial.nextProgressLog = soundSecond + 0.5;
+      }
       if (!sample.active && facial.voiceStarted &&
           soundSecond > facial.definition.durationSeconds()) {
         resetFacialPose(facial);
         facial.active = false;
+        log("facial animation completed for NPC '" + facial.ownerName +
+            "' at " + Ogre::StringConverter::toString(
+                static_cast<Ogre::Real>(soundSecond)) + "s");
       }
     }
   }
@@ -1495,7 +1625,11 @@ void OgreSequenceServices::updateAudio(float seconds) {
       auto iterator = animationStates->getAnimationStateIterator();
       while (iterator.hasMoreElements()) {
         Ogre::AnimationState *state = iterator.getNext();
-        if (state->getEnabled())
+        // Facial pose animations are sampled explicitly by updateFacials().
+        // Advancing their synthetic timeline here can make Ogre wrap away
+        // from the pose keyframe while an NPC is speaking.
+        if (state->getEnabled() &&
+            state->getAnimationName().rfind(facialAnimationPrefix, 0) != 0)
           state->addTime(static_cast<Ogre::Real>(
               presentation.pendingAnimationSeconds));
       }
@@ -1830,6 +1964,18 @@ void OgreSequenceServices::submit(const GameCommand &command) {
             impl_->dynamicPhysics.setEntityGravityEnabled(
                 *presentation.physicsEntity, value.enabled);
           },
+          [this](const SetRuntimeBodyFrozen &value) {
+            if (!impl_->setNamedBodyFrozen(value.name, value.frozen)) {
+              impl_->log("warning: " +
+                         std::string(value.frozen ? "freezeBod" :
+                                                    "unfreezeBod") +
+                         " target '" + value.name +
+                         "' has no dynamic physics body");
+              return;
+            }
+            impl_->log("body '" + value.name + "' " +
+                       (value.frozen ? "frozen" : "unfrozen"));
+          },
           [this](const DeferredLegacyCommand &value) {
             if (impl_->reportedDeferred.insert(value.name).second) {
               impl_->log("typed command deferred to a later porting step: " +
@@ -1940,6 +2086,11 @@ OgreSequenceServices::settleRuntimeNpc(EntityHandle handle) {
   settled.position.y = hit->point.y + entry.collisionHalfExtents.y;
   impl_->setTransform(SetRuntimeTransform{handle, settled});
   return settled;
+}
+
+bool OgreSequenceServices::runtimeFacialActive(EntityHandle handle) const {
+  const auto found = impl_->facials.find(handle.id.value);
+  return found != impl_->facials.end() && found->second.active;
 }
 
 double OgreSequenceServices::runtimeFovDegrees() const {

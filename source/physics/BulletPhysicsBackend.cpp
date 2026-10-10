@@ -111,6 +111,10 @@ struct BodyRecord {
   CollisionMask mask{collisionMask(CollisionGroup::All)};
   bool trigger{};
   bool enabled{true};
+  bool dynamic{};
+  bool frozen{};
+  btScalar dynamicMass{};
+  btVector3 dynamicInertia{0, 0, 0};
   Transform previous;
   Transform current;
   std::unique_ptr<btTriangleMesh> triangleMesh;
@@ -200,6 +204,9 @@ public:
     if (mass > btScalar(0)) {
       record->shape->calculateLocalInertia(mass, inertia);
     }
+    record->dynamic = description.motion == BodyMotion::Dynamic;
+    record->dynamicMass = mass;
+    record->dynamicInertia = inertia;
     btRigidBody::btRigidBodyConstructionInfo construction(
         mass, nullptr, record->shape.get(), inertia);
     record->body = std::make_unique<btRigidBody>(construction);
@@ -382,6 +389,37 @@ public:
       record.body->clearForces();
     }
     record.body->activate(true);
+  }
+
+  void setFrozen(BodyId id, bool frozen) override {
+    BodyRecord &record = requireBody(id);
+    if (!record.dynamic)
+      throw std::invalid_argument("operation requires a dynamic body");
+    if (record.frozen == frozen) return;
+    int flags = record.body->getCollisionFlags();
+    if (frozen) {
+      record.body->setLinearVelocity({0, 0, 0});
+      record.body->setAngularVelocity({0, 0, 0});
+      record.body->clearForces();
+      // A legacy-frozen body must remain a solid collider. Converting it to a
+      // zero-mass kinematic body stops integration while keeping it in the
+      // broadphase and contact solver; DISABLE_SIMULATION would not do that.
+      record.body->setMassProps(0, {0, 0, 0});
+      flags |= btCollisionObject::CF_KINEMATIC_OBJECT;
+      record.body->setCollisionFlags(flags);
+      record.body->updateInertiaTensor();
+      record.body->forceActivationState(DISABLE_DEACTIVATION);
+    } else {
+      flags &= ~btCollisionObject::CF_KINEMATIC_OBJECT;
+      record.body->setCollisionFlags(flags);
+      record.body->setMassProps(record.dynamicMass, record.dynamicInertia);
+      record.body->updateInertiaTensor();
+      record.body->forceActivationState(ACTIVE_TAG);
+      record.body->setDeactivationTime(0);
+      record.body->activate(true);
+    }
+    record.frozen = frozen;
+    world_->updateSingleAabb(record.body.get());
   }
 
   void applyCentralForce(BodyId id, Vec3 force) override {

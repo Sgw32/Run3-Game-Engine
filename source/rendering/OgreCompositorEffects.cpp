@@ -845,7 +845,20 @@ public:
                     const std::string_view text) {
     if (!configured)
       throw std::runtime_error("legacy compositor catalogue is not configured");
-    const float value = finiteFloat(text);
+    float value{};
+    try {
+      value = finiteFloat(text);
+    } catch (const std::invalid_argument &error) {
+      // Legacy scripts occasionally pass an empty/malformed value while an
+      // effect is being switched. Keep the previous uniform value and allow
+      // the map script to continue instead of turning presentation data into
+      // a sequence-fatal error.
+      Ogre::LogManager::getSingleton().logMessage(
+          "Legacy compositor warning: " + std::string(error.what()) +
+          " for material '" + std::string(requestedMaterial) +
+          "', parameter '" + std::string(parameter) + "'; ignored");
+      return;
+    }
     const std::string materialName(requestedMaterial);
     Ogre::MaterialPtr material = Ogre::MaterialManager::getSingleton().getByName(
         materialName, resourceGroup);

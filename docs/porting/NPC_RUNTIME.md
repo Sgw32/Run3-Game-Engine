@@ -88,7 +88,9 @@ authored station timing control without reviving `NPCManager`.
   `physPosit` and `physSize` retain their legacy manual meanings when
   `autoPosition` is false. The opt-in `autoPosition="true"` mode replaces both
   values with an automatic walking-pose body fit; authored visual rotation is
-  included in the center and extent calculation.
+  included in the center and extent calculation. A positive
+  `<physAutoCorrection x="..." y="..." z="..."/>` child applies a final
+  per-axis scale to that automatic body only.
 - Parent-relative NPC teleports multiply the authored local offset by the
   parent's derived scale before applying its orientation, matching Ogre scene
   child inheritance and the legacy `TELEPORT_PARENT_NPC` calculation. This is
@@ -97,9 +99,14 @@ authored station timing control without reviving `NPCManager`.
   adapter. Facial event 27 preserves the third-party XML contract and legacy
   numeric pose layout (`A/E/O/U/I`, two consonant groups, and neutral
   `L/M/P`). The Ogre boundary creates a per-NPC vertex-pose animation, blends
-  adjacent timed phonemes from the voice playback cursor, supports patched
-  multi-submesh meshes, and keeps skeletal body animation enabled alongside
-  the face. Authored subtitles use the map-scoped UI service. Replacing a line,
+  adjacent timed phonemes from the voice playback cursor, resolves named
+  `letterA/E/O/U/I/SOGL1/SOGL2` poses before using the numeric fallback, and
+  supports patched multi-submesh meshes. Facial playback requests Ogre's
+  software pose path alongside skeletal animation because RTSS skeletal
+  programs do not expose the old pose inputs. Navigation pauses for the line
+  and resumes afterward. Authored subtitles use the map-scoped UI service.
+  Facial rig, voice start, pose weights, early stop, and completion are logged.
+  Replacing a line,
   death, explicit destruction, and map unload stop/reset all pose and voice
   state. The legacy Ogre resource lookup quirk is limited to a definition-
   sibling basename fallback when an authored voice path is stale.
@@ -115,8 +122,7 @@ authored station timing control without reviving `NPCManager`.
 This is a tested Step 8D vertical slice, not a claim of complete 1:1 NPC
 presentation or combat. The legacy random animation timing, per-bone head/look
 tracking, animation cross-fade weights, detailed
-footstep/attack/random sound set, continuous airborne gravity/floor response
-beyond the tested initial settle, blood/gib
+  footstep/attack/random sound set, blood/gib
 effects, flashlight presentation, and attachment offsets need content-specific
 fixtures before parity can be claimed. Enemy line-of-sight/attack animation is
 currently a bounded distance policy. Ragdoll construction uses the existing

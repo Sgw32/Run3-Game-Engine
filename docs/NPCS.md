@@ -30,6 +30,10 @@ This document describes how NPCs are created and controlled in Run3, including:
 - `autoPosition="true"` ignores both manual `physPosit` and `physSize`, fits
   the body to the model's walking pose, and aligns that pose's center with the
   physical body origin. It defaults to `false`.
+- Optional child `<physAutoCorrection x="1" y="1" z="1"/>` scales the
+  automatically fitted collision half-extents per axis without changing the
+  rendered model. Every component must be positive; it has no effect when
+  `autoPosition` is false.
 
 ### Movement / behavior tuning
 - `velocity`

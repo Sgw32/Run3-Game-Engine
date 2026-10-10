@@ -510,6 +510,24 @@ TEST_CASE("Step 8C legacy Lua compositor bindings retain names and parameters",
   CHECK_FALSE(ssao.enabled);
 }
 
+TEST_CASE("Step 8C freezeBod bindings use typed physics commands",
+          "[step8c][lua][physics]") {
+  FixtureRuntime fixture;
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"physics", "freezeBod", {"parts01#0"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"physics", "unfreezeBod", {"parts01#0"}}));
+  REQUIRE(fixture.services.commands.size() == 2);
+  const auto &freeze = std::get<gameplay::SetRuntimeBodyFrozen>(
+      fixture.services.commands[0]);
+  const auto &unfreeze = std::get<gameplay::SetRuntimeBodyFrozen>(
+      fixture.services.commands[1]);
+  CHECK(freeze.name == "parts01#0");
+  CHECK(freeze.frozen);
+  CHECK(unfreeze.name == "parts01#0");
+  CHECK_FALSE(unfreeze.frozen);
+}
+
 TEST_CASE("Step 8C closed-door completion requires a real close transition",
           "[step8c][door][lua]") {
   FixtureRuntime fixture;

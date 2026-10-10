@@ -16,6 +16,7 @@ struct NullBody {
   bool sleeping{};
   bool sleepingAllowed{true};
   bool gravityEnabled{true};
+  bool frozen{};
   bool enabled{true};
 };
 
@@ -37,7 +38,7 @@ public:
                                  description.linearVelocity,
                                  description.motion, false,
                                  description.sleepingAllowed,
-                                 description.gravityEnabled, true});
+                                 description.gravityEnabled, false, true});
     return makeBodyHandle(id);
   }
 
@@ -105,6 +106,12 @@ public:
     auto &body = requireDynamicBody(id);
     body.gravityEnabled = enabled;
     if (!enabled) body.velocity = {};
+  }
+  void setFrozen(BodyId id, bool frozen) override {
+    auto &body = requireDynamicBody(id);
+    body.frozen = frozen;
+    body.sleeping = frozen;
+    if (frozen) body.velocity = {};
   }
   void applyCentralForce(BodyId id, Vec3) override {
     requireDynamicBody(id).sleeping = false;

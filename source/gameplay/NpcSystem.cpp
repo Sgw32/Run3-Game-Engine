@@ -121,6 +121,7 @@ struct NpcSystem::Impl {
     physics::Quaternion parentRotation;
     physics::Vec3 visualOffset{};
     physics::Vec3 collisionScale{1.0, 1.0, 1.0};
+    physics::Vec3 autoPositionCorrection{1.0, 1.0, 1.0};
     physics::Vec3 visualRotationAxis{0.0, 1.0, 0.0};
     double visualRotationDegrees{};
     double speed{1.0}, stopDistance{1.0}, renderDistance{10000.0};
@@ -129,6 +130,7 @@ struct NpcSystem::Impl {
     bool stopAtDistance{}, animated{true}, ragdoll{}, spawned{};
     bool autoPosition{};
     bool headshotEnabled{}, suspended{}, nearFired{};
+    bool facialPaused{};
     bool flashlight{};
     bool gravityEnabled{true};
     bool castShadows{true};
@@ -190,6 +192,9 @@ struct NpcSystem::Impl {
         npc.visualOffset = vector(*physPosition);
       if (const auto *physSize = element->firstChild("physSize"))
         npc.collisionScale = vector(*physSize, npc.collisionScale);
+      if (const auto *correction = element->firstChild("physAutoCorrection"))
+        npc.autoPositionCorrection =
+            vector(*correction, npc.autoPositionCorrection);
       if (const auto *axis = element->firstChild("axis"))
         npc.visualRotationAxis = vector(*axis, npc.visualRotationAxis);
       if (const auto *angle = element->firstChild("angle"))
@@ -198,6 +203,11 @@ struct NpcSystem::Impl {
           npc.collisionScale.z <= 0)
         throw std::runtime_error(origin(*element) +
                                  ": physSize must be positive");
+      if (npc.autoPositionCorrection.x <= 0 ||
+          npc.autoPositionCorrection.y <= 0 ||
+          npc.autoPositionCorrection.z <= 0)
+        throw std::runtime_error(origin(*element) +
+                                 ": physAutoCorrection must be positive");
       const auto handles = registry->findAll(npc.publicState.name);
       const auto found = std::find_if(handles.begin(), handles.end(),
           [this, element](EntityHandle handle) {
@@ -306,6 +316,7 @@ void NpcSystem::start() {
     spec.scale = impl_->scales[i];
     spec.visualOffset = npc.visualOffset;
     spec.collisionScale = npc.collisionScale;
+    spec.autoPositionCorrection = npc.autoPositionCorrection;
     spec.autoPosition = npc.autoPosition;
     spec.autoPositionAnimation = "Walk";
     spec.gravityEnabled = npc.gravityEnabled;
@@ -363,7 +374,25 @@ void NpcSystem::fixedUpdate(double seconds) {
       npc.nearFired = true;
       impl_->services->submit(RunRuntimeScript{npc.nearScript});
     }
+    const bool facialActive =
+        impl_->services->runtimeFacialActive(npc.publicState.handle);
+    if (facialActive != npc.facialPaused) {
+      npc.facialPaused = facialActive;
+      if (facialActive) {
+        impl_->setAnimation(npc, "Idle1");
+        impl_->services->submit(RuntimeLog{
+            "NPC '" + npc.publicState.name +
+            "' navigation paused for facial animation"});
+      } else {
+        if (npc.publicState.state == NpcState::Navigating)
+          impl_->setAnimation(npc, "Walk");
+        impl_->services->submit(RuntimeLog{
+            "NPC '" + npc.publicState.name +
+            "' navigation resumed after facial animation"});
+      }
+    }
     if (npc.publicState.npcClass == NpcClass::Enemy && !npc.suspended &&
+        !facialActive &&
         npc.publicState.state != NpcState::Dead &&
         ++npc.perceptionTick % 30 == 0) {
       const auto player = impl_->services->playerPosition();
@@ -393,6 +422,7 @@ void NpcSystem::fixedUpdate(double seconds) {
       }
       continue;
     }
+    if (facialActive) continue;
     if (npc.publicState.state != NpcState::Navigating) continue;
     if (npc.waypoint >= npc.path.size()) {
       npc.publicState.state = NpcState::Reached;

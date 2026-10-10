@@ -249,6 +249,15 @@ void DynamicPhysicsScene::setEntityGravityEnabled(PhysicsEntityId entity,
   implementation_->world->setGravityEnabled(record.bodies.front(), enabled);
 }
 
+void DynamicPhysicsScene::setEntityFrozen(PhysicsEntityId entity,
+                                          bool frozen) {
+  auto &record = implementation_->require(entity);
+  if (record.bodies.empty())
+    throw std::invalid_argument("entity has no physics body");
+  for (const auto &body : record.bodies)
+    implementation_->world->setFrozen(body, frozen);
+}
+
 void DynamicPhysicsScene::update(double seconds) {
   if (!std::isfinite(seconds) || seconds < 0.0) {
     throw std::invalid_argument("dynamic scene update must be non-negative");

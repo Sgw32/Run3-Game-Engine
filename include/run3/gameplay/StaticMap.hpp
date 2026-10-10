@@ -16,6 +16,7 @@
 namespace Ogre {
 class SceneManager;
 class Entity;
+class ParticleSystem;
 }
 
 namespace run3::gameplay {
@@ -91,6 +92,8 @@ public:
   [[nodiscard]] Ogre::Entity *namedObject(std::string_view name) const;
   [[nodiscard]] bool setNamedObjectPhysicsEnabled(std::string_view name,
                                                   bool enabled);
+  [[nodiscard]] bool setNamedObjectFrozen(std::string_view name, bool frozen);
+  void prepareParticleSystem(Ogre::ParticleSystem &system);
   [[nodiscard]] bool setNamedObjectMaterial(std::string_view name,
                                             std::string_view material);
   void applyCompatibleMaterials(Ogre::Entity &entity,

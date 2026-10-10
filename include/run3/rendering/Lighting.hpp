@@ -9,7 +9,7 @@ namespace run3::rendering {
 
 enum class LightingPipeline { LegacyForward, Deferred, Pbr, FastForward };
 enum class ShadowQuality { Off, Low, Medium, High, Ultra };
-enum class Surface { Opaque, Cutout, Transparent, Unlit };
+enum class Surface { Opaque, Cutout, Transparent, Additive, Unlit };
 enum class ColourSpace { Srgb, Linear };
 enum class ReflectionMapping { None, Spherical, Cube, CubeDirection };
 struct TextureSlot {

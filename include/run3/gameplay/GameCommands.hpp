@@ -57,6 +57,7 @@ struct RuntimeEntitySpec {
   // autoPosition replaces both with a body fitted to the walking pose.
   physics::Vec3 visualOffset{};
   physics::Vec3 collisionScale{1.0, 1.0, 1.0};
+  physics::Vec3 autoPositionCorrection{1.0, 1.0, 1.0};
   bool autoPosition{};
   std::string autoPositionAnimation;
   bool gravityEnabled{true};
@@ -210,6 +211,7 @@ struct SpawnRuntimeRagdoll {
 struct SetNpcUpdateInterval { double seconds{}; };
 struct TickRuntimeNpcPhysics { double seconds{}; };
 struct SetRuntimeNpcGravity { EntityHandle handle; bool enabled{true}; };
+struct SetRuntimeBodyFrozen { std::string name; bool frozen{true}; };
 struct DeferredLegacyCommand {
   std::string name;
   std::string detail;
@@ -242,6 +244,7 @@ using GameCommand =
                  SetNpcUpdateInterval,
                  TickRuntimeNpcPhysics,
                  SetRuntimeNpcGravity,
+                 SetRuntimeBodyFrozen,
                  DeferredLegacyCommand, RuntimeLog>;
 
 class IGameServices {
@@ -259,6 +262,9 @@ public:
   runtimeScale(std::string_view) const { return {1.0, 1.0, 1.0}; }
   [[nodiscard]] virtual std::optional<physics::Transform>
   settleRuntimeNpc(EntityHandle) { return std::nullopt; }
+  [[nodiscard]] virtual bool runtimeFacialActive(EntityHandle) const {
+    return false;
+  }
   [[nodiscard]] virtual double runtimeFovDegrees() const { return 75.0; }
   // Cutscenes may use the real decoded music cursor as their presentation
   // clock. Services without audio retain the deterministic fixed-step clock.

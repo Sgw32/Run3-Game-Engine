@@ -78,6 +78,7 @@ public:
   void setEntityTransform(PhysicsEntityId entity,
                           const physics::Transform &transform);
   void setEntityGravityEnabled(PhysicsEntityId entity, bool enabled);
+  void setEntityFrozen(PhysicsEntityId entity, bool frozen);
   void update(double seconds);
   [[nodiscard]] std::vector<GameplayPhysicsEvent> processContactEvents(
       double projectileDamage = 25.0);

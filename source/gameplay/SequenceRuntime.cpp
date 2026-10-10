@@ -1716,6 +1716,9 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
           parseVectorText(call.arguments[3], "scale")});
     } else if (call.name == "deleteParticleSystem") {
       impl_->services->submit(DestroyRuntimeParticle{requireName()});
+    } else if (call.name == "freezeBod" || call.name == "unfreezeBod") {
+      impl_->services->submit(SetRuntimeBodyFrozen{
+          requireName(), call.name == "freezeBod"});
     } else if (call.name == "materialEntity") {
       if (call.arguments.size() != 2)
         throw std::invalid_argument("expected entity and material names");

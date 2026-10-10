@@ -110,6 +110,12 @@ TEST_CASE("Material inheritance preserves separate per-material light budgets") 
   static_cast<void>(resolveMaterial(unmappedGloss, {"glossless.png"}));
   CHECK(unmappedGloss.specular[0] == Catch::Approx(.08F));
   CHECK(unmappedGloss.shininess == Catch::Approx(64.0F));
+  const auto additive = catalog.find("AdditiveParticle");
+  REQUIRE(additive);
+  CHECK(additive->surface.surface == Surface::Additive);
+  const auto multipass = catalog.find("LitMultipass");
+  REQUIRE(multipass);
+  CHECK(multipass->surface.surface != Surface::Additive);
 }
 TEST_CASE("Derived overlay replaces core maps game and shaders with fallback") {
   const auto root=std::filesystem::path(RUN3_TEST_SOURCE_DIR)/"tests/fixtures/lighting";

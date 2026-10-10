@@ -131,6 +131,28 @@ TEST_CASE("Bullet gravity can be disabled and enabled per dynamic body") {
   CHECK_THAT(world.linearVelocity(actor).y, WithinAbs(0.0, 0.01));
 }
 
+TEST_CASE("Bullet dynamic bodies remain collidable while explicitly frozen") {
+  PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
+  BodyDesc description =
+      body(Shape::box({10.0, 10.0, 10.0}), BodyMotion::Dynamic,
+           {0.0, 500.0, 0.0}, 1.0);
+  auto actor = world.createBody(description);
+
+  world.setFrozen(actor, true);
+  auto falling = world.createBody(
+      body(Shape::box({10.0, 10.0, 10.0}), BodyMotion::Dynamic,
+           {0.0, 550.0, 0.0}, 1.0));
+  advance(world, 0.25);
+  CHECK_THAT(world.transform(actor).position.y, WithinAbs(500.0, 0.01));
+  CHECK(world.isEnabled(actor));
+  advance(world, 1.0);
+  CHECK(world.transform(falling).position.y >= 519.0);
+
+  world.setFrozen(actor, false);
+  advance(world, 0.25);
+  CHECK(world.transform(actor).position.y < 490.0);
+}
+
 TEST_CASE("a falling box settles on a static box floor") {
   PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
   auto floor = world.createBody(

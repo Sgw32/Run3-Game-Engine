@@ -328,6 +328,10 @@ void PhysicsWorld::setGravityEnabled(const BodyHandle &body, bool enabled) {
   backend_->setGravityEnabled(checkedBody(body), enabled);
 }
 
+void PhysicsWorld::setFrozen(const BodyHandle &body, bool frozen) {
+  backend_->setFrozen(checkedBody(body), frozen);
+}
+
 void PhysicsWorld::applyCentralForce(const BodyHandle &body, Vec3 force) {
   backend_->applyCentralForce(checkedBody(body), force);
 }

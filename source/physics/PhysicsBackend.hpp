@@ -33,6 +33,7 @@ public:
   [[nodiscard]] virtual Vec3 linearVelocity(BodyId id) const = 0;
   virtual void setLinearVelocity(BodyId id, Vec3 velocity) = 0;
   virtual void setGravityEnabled(BodyId id, bool enabled) = 0;
+  virtual void setFrozen(BodyId id, bool frozen) = 0;
   virtual void applyCentralForce(BodyId id, Vec3 force) = 0;
   virtual void applyCentralImpulse(BodyId id, Vec3 impulse) = 0;
   virtual void clearForces(BodyId id) = 0;

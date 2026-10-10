@@ -56,6 +56,10 @@ modify The Long Way assets.
   texture-quality particle scripts load after material aliases; authored map
   particles, nested train `<psys>` effects, dynamic create/delete/toggle,
   material changes, and animation dispatch use typed map-owned services.
+  Particle instances receive an unlit, depth-write-disabled compatibility
+  material that preserves authored alpha/additive blending and consumes
+  ParticleFX vertex colour/opacity. `freezeBod`/`unfreezeBod` are typed physics
+  commands: dynamic bodies remain collidable while integration is suspended.
 - Commands for current gameplay objects, teleport, existing map audio, ambient
   sound, music, effects, and existing sequence animations use typed services.
   NPC commands are routed to the map-owned Step 8D system. Commands owned by
@@ -75,9 +79,8 @@ is a bounded ambient-light control; Step 9B owns its final screen/lighting
 presentation. Buttons without a matching scene object use their Sequence mesh
 fallback and log the condition. Step 8E owns cinematic/computer behavior and
 Step 8D owns NPC behavior; their remaining presentation/parity limits are
-documented separately. Step 9 owns visual polish, including modern shader,
-compositor, HUD, and particle-material quality beyond the functional effects
-path present here.
+documented separately. Step 9 owns the remaining modern shader, compositor,
+and HUD polish.
 
 Stable-state tests cover entity state, delayed actions, timer phase, train
 internals, and player parenting. Fixture replay compares 30, 60, and 144

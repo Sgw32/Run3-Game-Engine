@@ -490,6 +490,7 @@ public:
       try {
         Ogre::ParticleSystem *system =
             sceneManager_->createParticleSystem(name->second, file->second);
+        prepareParticleSystem(*system);
         parent->attachObject(system);
         mapParticles_.push_back(system);
       } catch (const Ogre::Exception &error) {
@@ -1010,6 +1011,141 @@ public:
         std::to_string(scripts.size()) + " selected-quality scripts");
   }
 
+  void prepareParticleSystem(Ogre::ParticleSystem &system) {
+    const std::string sourceName = system.getMaterialName();
+    if (sourceName.empty()) return;
+    Ogre::MaterialPtr source = Ogre::MaterialManager::getSingleton().getByName(
+        sourceName, resourceGroup_);
+    if (!source)
+      source = Ogre::MaterialManager::getSingleton().getByName(sourceName);
+    if (!source) {
+      Ogre::LogManager::getSingleton().logMessage(
+          "Step 8C particle material missing: '" + sourceName + "'");
+      return;
+    }
+
+    const std::string materialName = "Run3/ParticleCompat/" +
+        std::to_string(particleMaterialSequence_++) + "/" + sourceName;
+    Ogre::MaterialPtr material =
+        source->clone(materialName, true, resourceGroup_);
+    auto *generator = Ogre::RTShader::ShaderGenerator::getSingletonPtr();
+    if (generator)
+      generator->removeAllShaderBasedTechniques(*material);
+
+    // Material::clone also copies an RTSS destination technique that may have
+    // already been generated for the source. That copied technique is not in
+    // ShaderGenerator's material table, so removeAllShaderBasedTechniques()
+    // cannot see it. The game viewport selects ShaderGeneratorDefaultScheme;
+    // leaving the stale copy here is what made additive black-key textures
+    // such as PE/explosion render as opaque black rectangles.
+    for (std::size_t techniqueIndex = material->getNumTechniques();
+         techniqueIndex-- > 0;) {
+      if (material->getTechnique(
+              static_cast<unsigned short>(techniqueIndex))->getSchemeName() !=
+          Ogre::MaterialManager::DEFAULT_SCHEME_NAME)
+        material->removeTechnique(static_cast<unsigned short>(techniqueIndex));
+    }
+
+    bool additiveBlend{};
+    for (unsigned techniqueIndex = 0;
+         techniqueIndex < material->getNumTechniques(); ++techniqueIndex) {
+      Ogre::Technique *technique = material->getTechnique(techniqueIndex);
+      if (technique->getSchemeName() !=
+          Ogre::MaterialManager::DEFAULT_SCHEME_NAME)
+        continue;
+      for (unsigned passIndex = 0; passIndex < technique->getNumPasses();
+           ++passIndex) {
+        Ogre::Pass *pass = technique->getPass(passIndex);
+        pass->setLightingEnabled(false);
+        pass->setDepthWriteEnabled(false);
+        // ParticleFX supplies colour and opacity per billboard vertex. The
+        // compatibility material must consume that alpha or fades become
+        // opaque rectangles even when the DDS itself has an alpha channel.
+        pass->setVertexColourTracking(Ogre::TVC_DIFFUSE);
+        if (pass->getSourceBlendFactor() == Ogre::SBF_ONE &&
+            pass->getDestBlendFactor() == Ogre::SBF_ONE) {
+          additiveBlend = true;
+          // Preserve the destination alpha channel while adding RGB. Legacy
+          // fixed-framebuffer rendering only cared about the colour result;
+          // adding particle alpha into the modern compositor RTT can turn the
+          // whole billboard quad into an opaque black rectangle in a later
+          // fullscreen pass.
+          pass->setSeparateSceneBlending(
+              Ogre::SBF_ONE, Ogre::SBF_ONE,
+              Ogre::SBF_ZERO, Ogre::SBF_ONE);
+          pass->setSeparateSceneBlendingOperation(
+              Ogre::SBO_ADD, Ogre::SBO_ADD);
+        } else if (pass->getSourceBlendFactor() == Ogre::SBF_ONE &&
+                   pass->getDestBlendFactor() == Ogre::SBF_ZERO) {
+          pass->setSceneBlending(Ogre::SBT_TRANSPARENT_ALPHA);
+        }
+      }
+    }
+    material->setTransparencyCastsShadows(false);
+    material->_notifyNeedsRecompile();
+    material->compile();
+
+    // Generate the active viewport technique from the corrected authored
+    // pass. Besides preserving scene_blend add/alpha_blend, RTSS now sees
+    // vertex-colour tracking while composing its shader, so ParticleFX colour
+    // and alpha affect both RGB intensity and opacity.
+    if (generator) {
+      if (!generator->createShaderBasedTechnique(
+              *material, Ogre::MaterialManager::DEFAULT_SCHEME_NAME,
+              Ogre::MSN_SHADERGEN)) {
+        Ogre::LogManager::getSingleton().logMessage(
+            "Step 8C particle RTSS technique could not be created for '" +
+            sourceName + "'; Ogre default-scheme fallback retained");
+      } else {
+        generator->validateMaterial(Ogre::MSN_SHADERGEN, *material);
+        Ogre::Technique *authored = nullptr;
+        for (unsigned index = 0; index < material->getNumTechniques(); ++index) {
+          Ogre::Technique *candidate = material->getTechnique(index);
+          if (candidate->getSchemeName() ==
+              Ogre::MaterialManager::DEFAULT_SCHEME_NAME) {
+            authored = candidate;
+            break;
+          }
+        }
+        if (authored != nullptr && authored->getNumPasses() != 0) {
+          for (unsigned index = 0; index < material->getNumTechniques();
+               ++index) {
+            Ogre::Technique *generated = material->getTechnique(index);
+            if (generated->getSchemeName() != Ogre::MSN_SHADERGEN) continue;
+            for (unsigned passIndex = 0;
+                 passIndex < generated->getNumPasses(); ++passIndex) {
+              Ogre::Pass *sourcePass = authored->getPass(
+                  static_cast<unsigned short>(std::min<std::size_t>(
+                      passIndex, authored->getNumPasses() - 1)));
+              Ogre::Pass *generatedPass = generated->getPass(passIndex);
+              generatedPass->setSeparateSceneBlending(
+                  sourcePass->getSourceBlendFactor(),
+                  sourcePass->getDestBlendFactor(),
+                  sourcePass->getSourceBlendFactorAlpha(),
+                  sourcePass->getDestBlendFactorAlpha());
+              generatedPass->setSeparateSceneBlendingOperation(
+                  sourcePass->getSceneBlendingOperation(),
+                  sourcePass->getSceneBlendingOperationAlpha());
+              generatedPass->setDepthWriteEnabled(false);
+            }
+          }
+        }
+      }
+    }
+    // Blend-state changes on generated passes happen after RTSS validation;
+    // rebuild Ogre's supported-technique/hash state before the first render.
+    material->_notifyNeedsRecompile();
+    material->compile();
+    material->load();
+    system.setMaterialName(materialName);
+    Ogre::LogManager::getSingleton().logMessage(
+        "Step 8C particle material '" + sourceName +
+        "' rebuilt from its authored " +
+        std::string(additiveBlend ? "additive RGB/preserved-alpha" :
+                                    "alpha") +
+        " blend pass as '" + materialName + "'");
+  }
+
   void unload() noexcept {
     if (environment_) environment_->clear();
     bodies_.clear();
@@ -1119,6 +1255,7 @@ public:
   std::unordered_set<const content::AuthoredElement *> activeRenderables_;
   EntityRegistry registry_;
   std::uint64_t sequence_{};
+  std::uint64_t particleMaterialSequence_{};
   physics::Vec3 spawn_{};
   StaticMapStats stats_;
   const Ogre::String resourceGroup_{"Run3Step6BContent"};
@@ -1206,6 +1343,28 @@ bool StaticMap::setNamedObjectPhysicsEnabled(std::string_view name,
     }
   }
   return false;
+}
+
+bool StaticMap::setNamedObjectFrozen(std::string_view name, bool frozen) {
+  Ogre::Entity *entity = namedObject(name);
+  if (entity == nullptr) return false;
+  Ogre::SceneNode *node = entity->getParentSceneNode();
+  if (node == nullptr) return false;
+  for (auto &binding : implementation_->bodies_) {
+    if (binding.node != node) continue;
+    try {
+      implementation_->world_->setFrozen(binding.body, frozen);
+      return true;
+    } catch (const std::invalid_argument &) {
+      // Static triangle-map sections have no meaningful freeze state.
+      continue;
+    }
+  }
+  return false;
+}
+
+void StaticMap::prepareParticleSystem(Ogre::ParticleSystem &system) {
+  implementation_->prepareParticleSystem(system);
 }
 
 bool StaticMap::setNamedObjectMaterial(std::string_view name,

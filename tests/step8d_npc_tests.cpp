@@ -41,6 +41,7 @@ struct Services final : gameplay::IGameServices {
   std::map<std::string, physics::Transform> transforms;
   std::map<std::string, physics::Vec3> scales;
   std::optional<physics::Transform> settledNpc;
+  bool facialActive{};
   std::size_t settleCalls{};
   std::vector<gameplay::GameCommand> commands;
   void submit(const gameplay::GameCommand &command) override {
@@ -63,6 +64,9 @@ struct Services final : gameplay::IGameServices {
   settleRuntimeNpc(gameplay::EntityHandle) override {
     ++settleCalls;
     return settledNpc;
+  }
+  bool runtimeFacialActive(gameplay::EntityHandle) const override {
+    return facialActive;
   }
   template <class T> std::size_t count() const {
     return static_cast<std::size_t>(std::count_if(commands.begin(), commands.end(),
@@ -127,6 +131,21 @@ TEST_CASE("Step 8D navigation preserves the Bullet-owned vertical position",
   CHECK(state->transform.position.x > 0.0);
 }
 
+TEST_CASE("Step 8D facial playback pauses and resumes NPC navigation",
+          "[step8d][npc][facial]") {
+  RuntimeFixture fixture;
+  fixture.npcs->dispatch({"guide", 10, "100 0 0", {}, false});
+  fixture.services.facialActive = true;
+  fixture.npcs->fixedUpdate();
+  const double pausedX = fixture.npcs->state("guide")->transform.position.x;
+  fixture.npcs->fixedUpdate();
+  CHECK(fixture.npcs->state("guide")->transform.position.x ==
+        Catch::Approx(pausedX));
+  fixture.services.facialActive = false;
+  fixture.npcs->fixedUpdate();
+  CHECK(fixture.npcs->state("guide")->transform.position.x > pausedX);
+}
+
 TEST_CASE("Step 8D constructs typed neutral and enemy NPCs", "[step8d][npc]") {
   RuntimeFixture fixture;
   REQUIRE(fixture.npcs->size() == 2);
@@ -148,6 +167,9 @@ TEST_CASE("Step 8D constructs typed neutral and enemy NPCs", "[step8d][npc]") {
   CHECK(spec.visualOffset.y == Catch::Approx(-8.0));
   CHECK(spec.collisionScale.x == Catch::Approx(0.3));
   CHECK(spec.collisionScale.y == Catch::Approx(0.7));
+  CHECK(spec.autoPositionCorrection.x == Catch::Approx(1.1));
+  CHECK(spec.autoPositionCorrection.y == Catch::Approx(0.9));
+  CHECK(spec.autoPositionCorrection.z == Catch::Approx(1.2));
   CHECK(spec.visualRotationAxis.y == Catch::Approx(1.0));
   CHECK(spec.visualRotationDegrees == Catch::Approx(15.0));
   CHECK(spec.castShadows);

@@ -223,7 +223,8 @@ nlohmann::json LightingPost::report() const {
 }
 void LightingPost::configureDeferred(Ogre::Material &material,Surface surface, bool lit, bool reflection) {
   auto &generator=Ogre::RTShader::ShaderGenerator::getSingleton();
-  const bool forward=!lit || reflection || surface==Surface::Transparent || surface==Surface::Unlit;
+  const bool forward=!lit || reflection || surface==Surface::Transparent ||
+                     surface==Surface::Additive || surface==Surface::Unlit;
   const char *emptyScheme=forward?gbuffer:transparent;
   const char *drawScheme=forward?transparent:gbuffer;
   if(!material.getTechnique(emptyScheme)) {

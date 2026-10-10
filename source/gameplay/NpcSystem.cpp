@@ -131,6 +131,7 @@ struct NpcSystem::Impl {
     bool headshotEnabled{}, suspended{}, nearFired{};
     bool flashlight{};
     bool gravityEnabled{true};
+    bool castShadows{true};
     std::uint64_t perceptionTick{}, attackTick{};
     std::vector<air3::PathNode> path;
     std::size_t waypoint{1};
@@ -171,6 +172,7 @@ struct NpcSystem::Impl {
       npc.autoPosition = boolean(*element, "autoPosition", false);
       npc.ragdoll = boolean(*element, "ragdoll", false);
       npc.gravityEnabled = boolean(*element, "applyGravity", true);
+      npc.castShadows = boolean(*element, "castShadows", true);
       npc.headshotEnabled = boolean(*element, "headshot", false);
       if (npc.speed < 0 || npc.stopDistance < 0 || npc.publicState.health <= 0)
         throw std::runtime_error(origin(*element) + ": negative movement or invalid health");
@@ -211,17 +213,21 @@ struct NpcSystem::Impl {
       scales.push_back(scale);
       records.push_back(std::move(npc));
     }
-    refresh();
+    markPublicStatesDirty();
   }
 
-  void refresh() {
+  void refreshPublicStates() const {
+    if (!publicStatesDirty) return;
     publicStates.clear();
-    for (auto &npc : records) {
-      npc.publicState.parent = npc.parent;
-      npc.publicState.gravityEnabled = npc.gravityEnabled;
-      publicStates.push_back(npc.publicState);
+    for (const auto &npc : records) {
+      NpcSnapshot snapshot = npc.publicState;
+      snapshot.parent = npc.parent;
+      snapshot.gravityEnabled = npc.gravityEnabled;
+      publicStates.push_back(std::move(snapshot));
     }
+    publicStatesDirty = false;
   }
+  void markPublicStatesDirty() noexcept { publicStatesDirty = true; }
   Record *find(std::string_view name) {
     auto it = std::find_if(records.begin(), records.end(), [name](const Record &record) {
       return record.publicState.name == name;
@@ -269,7 +275,8 @@ struct NpcSystem::Impl {
   air3::AirPathFind navigation;
   std::vector<Record> records;
   std::vector<physics::Vec3> scales;
-  std::vector<NpcSnapshot> publicStates;
+  mutable std::vector<NpcSnapshot> publicStates;
+  mutable bool publicStatesDirty{true};
   double updateInterval{};
   double updateAccumulator{};
   bool started{}, unloaded{};
@@ -300,22 +307,22 @@ void NpcSystem::start() {
     spec.visualOffset = npc.visualOffset;
     spec.collisionScale = npc.collisionScale;
     spec.autoPosition = npc.autoPosition;
-    spec.autoPositionAnimation = npc.publicState.animation;
+    spec.autoPositionAnimation = "Walk";
+    spec.gravityEnabled = npc.gravityEnabled;
     spec.visualRotationAxis = npc.visualRotationAxis;
     spec.visualRotationDegrees = npc.visualRotationDegrees;
     spec.visualYawDegrees = npc.yShift;
     spec.renderDistance = npc.renderDistance;
+    spec.castShadows = npc.castShadows;
     spec.handBone = npc.handBone;
-    // Ogre presentation derives the exact legacy box from the loaded mesh
-    // AABB * authored scale * physSize. This fallback is used only if no mesh
-    // presentation can be created.
+    // Ogre derives either the automatic walking-pose fit or the legacy mesh
+    // AABB * scale * physSize. This is only a no-mesh fallback.
     spec.halfExtents = {20, 90, 20};
     impl_->services->submit(SpawnRuntimeEntity{std::move(spec)});
     npc.spawned = true;
-    // Newton's legacy NPC body fell from its authored spawn onto the map.
-    // The portable navigation body is intentionally kinematic, so perform the
-    // equivalent deterministic initial floor placement through the engine's
-    // physics query rather than leaving gravity-enabled actors suspended.
+    // Place the body on a floor immediately when one is below the authored
+    // spawn. It remains a dynamic Bullet body afterward, so gravity continues
+    // to handle ledges, slopes and moving NPCs.
     if (npc.gravityEnabled) {
       if (const auto settled =
               impl_->services->settleRuntimeNpc(npc.publicState.handle)) {
@@ -325,7 +332,7 @@ void NpcSystem::start() {
     if (npc.animated) impl_->services->submit(PlayRuntimeAnimation{
         npc.publicState.handle, npc.publicState.animation, true});
   }
-  impl_->refresh();
+  impl_->markPublicStatesDirty();
 }
 
 void NpcSystem::fixedUpdate(double seconds) {
@@ -342,6 +349,14 @@ void NpcSystem::fixedUpdate(double seconds) {
   }
   impl_->services->submit(TickRuntimeNpcPhysics{updateSeconds});
   for (auto &npc : impl_->records) {
+    if (npc.parent.empty()) {
+      if (const auto physicsTransform =
+              impl_->services->runtimeTransform(npc.publicState.name)) {
+        // Bullet owns the body position (especially its gravity-driven Y).
+        // Navigation retains ownership of the facing rotation.
+        npc.publicState.transform.position = physicsTransform->position;
+      }
+    }
     if (!npc.nearFired && !npc.nearScript.empty() &&
         separation(npc.publicState.transform.position,
                    impl_->services->playerPosition()) < 200.0) {
@@ -384,7 +399,9 @@ void NpcSystem::fixedUpdate(double seconds) {
     } else {
       const physics::Vec3 target = npc.path[npc.waypoint].position;
       auto &position = npc.publicState.transform.position;
-      const double gap = separation(position, target);
+      const double targetX = target.x - position.x;
+      const double targetZ = target.z - position.z;
+      const double gap = std::sqrt(targetX * targetX + targetZ * targetZ);
       const double move = npc.speed * npc.movementMultiplier * updateSeconds;
       const double arrival = npc.waypoint + 1 == npc.path.size() &&
                              npc.stopAtDistance ? npc.stopDistance : 0.0;
@@ -392,7 +409,7 @@ void NpcSystem::fixedUpdate(double seconds) {
         if (gap > arrival && gap > 0) {
           const double fraction = (gap - arrival) / gap;
           position = {position.x + (target.x - position.x) * fraction,
-                      position.y + (target.y - position.y) * fraction,
+                      position.y,
                       position.z + (target.z - position.z) * fraction};
         }
         ++npc.waypoint;
@@ -400,7 +417,7 @@ void NpcSystem::fixedUpdate(double seconds) {
       } else if (gap > 0) {
         const double fraction = move / gap;
         position = {position.x + (target.x - position.x) * fraction,
-                    position.y + (target.y - position.y) * fraction,
+                    position.y,
                     position.z + (target.z - position.z) * fraction};
       }
       const double dx = target.x - position.x;
@@ -419,7 +436,7 @@ void NpcSystem::fixedUpdate(double seconds) {
         impl_->services->submit(RunRuntimeScript{npc.goalScript});
     }
   }
-  impl_->refresh();
+  impl_->markPublicStatesDirty();
 }
 
 void NpcSystem::setUpdateInterval(double seconds) {
@@ -476,10 +493,14 @@ void NpcSystem::dispatch(const NpcRuntimeCommand &command) {
     }
     case NpcEvent::ToggleGravity:
       npc.gravityEnabled = !npc.gravityEnabled;
+      impl_->services->submit(SetRuntimeNpcGravity{
+          npc.publicState.handle, npc.gravityEnabled && npc.parent.empty()});
       break;
     case NpcEvent::SetGravity:
       npc.gravityEnabled = command.argument != "0" &&
                            command.argument != "false";
+      impl_->services->submit(SetRuntimeNpcGravity{
+          npc.publicState.handle, npc.gravityEnabled && npc.parent.empty()});
       break;
     case NpcEvent::Teleport: npc.publicState.transform.position = parseVector(command.argument);
       impl_->services->submit(SetRuntimeTransform{npc.publicState.handle,
@@ -501,9 +522,15 @@ void NpcSystem::dispatch(const NpcRuntimeCommand &command) {
       npc.parentOffset = rotate(inverse(parent->rotation), delta);
       npc.parentRotation = multiply(inverse(parent->rotation),
                                     npc.publicState.transform.rotation);
+      impl_->services->submit(
+          SetRuntimeNpcGravity{npc.publicState.handle, false});
       break;
     }
-    case NpcEvent::ResetParent: npc.parent.clear(); break;
+    case NpcEvent::ResetParent:
+      npc.parent.clear();
+      impl_->services->submit(SetRuntimeNpcGravity{
+          npc.publicState.handle, npc.gravityEnabled});
+      break;
     case NpcEvent::TeleportParent: {
       if (npc.parent.empty())
         throw std::invalid_argument("NPC has no parent for relative teleport");
@@ -557,7 +584,7 @@ void NpcSystem::dispatch(const NpcRuntimeCommand &command) {
                                       "' for event " +
                                       std::to_string(command.legacyEvent)});
   }
-  impl_->refresh();
+  impl_->markPublicStatesDirty();
 }
 
 bool NpcSystem::damage(EntityHandle handle, double amount, bool headshot) {
@@ -569,7 +596,7 @@ bool NpcSystem::damage(EntityHandle handle, double amount, bool headshot) {
     impl_->services->submit(RuntimeLog{"NPC headshot: '" +
                                       npc->publicState.name + "'"});
   if (npc->publicState.health <= 0) impl_->kill(*npc);
-  impl_->refresh();
+  impl_->markPublicStatesDirty();
   return true;
 }
 bool NpcSystem::damage(EntityHandle handle, double amount,
@@ -599,7 +626,7 @@ bool NpcSystem::destroy(std::string_view name) {
   impl_->registry->destroy(found->publicState.handle);
   impl_->records.erase(found);
   impl_->scales.erase(impl_->scales.begin() + static_cast<std::ptrdiff_t>(index));
-  impl_->refresh();
+  impl_->markPublicStatesDirty();
   return true;
 }
 void NpcSystem::unload() {
@@ -610,13 +637,18 @@ void NpcSystem::unload() {
   }
   impl_->records.clear();
   impl_->scales.clear();
-  impl_->refresh();
+  impl_->markPublicStatesDirty();
 }
 std::optional<NpcSnapshot> NpcSystem::state(std::string_view name) const {
   const auto *npc = impl_->find(name);
-  return npc ? std::optional<NpcSnapshot>{npc->publicState} : std::nullopt;
+  if (npc == nullptr) return std::nullopt;
+  NpcSnapshot snapshot = npc->publicState;
+  snapshot.parent = npc->parent;
+  snapshot.gravityEnabled = npc->gravityEnabled;
+  return snapshot;
 }
-const std::vector<NpcSnapshot> &NpcSystem::states() const noexcept {
+const std::vector<NpcSnapshot> &NpcSystem::states() const {
+  impl_->refreshPublicStates();
   return impl_->publicStates;
 }
 std::size_t NpcSystem::size() const noexcept { return impl_->records.size(); }
@@ -677,6 +709,8 @@ void NpcSystem::restoreSerializedState(std::string_view state) {
     npc.parent = std::move(parent);
     impl_->services->submit(SetRuntimeTransform{npc.publicState.handle,
                                                 npc.publicState.transform});
+    impl_->services->submit(SetRuntimeNpcGravity{
+        npc.publicState.handle, npc.gravityEnabled && npc.parent.empty()});
     const bool alive = npc.publicState.state != NpcState::Dead;
     impl_->services->submit(SetRuntimeVisible{npc.publicState.handle, alive});
     impl_->services->submit(SetRuntimeCollision{npc.publicState.handle, alive});
@@ -684,7 +718,7 @@ void NpcSystem::restoreSerializedState(std::string_view state) {
       impl_->services->submit(PlayRuntimeAnimation{
           npc.publicState.handle, npc.publicState.animation, true});
   }
-  impl_->refresh();
+  impl_->markPublicStatesDirty();
 }
 
 } // namespace run3::gameplay

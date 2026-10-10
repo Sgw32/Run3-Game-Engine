@@ -154,6 +154,7 @@ struct BodyDesc {
   Transform transform;
   Vec3 linearVelocity;
   Vec3 angularFactor{1.0, 1.0, 1.0};
+  bool gravityEnabled{true};
   double friction{0.5};
   CollisionGroup group{CollisionGroup::Dynamic};
   CollisionMask mask{collisionMask(CollisionGroup::All)};
@@ -301,6 +302,7 @@ public:
   void setTransform(const BodyHandle &body, const Transform &transform);
   [[nodiscard]] Vec3 linearVelocity(const BodyHandle &body) const;
   void setLinearVelocity(const BodyHandle &body, Vec3 velocityGameUnits);
+  void setGravityEnabled(const BodyHandle &body, bool enabled);
   void applyCentralForce(const BodyHandle &body, Vec3 forceGameUnits);
   void applyCentralImpulse(const BodyHandle &body, Vec3 impulseGameUnits);
   void clearForces(const BodyHandle &body);

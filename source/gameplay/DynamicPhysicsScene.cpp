@@ -77,6 +77,8 @@ struct DynamicPhysicsScene::Impl {
                       ? description.massKg
                       : 0.0;
     body.transform = description.transform;
+    body.angularFactor = description.angularFactor;
+    body.gravityEnabled = description.gravityEnabled;
     body.group = description.group;
     body.mask = description.mask;
     body.trigger = description.trigger;
@@ -237,6 +239,14 @@ void DynamicPhysicsScene::setEntityTransform(
     throw std::invalid_argument("entity has no physics body");
   }
   implementation_->world->setTransform(record.bodies.front(), transform);
+}
+
+void DynamicPhysicsScene::setEntityGravityEnabled(PhysicsEntityId entity,
+                                                   bool enabled) {
+  auto &record = implementation_->require(entity);
+  if (record.bodies.empty())
+    throw std::invalid_argument("entity has no physics body");
+  implementation_->world->setGravityEnabled(record.bodies.front(), enabled);
 }
 
 void DynamicPhysicsScene::update(double seconds) {

@@ -226,6 +226,12 @@ public:
       flags |= btCollisionObject::CF_NO_CONTACT_RESPONSE;
     }
     record->body->setCollisionFlags(flags);
+    if (description.motion == BodyMotion::Dynamic &&
+        !description.gravityEnabled) {
+      record->body->setFlags(record->body->getFlags() |
+                             BT_DISABLE_WORLD_GRAVITY);
+      record->body->setGravity({0, 0, 0});
+    }
 
     const BodyId id = record->id;
     world_->addRigidBody(record->body.get(), filterBits(collisionMask(record->group)),
@@ -358,6 +364,23 @@ public:
   void setLinearVelocity(BodyId id, Vec3 velocity) override {
     BodyRecord &record = requireBody(id);
     record.body->setLinearVelocity(toBullet(velocity, units_));
+    record.body->activate(true);
+  }
+
+  void setGravityEnabled(BodyId id, bool enabled) override {
+    BodyRecord &record = requireDynamicBody(id);
+    int flags = record.body->getFlags();
+    if (enabled) {
+      flags &= ~BT_DISABLE_WORLD_GRAVITY;
+      record.body->setFlags(flags);
+      record.body->setGravity(world_->getGravity());
+    } else {
+      flags |= BT_DISABLE_WORLD_GRAVITY;
+      record.body->setFlags(flags);
+      record.body->setGravity({0, 0, 0});
+      record.body->setLinearVelocity({0, 0, 0});
+      record.body->clearForces();
+    }
     record.body->activate(true);
   }
 

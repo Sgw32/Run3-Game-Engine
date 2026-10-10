@@ -25,6 +25,7 @@
 #include <OgreOverlayManager.h>
 #include <OgrePass.h>
 #include <OgreSubEntity.h>
+#include <OgreSubMesh.h>
 #include <OgreTechnique.h>
 #include <OgreTextureUnitState.h>
 #include <OgreKeyFrame.h>
@@ -44,6 +45,7 @@
 #include <cctype>
 #include <cmath>
 #include <fstream>
+#include <memory>
 #include <set>
 #include <stdexcept>
 #include <type_traits>
@@ -55,6 +57,10 @@ namespace {
 
 constexpr const char *computerResourceGroup = "Run3Step9A";
 constexpr std::string_view facialAnimationPrefix = "Run3/Facial/";
+constexpr std::size_t npcShadowCasterBudget = 4;
+constexpr Ogre::Real npcShadowDistance = 2000.0F;
+constexpr Ogre::Real npcFullRateAnimationDistance = 1000.0F;
+constexpr Ogre::Real npcHalfRateAnimationDistance = 2500.0F;
 
 struct FlashlightConfig {
   Ogre::Real innerDegrees{60.0F};
@@ -112,16 +118,17 @@ physics::Quaternion fromOgre(const Ogre::Quaternion &value) {
   return {value.w, value.x, value.y, value.z};
 }
 
-Ogre::AnimationState *findIdleAnimation(Ogre::Entity &entity,
-                                        const std::string &preferred) {
+Ogre::AnimationState *findBoundsAnimation(Ogre::Entity &entity,
+                                          const std::string &preferred) {
   if (!preferred.empty() && entity.hasAnimationState(preferred))
     return entity.getAnimationState(preferred);
-  if (entity.hasAnimationState("Idle"))
-    return entity.getAnimationState("Idle");
-  if (entity.hasAnimationState("Idle1"))
-    return entity.getAnimationState("Idle1");
+  if (entity.hasAnimationState("Walk"))
+    return entity.getAnimationState("Walk");
+  if (entity.hasAnimationState("Walk1"))
+    return entity.getAnimationState("Walk1");
   if (entity.getAllAnimationStates() == nullptr) return nullptr;
 
+  Ogre::AnimationState *idleFallback = nullptr;
   auto iterator = entity.getAllAnimationStates()->getAnimationStateIterator();
   while (iterator.hasMoreElements()) {
     Ogre::AnimationState *state = iterator.getNext();
@@ -130,29 +137,76 @@ Ogre::AnimationState *findIdleAnimation(Ogre::Entity &entity,
                    [](const unsigned char character) {
                      return static_cast<char>(std::tolower(character));
                    });
-    if (name.rfind("idle", 0) == 0) return state;
+    if (name.rfind("walk", 0) == 0) return state;
+    if (idleFallback == nullptr && name.rfind("idle", 0) == 0)
+      idleFallback = state;
   }
-  return nullptr;
+  return idleFallback;
 }
 
-std::optional<Ogre::AxisAlignedBox> idlePoseBounds(
+std::optional<Ogre::AxisAlignedBox> animationPoseBounds(
     Ogre::Entity &entity, const std::string &preferred) {
-  Ogre::AnimationState *idle = findIdleAnimation(entity, preferred);
-  if (idle == nullptr || !entity.hasSkeleton()) return std::nullopt;
+  Ogre::AnimationState *animation = findBoundsAnimation(entity, preferred);
+  if (animation == nullptr || !entity.hasSkeleton()) return std::nullopt;
 
   if (entity.getAllAnimationStates() != nullptr) {
     auto iterator = entity.getAllAnimationStates()->getAnimationStateIterator();
     while (iterator.hasMoreElements()) iterator.getNext()->setEnabled(false);
   }
-  idle->setTimePosition(0);
-  idle->setLoop(true);
-  idle->setEnabled(true);
-  entity.setUpdateBoundingBoxFromSkeleton(true);
-  entity._updateAnimation();
-  const Ogre::AxisAlignedBox bounds = entity.getBoundingBox();
-  entity.setUpdateBoundingBoxFromSkeleton(false);
+  animation->setTimePosition(0);
+  animation->setLoop(true);
+  animation->setEnabled(true);
+  Ogre::AnimationStateSet *states = entity.getAllAnimationStates();
+  Ogre::SkeletonInstance *skeleton = entity.getSkeleton();
+  skeleton->setAnimationState(*states);
+
+  std::vector<Ogre::Affine3> boneMatrices(skeleton->getNumBones());
+  skeleton->_getBoneMatrices(boneMatrices.data());
+  const Ogre::MeshPtr mesh = entity.getMesh();
+  Ogre::AxisAlignedBox bounds;
+  auto mergeSkinnedVertices = [&](const Ogre::VertexData *source,
+                                  const Ogre::Mesh::IndexMap &indexMap) {
+    if (source == nullptr || source->vertexCount == 0 || indexMap.empty())
+      return;
+    std::unique_ptr<Ogre::VertexData> target(source->clone(true));
+    std::vector<const Ogre::Affine3 *> blendMatrices(indexMap.size());
+    Ogre::Mesh::prepareMatricesForVertexBlend(
+        blendMatrices.data(), boneMatrices.data(), indexMap);
+    Ogre::Mesh::softwareVertexBlend(source, target.get(),
+                                    blendMatrices.data(),
+                                    blendMatrices.size(), false);
+    Ogre::AxisAlignedBox partBounds;
+    Ogre::Real radius{};
+    mesh->_calcBoundsFromVertexBuffer(target.get(), partBounds, radius);
+    bounds.merge(partBounds);
+  };
+  mergeSkinnedVertices(mesh->sharedVertexData,
+                       mesh->sharedBlendIndexToBoneIndexMap);
+  for (Ogre::SubMesh *subMesh : mesh->getSubMeshes()) {
+    if (!subMesh->useSharedVertices)
+      mergeSkinnedVertices(subMesh->vertexData,
+                           subMesh->blendIndexToBoneIndexMap);
+  }
   if (bounds.isNull() || bounds.isInfinite()) return std::nullopt;
   return bounds;
+}
+
+Ogre::Vector3 orientedHalfSize(const Ogre::Vector3 &half,
+                               const Ogre::Quaternion &orientation) {
+  Ogre::Vector3 result = Ogre::Vector3::ZERO;
+  for (int x : {-1, 1}) {
+    for (int y : {-1, 1}) {
+      for (int z : {-1, 1}) {
+        const Ogre::Vector3 corner = orientation * Ogre::Vector3{
+            half.x * static_cast<Ogre::Real>(x),
+            half.y * static_cast<Ogre::Real>(y),
+            half.z * static_cast<Ogre::Real>(z)};
+        result.makeCeil({std::abs(corner.x), std::abs(corner.y),
+                         std::abs(corner.z)});
+      }
+    }
+  }
+  return result;
 }
 
 physics::BodyType bodyType(RuntimeEntityKind kind) {
@@ -217,6 +271,7 @@ public:
     physics::Vec3 collisionHalfExtents{1.0, 1.0, 1.0};
     std::optional<PhysicsEntityId> physicsEntity;
     std::vector<Part> parts;
+    double pendingAnimationSeconds{};
   };
   struct ParticlePresentation {
     std::string name;
@@ -369,7 +424,14 @@ public:
     DynamicEntityDesc body{presentation.spec.name,
                            bodyType(presentation.spec.kind),
                            physics::Shape::box(halfExtents)};
-    body.motion = physics::BodyMotion::Kinematic;
+    if (presentation.spec.kind == RuntimeEntityKind::Npc) {
+      body.motion = physics::BodyMotion::Dynamic;
+      body.massKg = 80.0;
+      body.angularFactor = {0.0, 0.0, 0.0};
+      body.gravityEnabled = presentation.spec.gravityEnabled;
+    } else {
+      body.motion = physics::BodyMotion::Kinematic;
+    }
     body.transform = presentation.spec.transform;
     if (presentation.node != nullptr) {
       presentation.node->_update(true, true);
@@ -399,6 +461,23 @@ public:
                    presentation.spec.kind == RuntimeEntityKind::Button;
     presentation.physicsEntity = dynamicPhysics.createEntity(std::move(body));
     physicsHandles[*presentation.physicsEntity] = presentation.spec.handle;
+  }
+
+  void syncNpcBodiesFromPhysics() {
+    for (auto &[id, presentation] : presentations) {
+      static_cast<void>(id);
+      if (presentation.spec.kind != RuntimeEntityKind::Npc ||
+          !presentation.physicsEntity || presentation.node == nullptr)
+        continue;
+      const physics::Transform body =
+          dynamicPhysics.transform(*presentation.physicsEntity);
+      presentation.spec.transform.position = body.position;
+      // NPC angular motion is locked. Rotation continues to be authored by
+      // navigation/scripts while Bullet owns the vertical position.
+      presentation.node->setPosition(toOgre(body.position));
+      presentation.node->setOrientation(
+          toOgre(presentation.spec.transform.rotation));
+    }
   }
 
   void createPartPhysics(Presentation &owner, Presentation::Part &part) {
@@ -514,6 +593,7 @@ public:
       presentation.entity->setMeshLodBias(
           static_cast<Ogre::Real>(meshLodBias));
       presentation.entity->setVisible(spec.visible);
+      presentation.entity->setCastShadows(spec.castShadows);
       presentation.node = root->createChildSceneNode(
           "Run3Step8CNode/" + std::to_string(spec.handle.id.value));
       presentation.node->setPosition(toOgre(spec.transform.position));
@@ -543,25 +623,38 @@ public:
           presentation.entity->getBoundingBox();
       const Ogre::Vector3 meshHalf = meshBounds.getHalfSize();
       if (spec.kind == RuntimeEntityKind::Npc) {
+        bool fittedFromAnimation = false;
         if (spec.autoPosition) {
-          if (const auto posedBounds = idlePoseBounds(
+          if (const auto posedBounds = animationPoseBounds(
                   *presentation.entity, spec.autoPositionAnimation)) {
             const Ogre::Vector3 posedCentre = posedBounds->getCenter();
+            const Ogre::Vector3 posedHalf = orientedHalfSize(
+                posedBounds->getHalfSize(),
+                presentation.visualNode->getOrientation());
             const Ogre::Vector3 offset =
                 -(presentation.visualNode->getOrientation() * posedCentre);
             presentation.visualNode->setPosition(offset);
             presentation.spec.visualOffset = fromOgre(offset);
-            log("NPC '" + spec.name + "' auto-positioned from Idle pose at " +
-                Ogre::StringConverter::toString(offset));
+            half = {std::abs(posedHalf.x * spec.scale.x),
+                    std::abs(posedHalf.y * spec.scale.y),
+                    std::abs(posedHalf.z * spec.scale.z)};
+            fittedFromAnimation = true;
+            log("NPC '" + spec.name +
+                "' auto-fitted from walking pose: offset " +
+                Ogre::StringConverter::toString(offset) +
+                ", half extents " +
+                Ogre::StringConverter::toString(toOgre(half)));
           } else {
             log("warning: NPC '" + spec.name +
-                "' requested autoPosition but has no usable Idle skeletal "
+                "' requested autoPosition but has no usable walking skeletal "
                 "animation; retaining physPosit");
           }
         }
-        half = {std::abs(meshHalf.x * spec.scale.x * spec.collisionScale.x),
-                std::abs(meshHalf.y * spec.scale.y * spec.collisionScale.y),
-                std::abs(meshHalf.z * spec.scale.z * spec.collisionScale.z)};
+        if (!fittedFromAnimation) {
+          half = {std::abs(meshHalf.x * spec.scale.x * spec.collisionScale.x),
+                  std::abs(meshHalf.y * spec.scale.y * spec.collisionScale.y),
+                  std::abs(meshHalf.z * spec.scale.z * spec.collisionScale.z)};
+        }
       } else {
         half = {std::abs(meshHalf.x * spec.scale.x),
                 std::abs(meshHalf.y * spec.scale.y),
@@ -625,19 +718,20 @@ public:
     if (presentation.node != nullptr) {
       presentation.node->setPosition(toOgre(command.transform.position));
       presentation.node->setOrientation(toOgre(command.transform.rotation));
-      presentation.node->_update(true, true);
     }
     syncPresentationBody(presentation);
     for (Presentation::Part &part : presentation.parts) syncPartBody(part);
     // Parent motion also moves authored children. Keep each child collision
     // body in the same Bullet world as the visual hierarchy.
-    for (auto &[id, child] : presentations) {
-      static_cast<void>(id);
-      if (child.node != nullptr && child.node != presentation.node &&
-          presentation.node != nullptr &&
-          child.node->isInSceneGraph() &&
-          child.node->getParent() == presentation.node) {
-        syncPresentationBody(child);
+    if (presentation.spec.kind != RuntimeEntityKind::Npc) {
+      for (auto &[id, child] : presentations) {
+        static_cast<void>(id);
+        if (child.node != nullptr && child.node != presentation.node &&
+            presentation.node != nullptr &&
+            child.node->isInSceneGraph() &&
+            child.node->getParent() == presentation.node) {
+          syncPresentationBody(child);
+        }
       }
     }
   }
@@ -645,15 +739,14 @@ public:
   void syncPresentationBody(Presentation &presentation) {
     if (presentation.physicsEntity) {
       physics::Transform worldTransform = presentation.spec.transform;
-      if (presentation.node != nullptr) {
+      if (presentation.node != nullptr &&
+          presentation.spec.kind != RuntimeEntityKind::Npc) {
         presentation.node->_update(true, true);
         worldTransform.position = fromOgre(
             presentation.node->_getDerivedPosition() +
             presentation.node->_getDerivedOrientation() *
                 presentation.localCentre);
         worldTransform.rotation = fromOgre(presentation.node->_getDerivedOrientation());
-        if (presentation.spec.kind == RuntimeEntityKind::Npc)
-          worldTransform = presentation.spec.transform;
       }
       dynamicPhysics.setEntityTransform(*presentation.physicsEntity,
                                         worldTransform);
@@ -1307,6 +1400,8 @@ public:
   double meshLodBias{1.0};
   double defaultFovDegrees{75.0};
   Ogre::ColourValue baseAmbient{0.25F, 0.25F, 0.25F};
+  std::uint64_t npcPresentationFrame{};
+  NpcPresentationStats npcStats;
 };
 
 OgreSequenceServices::OgreSequenceServices(
@@ -1351,17 +1446,81 @@ void OgreSequenceServices::updateAudio(float seconds) {
   impl_->oneShots.update(seconds);
   impl_->updateGameText(seconds);
   impl_->updateFacials(seconds);
+  ++impl_->npcPresentationFrame;
+  impl_->npcStats = {};
+  struct ShadowCandidate {
+    Ogre::Real distanceSquared{};
+    std::uint64_t id{};
+  };
+  std::vector<ShadowCandidate> shadowCandidates;
+  const Ogre::Vector3 cameraPosition = impl_->camera->getDerivedPosition();
   for (auto &[id, presentation] : impl_->presentations) {
-    static_cast<void>(id);
     if (presentation.spec.kind != RuntimeEntityKind::Npc ||
-        presentation.entity == nullptr ||
-        presentation.entity->getAllAnimationStates() == nullptr) continue;
-    auto iterator = presentation.entity->getAllAnimationStates()->getAnimationStateIterator();
-    while (iterator.hasMoreElements()) {
-      Ogre::AnimationState *state = iterator.getNext();
-      if (state->getEnabled()) state->addTime(seconds);
+        presentation.entity == nullptr) continue;
+    ++impl_->npcStats.total;
+    const Ogre::Vector3 position = toOgre(presentation.spec.transform.position);
+    const Ogre::Real distanceSquared = cameraPosition.squaredDistance(position);
+    const Ogre::Real renderDistance = static_cast<Ogre::Real>(
+        std::max(0.0, presentation.spec.renderDistance));
+    const bool inRenderRange = renderDistance == 0.0F ||
+        distanceSquared <= renderDistance * renderDistance;
+    if (presentation.spec.castShadows && presentation.entity->getVisible() &&
+        inRenderRange && distanceSquared <= npcShadowDistance * npcShadowDistance)
+      shadowCandidates.push_back({distanceSquared, id});
+
+    unsigned animationInterval{};
+    if (inRenderRange) {
+      if (distanceSquared <= npcFullRateAnimationDistance *
+                                 npcFullRateAnimationDistance)
+        animationInterval = 1;
+      else if (distanceSquared <= npcHalfRateAnimationDistance *
+                                      npcHalfRateAnimationDistance)
+        animationInterval = 2;
+      else
+        animationInterval = 4;
+    }
+    Ogre::AnimationStateSet *animationStates =
+        presentation.entity->getAllAnimationStates();
+    if (animationStates == nullptr) {
+      ++impl_->npcStats.pausedAnimations;
+      continue;
+    }
+    presentation.pendingAnimationSeconds += seconds;
+    const bool animationDue = animationInterval != 0 &&
+        (impl_->npcPresentationFrame + id) % animationInterval == 0;
+    if (animationInterval == 1) ++impl_->npcStats.fullRateAnimations;
+    else if (animationInterval > 1) ++impl_->npcStats.throttledAnimations;
+    else ++impl_->npcStats.pausedAnimations;
+    if (animationDue) {
+      auto iterator = animationStates->getAnimationStateIterator();
+      while (iterator.hasMoreElements()) {
+        Ogre::AnimationState *state = iterator.getNext();
+        if (state->getEnabled())
+          state->addTime(static_cast<Ogre::Real>(
+              presentation.pendingAnimationSeconds));
+      }
+      presentation.pendingAnimationSeconds = 0.0F;
     }
   }
+  std::sort(shadowCandidates.begin(), shadowCandidates.end(),
+            [](const ShadowCandidate &left, const ShadowCandidate &right) {
+              if (left.distanceSquared != right.distanceSquared)
+                return left.distanceSquared < right.distanceSquared;
+              return left.id < right.id;
+            });
+  const std::size_t casterCount =
+      std::min(npcShadowCasterBudget, shadowCandidates.size());
+  std::set<std::uint64_t> shadowCasterIds;
+  for (std::size_t index = 0; index < casterCount; ++index)
+    shadowCasterIds.insert(shadowCandidates[index].id);
+  for (auto &[id, presentation] : impl_->presentations) {
+    if (presentation.spec.kind != RuntimeEntityKind::Npc ||
+        presentation.entity == nullptr) continue;
+    const bool shouldCast = shadowCasterIds.count(id) != 0;
+    if (presentation.entity->getCastShadows() != shouldCast)
+      presentation.entity->setCastShadows(shouldCast);
+  }
+  impl_->npcStats.shadowCasters = casterCount;
 }
 
 std::optional<double> OgreSequenceServices::runtimeMusicSeconds() const {
@@ -1660,6 +1819,16 @@ void OgreSequenceServices::submit(const GameCommand &command) {
           },
           [this](const TickRuntimeNpcPhysics &value) {
             impl_->dynamicPhysics.update(value.seconds);
+            impl_->syncNpcBodiesFromPhysics();
+          },
+          [this](const SetRuntimeNpcGravity &value) {
+            auto &presentation = impl_->require(value.handle);
+            if (presentation.spec.kind != RuntimeEntityKind::Npc ||
+                !presentation.physicsEntity)
+              return;
+            presentation.spec.gravityEnabled = value.enabled;
+            impl_->dynamicPhysics.setEntityGravityEnabled(
+                *presentation.physicsEntity, value.enabled);
           },
           [this](const DeferredLegacyCommand &value) {
             if (impl_->reportedDeferred.insert(value.name).second) {
@@ -1802,6 +1971,10 @@ OgreSequenceServices::resourceCounts() const noexcept {
   result.ragdolls = impl_->ragdolls.size();
   result.rootNode = impl_->root != nullptr;
   return result;
+}
+
+NpcPresentationStats OgreSequenceServices::npcPresentationStats() const noexcept {
+  return impl_->npcStats;
 }
 
 } // namespace run3::gameplay

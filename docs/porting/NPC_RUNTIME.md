@@ -81,15 +81,14 @@ authored station timing control without reviving `NPCManager`.
   Enemy policy periodically acquires a nearby player and issues bounded damage
   at the authored attack distance. Both use the same AIR3 query and Bullet NPC
   collision path; no second navigation or collision world was introduced.
-- Gravity-enabled NPCs receive one deterministic downward floor query when
-  constructed. This reproduces the initial settling formerly supplied by the
-  Newton dynamic body while retaining the predictable kinematic navigation
-  controller. `physPosit` remains a visual mesh offset and `physSize` remains
-  the collision-box scale; neither is incorrectly added to the authored world
-  position. The opt-in `autoPosition="true"` mode replaces `physPosit` with a
-  visual offset calculated from the NPC's Idle skeletal pose at creation;
-  authored visual rotation is included in that calculation and `physSize`
-  remains independent.
+- Gravity-enabled NPCs use upright, rotation-locked dynamic Bullet bodies.
+  They receive an initial downward floor query, then Bullet remains
+  authoritative for vertical motion while navigation changes only horizontal
+  position and facing. Runtime gravity events control the body directly.
+  `physPosit` and `physSize` retain their legacy manual meanings when
+  `autoPosition` is false. The opt-in `autoPosition="true"` mode replaces both
+  values with an automatic walking-pose body fit; authored visual rotation is
+  included in the center and extent calculation.
 - Parent-relative NPC teleports multiply the authored local offset by the
   parent's derived scale before applying its orientation, matching Ogre scene
   child inheritance and the legacy `TELEPORT_PARENT_NPC` calculation. This is

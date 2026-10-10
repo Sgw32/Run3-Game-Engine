@@ -27,8 +27,9 @@ This document describes how NPCs are created and controlled in Run3, including:
 ### Transform / physics shape
 - Child nodes: `<position>`, `<rotate>`, `<scale>`
 - Child nodes: `<physPosit>`, `<physSize>`, `<axis>`, `<angle>`
-- `autoPosition="true"` ignores `physPosit` and aligns the model's Idle-pose
-  center with the physical body origin. It defaults to `false`.
+- `autoPosition="true"` ignores both manual `physPosit` and `physSize`, fits
+  the body to the model's walking pose, and aligns that pose's center with the
+  physical body origin. It defaults to `false`.
 
 ### Movement / behavior tuning
 - `velocity`
@@ -136,4 +137,19 @@ This is the main runtime mechanism for firing the event flags listed above from 
 - If you plan to use command movement (`GOTO_NPC`), keep nav nodes available (`NodeList`) so pathfinding has valid graph nodes.
 - For `npc_neutral` attachment events, verify `handBone` exists in the target skeleton.
 - Prefer `npc_neutral` for heavy scripting/interactions; prefer `npc_enemy`/`npc_friend` for lighter patrol/chase style actors.
+
+## 7) Runtime presentation budget
+
+NPC gameplay remains deterministic at the fixed simulation rate. Presentation
+uses distance-based work budgets: animation is evaluated every frame within
+1,000 units, every second frame from 1,000 to 2,500 units, every fourth frame
+beyond that while inside `renderDist`, and paused outside `renderDist`.
+Accumulated animation time is applied on the next evaluation, so animation
+speed does not slow down.
+
+At most the four nearest visible NPCs within 2,000 units cast dynamic shadows.
+An NPC can opt out explicitly with `castShadows="false"`. This bounds animated
+mesh submissions across the six spotlight shadow targets without changing NPC
+collision, scripts, AI, or the main visible render. The F3 NPC debug page shows
+the active animation tiers and shadow-caster count.
 

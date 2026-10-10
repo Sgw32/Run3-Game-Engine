@@ -13,7 +13,7 @@
     <angle f="15"/>
   </npc>
   <npc name="raider" className="npc_enemy" meshFile="raider.mesh"
-       velocity="60" health="20" ragdoll="true">
+       velocity="60" health="20" ragdoll="true" castShadows="false">
     <position x="0" y="0" z="20"/>
   </npc>
 </adents></sequence>

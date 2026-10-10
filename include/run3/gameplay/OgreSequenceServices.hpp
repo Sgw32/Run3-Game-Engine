@@ -35,6 +35,14 @@ struct OgreSequenceResourceCounts {
   }
 };
 
+struct NpcPresentationStats {
+  std::size_t total{};
+  std::size_t fullRateAnimations{};
+  std::size_t throttledAnimations{};
+  std::size_t pausedAnimations{};
+  std::size_t shadowCasters{};
+};
+
 class PlayerController;
 class StaticMap;
 class NpcSystem;
@@ -97,6 +105,7 @@ public:
   [[nodiscard]] std::optional<EntityHandle>
   handleForPhysicsEntity(std::uint64_t physicsEntity) const;
   [[nodiscard]] OgreSequenceResourceCounts resourceCounts() const noexcept;
+  [[nodiscard]] NpcPresentationStats npcPresentationStats() const noexcept;
 
 private:
   class Impl;

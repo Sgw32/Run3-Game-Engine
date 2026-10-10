@@ -1420,6 +1420,13 @@ void Run3App::updateDebugOverlay() {
       out << "Total " << npcSystem_->size() << "  alive " << alive
           << "  dead " << dead << "  navigating " << navigating
           << "  blocked " << blocked;
+      if (sequenceServices_) {
+        const auto stats = sequenceServices_->npcPresentationStats();
+        out << "\nAnimation full/throttled/paused "
+            << stats.fullRateAnimations << '/' << stats.throttledAnimations
+            << '/' << stats.pausedAnimations << "  shadow casters "
+            << stats.shadowCasters << '/' << stats.total;
+      }
       std::size_t shown{};
       for (const auto &npc : npcSystem_->states()) {
         if (shown++ == 8) break;

@@ -115,6 +115,18 @@ TEST_CASE("Step 8D gravity NPCs receive deterministic initial floor settling",
         Catch::Approx(42.0));
 }
 
+TEST_CASE("Step 8D navigation preserves the Bullet-owned vertical position",
+          "[step8d][npc][physics]") {
+  RuntimeFixture fixture;
+  fixture.services.transforms["guide"] = {{0, 42, 0}, {}};
+  fixture.npcs->dispatch({"guide", 10, "100 0 0", {}, false});
+  fixture.npcs->fixedUpdate();
+  const auto state = fixture.npcs->state("guide");
+  REQUIRE(state.has_value());
+  CHECK(state->transform.position.y == Catch::Approx(42.0));
+  CHECK(state->transform.position.x > 0.0);
+}
+
 TEST_CASE("Step 8D constructs typed neutral and enemy NPCs", "[step8d][npc]") {
   RuntimeFixture fixture;
   REQUIRE(fixture.npcs->size() == 2);
@@ -131,12 +143,14 @@ TEST_CASE("Step 8D constructs typed neutral and enemy NPCs", "[step8d][npc]") {
   REQUIRE(spawned != fixture.services.commands.end());
   const auto &spec = std::get<gameplay::SpawnRuntimeEntity>(*spawned).spec;
   CHECK(spec.autoPosition);
-  CHECK(spec.autoPositionAnimation == "Idle1");
+  CHECK(spec.autoPositionAnimation == "Walk");
+  CHECK(spec.gravityEnabled);
   CHECK(spec.visualOffset.y == Catch::Approx(-8.0));
   CHECK(spec.collisionScale.x == Catch::Approx(0.3));
   CHECK(spec.collisionScale.y == Catch::Approx(0.7));
   CHECK(spec.visualRotationAxis.y == Catch::Approx(1.0));
   CHECK(spec.visualRotationDegrees == Catch::Approx(15.0));
+  CHECK(spec.castShadows);
   const auto raiderSpawned = std::find_if(
       fixture.services.commands.begin(), fixture.services.commands.end(),
       [](const gameplay::GameCommand &command) {
@@ -144,8 +158,10 @@ TEST_CASE("Step 8D constructs typed neutral and enemy NPCs", "[step8d][npc]") {
         return spawn != nullptr && spawn->spec.name == "raider";
       });
   REQUIRE(raiderSpawned != fixture.services.commands.end());
-  CHECK_FALSE(std::get<gameplay::SpawnRuntimeEntity>(*raiderSpawned)
-                  .spec.autoPosition);
+  const auto &raiderSpec =
+      std::get<gameplay::SpawnRuntimeEntity>(*raiderSpawned).spec;
+  CHECK_FALSE(raiderSpec.autoPosition);
+  CHECK_FALSE(raiderSpec.castShadows);
   const auto handle = fixture.npcs->state("guide")->handle;
   fixture.npcs->dispatch({"guide", 19, "run3/lua/use.lua", {}, false});
   CHECK(fixture.npcs->use(handle));
@@ -412,6 +428,7 @@ TEST_CASE("Step 8E NPC gravity event and stable state round trip",
   CHECK_NOTHROW(fixture.npcs->dispatch({"guide", 26, "0", {}, false}));
   REQUIRE(fixture.npcs->state("guide").has_value());
   CHECK_FALSE(fixture.npcs->state("guide")->gravityEnabled);
+  CHECK(fixture.services.count<gameplay::SetRuntimeNpcGravity>() == 1);
   const std::string saved = fixture.npcs->serializeState();
   CHECK(saved.rfind("RUN3_NPC_STATE 1", 0) == 0);
   CHECK_NOTHROW(fixture.npcs->dispatch({"guide", 26, "1", {}, false}));

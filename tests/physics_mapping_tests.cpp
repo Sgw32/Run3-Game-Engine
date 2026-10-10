@@ -112,6 +112,25 @@ TEST_CASE("Bullet gravity moves a dynamic body in game units") {
   CHECK(world.linearVelocity(falling).y < -400.0);
 }
 
+TEST_CASE("Bullet gravity can be disabled and enabled per dynamic body") {
+  PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
+  BodyDesc description =
+      body(Shape::box({10.0, 10.0, 10.0}), BodyMotion::Dynamic,
+           {0.0, 500.0, 0.0}, 1.0);
+  description.gravityEnabled = false;
+  auto actor = world.createBody(description);
+
+  advance(world, 0.25);
+  CHECK_THAT(world.transform(actor).position.y, WithinAbs(500.0, 0.01));
+
+  world.setGravityEnabled(actor, true);
+  advance(world, 0.25);
+  CHECK(world.transform(actor).position.y < 490.0);
+
+  world.setGravityEnabled(actor, false);
+  CHECK_THAT(world.linearVelocity(actor).y, WithinAbs(0.0, 0.01));
+}
+
 TEST_CASE("a falling box settles on a static box floor") {
   PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
   auto floor = world.createBody(

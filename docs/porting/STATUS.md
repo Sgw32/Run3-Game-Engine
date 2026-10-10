@@ -131,9 +131,9 @@ fixed in engine code:
 
 - `alex_mezhin` and `alex_mezhin_sklad` were left at their authored airborne
   spawn because the new kinematic NPC controller did not reproduce Newton's
-  initial gravity fall. Gravity-enabled NPCs now perform a deterministic floor
-  settle using their collision half-height; `physPosit` remains only the visual
-  mesh offset and `physSize` remains collision scaling.
+  gravity. Gravity-enabled NPCs now use upright dynamic Bullet bodies after an
+  initial floor query. `autoPosition` fits the walking-pose mesh and body;
+  manual `physPosit`/`physSize` remains available when it is disabled.
 - Station passengers were too low because parent-relative teleport omitted the
   train node's derived scale. The local seat offset is now scaled and then
   rotated exactly like the legacy `TELEPORT_PARENT_NPC` path.

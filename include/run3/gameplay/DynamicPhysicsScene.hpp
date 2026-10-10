@@ -37,6 +37,8 @@ struct DynamicEntityDesc {
   physics::Transform transform;
   physics::BodyMotion motion{physics::BodyMotion::Dynamic};
   double massKg{1.0};
+  physics::Vec3 angularFactor{1.0, 1.0, 1.0};
+  bool gravityEnabled{true};
   double health{100.0};
   physics::CollisionGroup group{physics::CollisionGroup::Dynamic};
   physics::CollisionMask mask{physics::collisionMask(
@@ -75,6 +77,7 @@ public:
                          const physics::Transform &transform);
   void setEntityTransform(PhysicsEntityId entity,
                           const physics::Transform &transform);
+  void setEntityGravityEnabled(PhysicsEntityId entity, bool enabled);
   void update(double seconds);
   [[nodiscard]] std::vector<GameplayPhysicsEvent> processContactEvents(
       double projectileDamage = 25.0);

@@ -15,6 +15,7 @@ struct NullBody {
   BodyMotion motion{BodyMotion::Static};
   bool sleeping{};
   bool sleepingAllowed{true};
+  bool gravityEnabled{true};
   bool enabled{true};
 };
 
@@ -35,7 +36,8 @@ public:
     bodies_.emplace(id, NullBody{description.transform,
                                  description.linearVelocity,
                                  description.motion, false,
-                                 description.sleepingAllowed, true});
+                                 description.sleepingAllowed,
+                                 description.gravityEnabled, true});
     return makeBodyHandle(id);
   }
 
@@ -98,6 +100,11 @@ public:
   }
   void setLinearVelocity(BodyId id, Vec3 velocity) override {
     requireBody(id).velocity = velocity;
+  }
+  void setGravityEnabled(BodyId id, bool enabled) override {
+    auto &body = requireDynamicBody(id);
+    body.gravityEnabled = enabled;
+    if (!enabled) body.velocity = {};
   }
   void applyCentralForce(BodyId id, Vec3) override {
     requireDynamicBody(id).sleeping = false;

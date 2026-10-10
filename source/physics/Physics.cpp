@@ -324,6 +324,10 @@ void PhysicsWorld::setLinearVelocity(const BodyHandle &body, Vec3 velocity) {
   backend_->setLinearVelocity(checkedBody(body), velocity);
 }
 
+void PhysicsWorld::setGravityEnabled(const BodyHandle &body, bool enabled) {
+  backend_->setGravityEnabled(checkedBody(body), enabled);
+}
+
 void PhysicsWorld::applyCentralForce(const BodyHandle &body, Vec3 force) {
   backend_->applyCentralForce(checkedBody(body), force);
 }

@@ -53,13 +53,13 @@ struct RuntimeEntitySpec {
   physics::Transform transform;
   physics::Vec3 scale{1.0, 1.0, 1.0};
   physics::Vec3 halfExtents{1.0, 1.0, 1.0};
-  // Legacy NPC physPosit is a local visual offset (scaled by the parent),
-  // while physSize scales the collision box independently. autoPosition
-  // replaces physPosit with an offset derived from the posed animation bounds.
+  // Legacy NPC physPosit and physSize remain the manual placement path.
+  // autoPosition replaces both with a body fitted to the walking pose.
   physics::Vec3 visualOffset{};
   physics::Vec3 collisionScale{1.0, 1.0, 1.0};
   bool autoPosition{};
   std::string autoPositionAnimation;
+  bool gravityEnabled{true};
   physics::Vec3 visualRotationAxis{0.0, 1.0, 0.0};
   double visualRotationDegrees{};
   double visualYawDegrees{};
@@ -67,6 +67,7 @@ struct RuntimeEntitySpec {
   std::string handBone{"Hand"};
   bool visible{true};
   bool collision{true};
+  bool castShadows{true};
   std::vector<RuntimeVisualPartSpec> parts;
   std::vector<RuntimeParticleSpec> particles;
 };
@@ -208,6 +209,7 @@ struct SpawnRuntimeRagdoll {
 };
 struct SetNpcUpdateInterval { double seconds{}; };
 struct TickRuntimeNpcPhysics { double seconds{}; };
+struct SetRuntimeNpcGravity { EntityHandle handle; bool enabled{true}; };
 struct DeferredLegacyCommand {
   std::string name;
   std::string detail;
@@ -239,6 +241,7 @@ using GameCommand =
                  PlayRuntimeFacial, SpawnRuntimeRagdoll,
                  SetNpcUpdateInterval,
                  TickRuntimeNpcPhysics,
+                 SetRuntimeNpcGravity,
                  DeferredLegacyCommand, RuntimeLog>;
 
 class IGameServices {

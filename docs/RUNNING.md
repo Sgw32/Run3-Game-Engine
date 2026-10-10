@@ -19,8 +19,10 @@ inventory presentation, and isolated virtual-computer render textures. CEGUI,
 DirectShow, Hydrax, SkyX, Cg, and shader-model-2 programs are not required by
 the portable runtime.
 Legacy `physPosit` visual offsets and `physSize` collision multipliers are
-honoured independently, and sequence-spawned doors, trains, buttons, and NPCs
-use the same textured compatibility-material path as static geometry.
+honoured independently in manual mode. NPCs with `autoPosition="true"` instead
+receive a walking-pose automatic body fit and an upright, gravity-driven Bullet
+body. Sequence-spawned doors, trains, buttons, and NPCs use the same textured
+compatibility-material path as static geometry.
 
 Build and test first with [BUILDING.md](BUILDING.md). Run the installed binary,
 because `cmake --install` stages the Ogre plugins, runtime libraries,

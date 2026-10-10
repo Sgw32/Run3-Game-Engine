@@ -149,11 +149,13 @@ void readStartupMusic(MapAudioLoadResult &result, const fs::path &contentRoot,
 
 MapAudioLoadResult loadLegacyMapAudio(const fs::path &contentRoot,
                                       const std::string &mapName,
-                                      const std::string &quality) {
+                                      const std::string &quality,
+                                      const fs::path &resolvedMapDirectory) {
   MapAudioLoadResult result;
   const std::string map = safeMapName(mapName);
-  const fs::path mapDirectory =
-      contentRoot / "run3" / "maps" / quality / map;
+  const fs::path mapDirectory = resolvedMapDirectory.empty()
+      ? contentRoot / "run3" / "maps" / quality / map
+      : resolvedMapDirectory;
   const fs::path sceneConfig = mapDirectory / "scene.cfg";
   const std::string sceneName = configValue(sceneConfig, "Scene");
   if (sceneName.empty()) {
@@ -230,27 +232,13 @@ MapAudioStartResult MapAudioRuntime::start(MapAudioDefinition definition) {
   clear();
   definition_ = std::move(definition);
   MapAudioStartResult result;
-  ambient_.reserve(definition_.ambientSounds.size());
+  // Ambient declarations describe virtual sounds, not permanently occupied
+  // mixer voices. A voice is allocated only while its attenuation sphere is
+  // relevant to the listener and released after the listener leaves it.
+  ambient_.resize(definition_.ambientSounds.size());
+  ambientTriggered_.assign(definition_.ambientSounds.size(), false);
   namedAmbient_.resize(definition_.namedAmbientSounds.size());
-  for (const AmbientSoundDefinition &sound : definition_.ambientSounds) {
-    PlayOptions options;
-    options.file = sound.file;
-    options.bus = Bus::effects;
-    options.loop = sound.loop;
-    options.spatial = true;
-    options.gain = sound.gain;
-    options.position = sound.position;
-    options.minDistance = sound.minDistance;
-    options.maxDistance = sound.maxDistance;
-    SoundHandle handle = engine_.play(options);
-    if (handle.valid()) {
-      ambient_.push_back(std::move(handle));
-      ++result.ambientStarted;
-    } else {
-      ++result.ambientFailed;
-    }
-  }
-  music_.setVolume(definition_.musicGain);
+  music_.setVolume(definition_.musicGain * 10.0F);
   return result;
 }
 
@@ -322,7 +310,7 @@ void MapAudioRuntime::stopMusic(float fadeSeconds) {
 }
 
 void MapAudioRuntime::setMusicVolume(float gain) {
-  music_.setVolume(gain);
+  music_.setVolume(gain * 10.0F);
   definition_.musicGain = gain;
 }
 
@@ -347,6 +335,7 @@ void MapAudioRuntime::update(const float seconds, const FootstepState *player) {
   music_.update(seconds);
   oneShots_.update(seconds);
   if (player != nullptr) {
+    updateAmbient(player->position);
     updateFootsteps(seconds, *player);
   } else {
     footstepTimer_ = 0.0F;
@@ -357,6 +346,7 @@ void MapAudioRuntime::clear() noexcept {
   oneShots_.clear();
   music_.clear();
   ambient_.clear();
+  ambientTriggered_.clear();
   namedAmbient_.clear();
   definition_ = {};
   footstepTimer_ = 0.0F;
@@ -364,6 +354,75 @@ void MapAudioRuntime::clear() noexcept {
   footstepCount_ = 0;
   musicStartAllowed_ = false;
   pendingMusicSeek_.reset();
+}
+
+void MapAudioRuntime::updateAmbient(const Vec3 listenerPosition) {
+  struct Candidate {
+    std::size_t index{};
+    float distanceSquared{};
+  };
+  std::vector<Candidate> candidates;
+  candidates.reserve(definition_.ambientSounds.size());
+  for (std::size_t index = 0; index < definition_.ambientSounds.size(); ++index) {
+    const AmbientSoundDefinition &sound = definition_.ambientSounds[index];
+    const float x = listenerPosition.x - sound.position.x;
+    const float y = listenerPosition.y - sound.position.y;
+    const float z = listenerPosition.z - sound.position.z;
+    const float distanceSquared = x * x + y * y + z * z;
+    const float enterDistance = std::max(sound.minDistance, sound.maxDistance);
+    // A small exit margin prevents voice churn while standing on an authored
+    // maxDistance boundary.
+    const float exitDistance = enterDistance * 1.1F;
+    const bool relevant = ambient_[index].valid()
+        ? distanceSquared <= exitDistance * exitDistance
+        : distanceSquared <= enterDistance * enterDistance;
+    if (!relevant) {
+      ambient_[index].reset();
+      ambientTriggered_[index] = false;
+      continue;
+    }
+    if (ambient_[index].valid() &&
+        engine_.state(ambient_[index]) == SoundState::stopped) {
+      ambient_[index].reset();
+    }
+    candidates.push_back({index, distanceSquared});
+  }
+  std::sort(candidates.begin(), candidates.end(),
+            [](const Candidate &left, const Candidate &right) {
+              return left.distanceSquared < right.distanceSquared;
+            });
+  const AudioStats stats = engine_.stats();
+  const std::size_t activeAmbient = ambientCount();
+  const std::size_t nonAmbient = stats.activeVoices > activeAmbient
+      ? stats.activeVoices - activeAmbient : 0;
+  // Keep a small part of the bounded pool available for globally important
+  // music, dialogue, footsteps and scripted effects. The remaining slots are
+  // dynamically assigned to the nearest audible authored ambience.
+  const std::size_t reserve = stats.voiceCapacity > 4 ? 4 :
+                              stats.voiceCapacity > 0 ? 1 : 0;
+  const std::size_t unavailable = std::max(nonAmbient, reserve);
+  const std::size_t budget = stats.voiceCapacity > unavailable
+      ? stats.voiceCapacity - unavailable : 0;
+  for (std::size_t ordinal = budget; ordinal < candidates.size(); ++ordinal)
+    ambient_[candidates[ordinal].index].reset();
+  for (std::size_t ordinal = 0;
+       ordinal < std::min(budget, candidates.size()); ++ordinal) {
+    const std::size_t index = candidates[ordinal].index;
+    const AmbientSoundDefinition &sound = definition_.ambientSounds[index];
+    if (ambient_[index].valid() || (!sound.loop && ambientTriggered_[index]))
+      continue;
+    PlayOptions options;
+    options.file = sound.file;
+    options.bus = Bus::effects;
+    options.loop = sound.loop;
+    options.spatial = true;
+    options.gain = sound.gain;
+    options.position = sound.position;
+    options.minDistance = sound.minDistance;
+    options.maxDistance = sound.maxDistance;
+    ambient_[index] = engine_.play(options);
+    if (ambient_[index].valid()) ambientTriggered_[index] = true;
+  }
 }
 
 void MapAudioRuntime::updateFootsteps(const float seconds,

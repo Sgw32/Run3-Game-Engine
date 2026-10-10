@@ -17,6 +17,8 @@
 #include <OgreAxisAlignedBox.h>
 #include <OgreCamera.h>
 #include <OgreEntity.h>
+#include <OgreHardwareIndexBuffer.h>
+#include <OgreHardwareVertexBuffer.h>
 #include <OgreLight.h>
 #include <OgreLogManager.h>
 #include <OgreMaterialManager.h>
@@ -116,6 +118,84 @@ physics::Vec3 fromOgre(const Ogre::Vector3 &value) {
 }
 physics::Quaternion fromOgre(const Ogre::Quaternion &value) {
   return {value.w, value.x, value.y, value.z};
+}
+
+bool usesMeshCollision(const RuntimeEntityKind kind) noexcept {
+  return kind == RuntimeEntityKind::Door ||
+         kind == RuntimeEntityKind::Rotator ||
+         kind == RuntimeEntityKind::Pendulum ||
+         kind == RuntimeEntityKind::Train;
+}
+
+std::optional<physics::Shape> meshCollisionShape(
+    const Ogre::Entity &entity, const Ogre::Vector3 &scale,
+    const Ogre::Vector3 &localCentre) {
+  const Ogre::MeshPtr mesh = entity.getMesh();
+  if (!mesh || mesh->getNumSubMeshes() == 0) return std::nullopt;
+  std::vector<physics::Vec3> vertices;
+  std::vector<std::uint32_t> indices;
+  for (unsigned subIndex = 0; subIndex < mesh->getNumSubMeshes(); ++subIndex) {
+    const Ogre::SubMesh *subMesh = mesh->getSubMesh(subIndex);
+    const Ogre::VertexData *vertexData = subMesh->useSharedVertices
+        ? mesh->sharedVertexData : subMesh->vertexData;
+    if (vertexData == nullptr || vertexData->vertexCount == 0 ||
+        subMesh->indexData == nullptr ||
+        !subMesh->indexData->indexBuffer ||
+        subMesh->indexData->indexCount < 3)
+      continue;
+    const Ogre::VertexElement *position =
+        vertexData->vertexDeclaration->findElementBySemantic(
+            Ogre::VES_POSITION);
+    if (position == nullptr) continue;
+    const Ogre::HardwareVertexBufferSharedPtr vertexBuffer =
+        vertexData->vertexBufferBinding->getBuffer(position->getSource());
+    const std::uint32_t base = static_cast<std::uint32_t>(vertices.size());
+    auto *bytes = static_cast<unsigned char *>(
+        vertexBuffer->lock(Ogre::HardwareBuffer::HBL_READ_ONLY));
+    for (std::size_t index = 0; index < vertexData->vertexCount; ++index) {
+      float *point{};
+      position->baseVertexPointerToElement(
+          bytes + (vertexData->vertexStart + index) *
+                      vertexBuffer->getVertexSize(),
+          &point);
+      vertices.push_back({point[0] * scale.x - localCentre.x,
+                          point[1] * scale.y - localCentre.y,
+                          point[2] * scale.z - localCentre.z});
+    }
+    vertexBuffer->unlock();
+
+    const Ogre::HardwareIndexBufferSharedPtr indexBuffer =
+        subMesh->indexData->indexBuffer;
+    const bool use32 =
+        indexBuffer->getType() == Ogre::HardwareIndexBuffer::IT_32BIT;
+    const void *raw = indexBuffer->lock(Ogre::HardwareBuffer::HBL_READ_ONLY);
+    bool valid = true;
+    const bool mirrored = scale.x * scale.y * scale.z < 0.0F;
+    for (std::size_t index = 0; index + 2 < subMesh->indexData->indexCount;
+         index += 3) {
+      const auto read = [&](const std::size_t offset) {
+        const std::size_t at = subMesh->indexData->indexStart + offset;
+        return use32 ? static_cast<const std::uint32_t *>(raw)[at]
+                     : static_cast<std::uint32_t>(
+                           static_cast<const std::uint16_t *>(raw)[at]);
+      };
+      std::uint32_t triangle[3]{read(index), read(index + 1), read(index + 2)};
+      for (std::uint32_t &vertex : triangle) {
+        if (vertex >= vertexData->vertexStart &&
+            vertex < vertexData->vertexStart + vertexData->vertexCount)
+          vertex -= static_cast<std::uint32_t>(vertexData->vertexStart);
+        if (vertex >= vertexData->vertexCount) valid = false;
+        vertex += base;
+      }
+      if (!valid) break;
+      if (mirrored) std::swap(triangle[1], triangle[2]);
+      indices.insert(indices.end(), std::begin(triangle), std::end(triangle));
+    }
+    indexBuffer->unlock();
+    if (!valid) return std::nullopt;
+  }
+  if (vertices.empty() || indices.empty()) return std::nullopt;
+  return physics::Shape::triangleMesh(std::move(vertices), std::move(indices));
 }
 
 int legacyFacialPoseFromName(std::string name) {
@@ -448,9 +528,26 @@ public:
     halfExtents.x = std::max(0.01, std::abs(halfExtents.x));
     halfExtents.y = std::max(0.01, std::abs(halfExtents.y));
     halfExtents.z = std::max(0.01, std::abs(halfExtents.z));
+    physics::Shape shape = physics::Shape::box(halfExtents);
+    if (usesMeshCollision(presentation.spec.kind) &&
+        presentation.entity != nullptr && presentation.node != nullptr) {
+      presentation.node->_update(true, true);
+      const Ogre::Vector3 scale = presentation.node->_getDerivedScale();
+      presentation.localCentre =
+          presentation.entity->getBoundingBox().getCenter() * scale;
+      if (auto meshShape = meshCollisionShape(
+              *presentation.entity, scale, presentation.localCentre)) {
+        shape = std::move(*meshShape);
+        log("triangle collision: '" + presentation.spec.name + "' mesh '" +
+            presentation.spec.mesh + "'");
+      } else {
+        log("warning: triangle collision extraction failed for '" +
+            presentation.spec.name + "'; using bounds box");
+      }
+    }
     DynamicEntityDesc body{presentation.spec.name,
                            bodyType(presentation.spec.kind),
-                           physics::Shape::box(halfExtents)};
+                           std::move(shape)};
     if (presentation.spec.kind == RuntimeEntityKind::Npc) {
       body.motion = physics::BodyMotion::Dynamic;
       body.massKg = 80.0;
@@ -547,9 +644,20 @@ public:
                            std::abs(meshHalf.y * derivedScale.y))),
         std::max(0.01, static_cast<double>(
                            std::abs(meshHalf.z * derivedScale.z)))};
+    physics::Shape shape = physics::Shape::box(half);
+    part.localCentre = part.entity->getBoundingBox().getCenter() * derivedScale;
+    if (auto meshShape = meshCollisionShape(
+            *part.entity, derivedScale, part.localCentre)) {
+      shape = std::move(*meshShape);
+      log("triangle collision: train part '" + part.spec.name + "' mesh '" +
+          part.spec.mesh + "'");
+    } else {
+      log("warning: triangle collision extraction failed for train part '" +
+          part.spec.name + "'; using bounds box");
+    }
     DynamicEntityDesc body{
         part.spec.name.empty() ? owner.spec.name : part.spec.name,
-        physics::BodyType::Train, physics::Shape::box(half)};
+        physics::BodyType::Train, std::move(shape)};
     body.motion = physics::BodyMotion::Kinematic;
     part.node->_update(true, true);
     body.transform.position = fromOgre(
@@ -1371,6 +1479,13 @@ public:
     }
     options.bus = audio::Bus::voice;
     options.spatial = true;
+    options.gain = 10.0F;
+    if (const auto presentation = presentations.find(owner);
+        presentation != presentations.end() && presentation->second.node != nullptr) {
+      presentation->second.node->_update(true, true);
+      facial.position = fromOgre(
+          presentation->second.node->_getDerivedPosition());
+    }
     options.position = {static_cast<float>(facial.position.x),
                         static_cast<float>(facial.position.y),
                         static_cast<float>(facial.position.z)};
@@ -1445,6 +1560,18 @@ public:
           log("facial animation stopped for NPC '" + facial.ownerName +
               "': voice handle missing");
           continue;
+        }
+        if (const auto presentation = presentations.find(owner);
+            presentation != presentations.end() &&
+            presentation->second.node != nullptr) {
+          presentation->second.node->_update(true, true);
+          facial.position = fromOgre(
+              presentation->second.node->_getDerivedPosition());
+          static_cast<void>(audio->setPosition(
+              voice->second,
+              {static_cast<float>(facial.position.x),
+               static_cast<float>(facial.position.y),
+               static_cast<float>(facial.position.z)}));
         }
         soundSecond = audio->playbackSeconds(voice->second);
         if (audio->state(voice->second) == audio::SoundState::stopped &&

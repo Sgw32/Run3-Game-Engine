@@ -229,18 +229,18 @@ TEST_CASE("legacy map audio fixture starts static ambience music and footsteps")
   MapAudioRuntime runtime(*engine);
   const MapAudioStartResult started =
       runtime.start(std::move(loaded.definition));
-  CHECK(started.ambientStarted == 2);
+  CHECK(started.ambientStarted == 0);
   CHECK(started.ambientFailed == 0);
   CHECK_FALSE(started.musicStarted);
   CHECK(runtime.musicPending());
   CHECK(runtime.musicPlaybackSeconds() == 0.0F);
-  CHECK(engine->stats().activeVoices == 2);
+  CHECK(engine->stats().activeVoices == 0);
   CHECK(runtime.seekMusicSeconds(1.25F));
   REQUIRE(runtime.startPendingMusic());
   CHECK_FALSE(runtime.musicPending());
   REQUIRE(runtime.musicPlaybackSeconds());
   CHECK(*runtime.musicPlaybackSeconds() == Catch::Approx(1.25F));
-  CHECK(engine->stats().activeVoices == 3);
+  CHECK(engine->stats().activeVoices == 1);
   const auto activeVoices = engine->activeVoices();
   const auto musicVoice = std::find_if(
       activeVoices.begin(), activeVoices.end(),
@@ -249,21 +249,57 @@ TEST_CASE("legacy map audio fixture starts static ambience music and footsteps")
   CHECK_FALSE(musicVoice->spatial);
   CHECK(musicVoice->file.filename() == "background.wav");
   CHECK(runtime.setNamedAmbientEnabled("script_alarm", true));
-  CHECK(engine->stats().activeVoices == 4);
+  CHECK(engine->stats().activeVoices == 2);
   CHECK(runtime.setNamedAmbientEnabled("script_alarm", false));
-  CHECK(engine->stats().activeVoices == 3);
+  CHECK(engine->stats().activeVoices == 1);
 
   const FootstepState walking{{0.0F, 0.0F, 0.0F},
                               {300.0F, 0.0F, 0.0F}, true, false};
   runtime.update(0.49F, &walking);
   CHECK(runtime.footstepCount() == 1);
   CHECK(engine->stats().activeVoices == 4);
+  CHECK(runtime.ambientCount() == 2);
+
+  const FootstepState distant{{1000.0F, 0.0F, 0.0F}, {}, false, false};
+  runtime.update(0.01F, &distant);
+  CHECK(runtime.ambientCount() == 0);
+  CHECK(engine->stats().activeVoices == 2);
 
   const FootstepState noclip{{}, {500.0F, 0.0F, 0.0F}, false, true};
   runtime.update(1.0F, &noclip);
   CHECK(runtime.footstepCount() == 1);
   runtime.clear();
   CHECK(engine->stats().activeVoices == 0);
+}
+
+TEST_CASE("map audio declarations can be resolved from a content overlay") {
+  const fs::path root = fs::path(RUN3_TEST_SOURCE_DIR) / "tests" / "fixtures" /
+                        "audio_map";
+  const fs::path overlayMap = root / "overlay/run3/maps/low/audio_test";
+  const MapAudioLoadResult loaded =
+      loadLegacyMapAudio(root, "audio_test", "low", overlayMap);
+  CHECK(loaded.sceneFile == overlayMap / "audio_test.xml");
+  CHECK(loaded.definition.ambientSounds.empty());
+  CHECK(loaded.definition.namedAmbientSounds.empty());
+  CHECK(loaded.definition.musicFile.filename() == "background.wav");
+}
+
+TEST_CASE("ambient virtualization assigns bounded slots to nearest sounds") {
+  auto engine = createNullAudioEngine({2, false});
+  MapAudioDefinition definition;
+  definition.ambientSounds = {
+      {"", "left.wav", {0.0F, 0.0F, 0.0F}, 1.0F, 100.0F, 1.0F, true},
+      {"", "right.wav", {50.0F, 0.0F, 0.0F}, 1.0F, 100.0F, 1.0F, true}};
+  MapAudioRuntime runtime(*engine);
+  static_cast<void>(runtime.start(std::move(definition)));
+  const FootstepState left{{0.0F, 0.0F, 0.0F}, {}, false, false};
+  runtime.update(0.01F, &left);
+  REQUIRE(engine->activeVoices().size() == 1);
+  CHECK(engine->activeVoices().front().file.filename() == "left.wav");
+  const FootstepState right{{50.0F, 0.0F, 0.0F}, {}, false, false};
+  runtime.update(0.01F, &right);
+  REQUIRE(engine->activeVoices().size() == 1);
+  CHECK(engine->activeVoices().front().file.filename() == "right.wav");
 }
 
 TEST_CASE("attached tlwcao exposes authored spawn ambience music and footsteps") {

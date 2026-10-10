@@ -43,7 +43,8 @@ struct MapAudioLoadResult {
 // started early.
 [[nodiscard]] MapAudioLoadResult loadLegacyMapAudio(
     const std::filesystem::path &contentRoot, const std::string &mapName,
-    const std::string &quality);
+    const std::string &quality,
+    const std::filesystem::path &resolvedMapDirectory = {});
 
 struct FootstepState {
   Vec3 position{};
@@ -81,7 +82,10 @@ public:
   void clear() noexcept;
 
   [[nodiscard]] std::size_t ambientCount() const noexcept {
-    return ambient_.size();
+    std::size_t result{};
+    for (const SoundHandle &sound : ambient_)
+      if (sound.valid()) ++result;
+    return result;
   }
   [[nodiscard]] std::size_t footstepCount() const noexcept {
     return footstepCount_;
@@ -92,6 +96,7 @@ public:
   }
 
 private:
+  void updateAmbient(Vec3 listenerPosition);
   void updateFootsteps(float seconds, const FootstepState &player);
 
   IAudioEngine &engine_;
@@ -99,6 +104,7 @@ private:
   SoundRuntime oneShots_;
   MapAudioDefinition definition_;
   std::vector<SoundHandle> ambient_;
+  std::vector<bool> ambientTriggered_;
   std::vector<SoundHandle> namedAmbient_;
   float footstepTimer_{};
   std::size_t nextFootstep_{};

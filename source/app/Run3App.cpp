@@ -917,7 +917,9 @@ void Run3App::loadMap(const std::string &mapName) {
 
     try {
       audio::MapAudioLoadResult loaded = audio::loadLegacyMapAudio(
-          options_.paths.contentRoot(), options_.mapName, options_.mapQuality);
+          options_.paths.contentRoot(), options_.mapName, options_.mapQuality,
+          options_.paths.contentPath(std::filesystem::path("run3") / "maps" /
+                                     options_.mapQuality / options_.mapName));
       for (const std::string &warning : loaded.warnings) {
         Ogre::LogManager::getSingleton().logMessage("Map audio: " + warning);
       }

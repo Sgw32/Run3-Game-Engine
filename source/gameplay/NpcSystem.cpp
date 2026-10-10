@@ -374,25 +374,7 @@ void NpcSystem::fixedUpdate(double seconds) {
       npc.nearFired = true;
       impl_->services->submit(RunRuntimeScript{npc.nearScript});
     }
-    const bool facialActive =
-        impl_->services->runtimeFacialActive(npc.publicState.handle);
-    if (facialActive != npc.facialPaused) {
-      npc.facialPaused = facialActive;
-      if (facialActive) {
-        impl_->setAnimation(npc, "Idle1");
-        impl_->services->submit(RuntimeLog{
-            "NPC '" + npc.publicState.name +
-            "' navigation paused for facial animation"});
-      } else {
-        if (npc.publicState.state == NpcState::Navigating)
-          impl_->setAnimation(npc, "Walk");
-        impl_->services->submit(RuntimeLog{
-            "NPC '" + npc.publicState.name +
-            "' navigation resumed after facial animation"});
-      }
-    }
     if (npc.publicState.npcClass == NpcClass::Enemy && !npc.suspended &&
-        !facialActive &&
         npc.publicState.state != NpcState::Dead &&
         ++npc.perceptionTick % 30 == 0) {
       const auto player = impl_->services->playerPosition();
@@ -422,7 +404,6 @@ void NpcSystem::fixedUpdate(double seconds) {
       }
       continue;
     }
-    if (facialActive) continue;
     if (npc.publicState.state != NpcState::Navigating) continue;
     if (npc.waypoint >= npc.path.size()) {
       npc.publicState.state = NpcState::Reached;

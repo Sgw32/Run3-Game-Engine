@@ -300,6 +300,10 @@ public:
   [[nodiscard]] Transform
   interpolatedTransform(const BodyHandle &body) const;
   void setTransform(const BodyHandle &body, const Transform &transform);
+  // Translate every body by -offset while preserving velocities and logical
+  // relationships. Used by streamed worlds to keep Bullet near its precision
+  // origin without constraining the logical world coordinates.
+  void shiftOrigin(Vec3 offsetGameUnits);
   [[nodiscard]] Vec3 linearVelocity(const BodyHandle &body) const;
   void setLinearVelocity(const BodyHandle &body, Vec3 velocityGameUnits);
   void setGravityEnabled(const BodyHandle &body, bool enabled);

@@ -10,6 +10,7 @@
 #include <run3/input/OgreBitesInputAdapter.hpp>
 #include <run3/gameplay/PlayerController.hpp>
 #include <run3/gameplay/SequenceRuntime.hpp>
+#include <run3/gameplay/SemiInfiniteWorld.hpp>
 #include <run3/gameplay/NpcSystem.hpp>
 #include <run3/gameplay/StaticMap.hpp>
 #include <run3/physics/PhysicsQuery.hpp>
@@ -127,6 +128,7 @@ private:
   Ogre::SceneNode *physicsDebugNode_{};
   std::unique_ptr<physics::PhysicsWorld> physicsWorld_;
   std::unique_ptr<gameplay::StaticMap> staticMap_;
+  std::unique_ptr<gameplay::SemiInfiniteWorld> semiInfiniteWorld_;
   std::unique_ptr<gameplay::PlayerController> player_;
   std::unique_ptr<gameplay::OgreSequenceServices> sequenceServices_;
   std::unique_ptr<gameplay::SequenceRuntime> sequenceRuntime_;

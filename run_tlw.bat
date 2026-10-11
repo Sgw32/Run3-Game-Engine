@@ -5,7 +5,7 @@ REM run_tlw.bat --lighting-pipeline fast-forward --shadow-quality off
 REM run_tlw.bat --lighting-pipeline pbr --shadow-quality high --exposure 1
 REM run_tlw.bat --lighting-pipeline deferred --shadow-quality low
 REM These new pipelines are experimental; campaign validation is still in progress.
-REM TLWRM overlays run3/core, run3/maps, run3/game and run3/shaders.
+REM TLWRM overlays run3/core, run3/maps, run3/game, run3/fonts and run3/shaders.
 REM Existing files there replace originals; absent files fall back to original content.
 REM To run only original content, remove the two TLWRM arguments below or call
 REM run3_shell.exe directly with --content-variant original.
@@ -17,7 +17,7 @@ REM cd /d C:\Run3-Game-Engine
     --content-root "C:\Run3-Game-Engine\Games\The Long Way\TheLongWay" ^
     --content-variant tlwrm ^
     --content-overlay "%~dp0derived-content\tlwrm" ^
-    --map tlwintro ^
+    --map tlwstations02 ^
     --user-dir ".\build\user\windows-release" ^
     --fullscreen ^
     --lighting-pipeline legacy-forward --shadow-quality low --exposure 0.6 ^

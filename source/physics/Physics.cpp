@@ -316,6 +316,11 @@ void PhysicsWorld::setTransform(const BodyHandle &body, const Transform &value) 
   backend_->setTransform(checkedBody(body), value);
 }
 
+void PhysicsWorld::shiftOrigin(const Vec3 offset) {
+  if (!backend_) throw std::logic_error("physics world is not initialized");
+  backend_->shiftOrigin(offset);
+}
+
 Vec3 PhysicsWorld::linearVelocity(const BodyHandle &body) const {
   return backend_->linearVelocity(checkedBody(body));
 }

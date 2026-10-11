@@ -30,6 +30,7 @@ public:
   [[nodiscard]] virtual Transform transform(BodyId id) const = 0;
   [[nodiscard]] virtual Transform interpolatedTransform(BodyId id) const = 0;
   virtual void setTransform(BodyId id, const Transform &transform) = 0;
+  virtual void shiftOrigin(Vec3 offset) = 0;
   [[nodiscard]] virtual Vec3 linearVelocity(BodyId id) const = 0;
   virtual void setLinearVelocity(BodyId id, Vec3 velocity) = 0;
   virtual void setGravityEnabled(BodyId id, bool enabled) = 0;

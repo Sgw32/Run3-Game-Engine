@@ -954,7 +954,8 @@ public:
         continue;
       }
       const std::string type = trim(line.substr(0, equals));
-      fs::path path = paths.contentPath(trim(line.substr(equals + 1)));
+      const fs::path relative = trim(line.substr(equals + 1));
+      fs::path path = paths.contentPath(relative);
       if ((type != "FileSystem" && type != "Zip") || !fs::exists(path) ||
           !added.insert(path).second) {
         continue;
@@ -962,6 +963,19 @@ public:
       try {
         manager.addResourceLocation(path.string(), type, resourceGroup_, false,
                                     true);
+        // contentPath() gives an overlay file precedence, but a resource
+        // location represents a whole directory. Keep the original directory
+        // behind an overlaid directory so files absent from TLWRM (for
+        // example the authored TTF files beside console2.fontdef) still obey
+        // the overlay's documented file-level fallback semantics. Ogre keeps
+        // the first indexed resource, so overlay files continue to win.
+        const fs::path original = (contentRoot / relative).lexically_normal();
+        if (type == "FileSystem" && !paths.contentOverlay().empty() &&
+            path != original && fs::is_directory(original) &&
+            added.insert(original).second) {
+          manager.addResourceLocation(original.string(), type, resourceGroup_,
+                                      false, true);
+        }
       } catch (const Ogre::Exception &error) {
         Ogre::LogManager::getSingleton().logMessage(
             "Step 6C resource skipped: " + path.string() + ": " +
@@ -1278,6 +1292,11 @@ void StaticMap::setDebugDraw(bool enabled) {
 }
 void StaticMap::syncDynamicTransforms() {
   implementation_->syncDynamicTransforms();
+}
+void StaticMap::shiftVisualOrigin(const physics::Vec3 offset) {
+  if (implementation_->rootNode_ == nullptr) return;
+  implementation_->rootNode_->setPosition(
+      implementation_->rootNode_->getPosition() - toOgre(offset));
 }
 physics::Vec3 StaticMap::spawnPosition() const noexcept {
   return implementation_->spawn_;

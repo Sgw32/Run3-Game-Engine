@@ -8,6 +8,7 @@
 #include <run3/gameplay/PlayerController.hpp>
 #include <run3/gameplay/OgreSequenceServices.hpp>
 #include <run3/gameplay/SequenceRuntime.hpp>
+#include <run3/gameplay/SemiInfiniteWorld.hpp>
 #include <run3/gameplay/StaticMap.hpp>
 #include <run3/physics/Physics.hpp>
 #include <run3/rendering/Run3SceneManager.hpp>
@@ -79,6 +80,14 @@ std::string lower(std::string value) {
                    return static_cast<char>(std::tolower(character));
                  });
   return value;
+}
+
+const content::ConfigEntry *mapConfig(const content::MapDefinition &definition,
+                                      const std::string_view key) {
+  const auto found = std::find_if(
+      definition.config.begin(), definition.config.end(),
+      [key](const content::ConfigEntry &entry) { return entry.key == key; });
+  return found == definition.config.end() ? nullptr : &*found;
 }
 
 std::optional<fs::path> configuredRoot(const Configuration &configuration,
@@ -296,15 +305,18 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
   if (options.lightingLab && !options.mapName.empty())
     throw std::runtime_error("--lighting-lab and --map are mutually exclusive");
   const auto variant = configuration.valueOr("content.variant", "original");
-  if (variant != "original" && variant != "nextgen" && variant != "tlwrm")
+  if (variant != "original" && variant != "nextgen" && variant != "tlwrm" &&
+      variant != "luniverse")
     throw std::runtime_error(
-        "content.variant must be original, nextgen or tlwrm");
+        "content.variant must be original, nextgen, tlwrm or luniverse");
   if (const auto overlay = configuration.find("content.overlay"))
     options.paths.setContentOverlay(configuredPath(*overlay, executableDir));
   else if (variant == "nextgen")
     options.paths.setContentOverlay(options.paths.userPath("derived-content/nextgen"));
   else if (variant == "tlwrm")
     options.paths.setContentOverlay(options.paths.userPath("derived-content/tlwrm"));
+  else if (variant == "luniverse")
+    options.paths.setContentOverlay(options.paths.userPath("derived-content/luniverse"));
   options.mapQuality = configuredQuality(
       configuration, "scene-quality",
       configuration.valueOr("map-quality", "low"));
@@ -384,7 +396,7 @@ void printRun3AppUsage() {
       << "       [--shadow-quality off|low|medium|high|ultra] [--exposure N]\n"
       << "       [--shadow-update-interval 1..8]\n"
       << "       [--lighting-lab] [--lighting-capture]\n"
-      << "       [--content-variant original|nextgen|tlwrm] [--content-overlay PATH]\n"
+      << "       [--content-variant original|nextgen|tlwrm|luniverse] [--content-overlay PATH]\n"
       << "Precedence: command line > user config > content defaults.\n"
       << "Relative paths are resolved from the executable directory.\n";
 }
@@ -477,6 +489,18 @@ int Run3App::run() {
         }
         if (staticMap_) {
           staticMap_->syncDynamicTransforms();
+        }
+        if (semiInfiniteWorld_ && player_ && physicsWorld_ && staticMap_) {
+          physics::Vec3 playerPosition = player_->state().position;
+          if (const auto shift =
+                  semiInfiniteWorld_->requestedOriginShift(playerPosition)) {
+            physicsWorld_->shiftOrigin(*shift);
+            staticMap_->shiftVisualOrigin(*shift);
+            player_->applyOriginShift(*shift);
+            semiInfiniteWorld_->applyOriginShift(*shift);
+            playerPosition = player_->state().position;
+          }
+          semiInfiniteWorld_->update(playerPosition);
         }
         const physics::Vec3 eye = player_->eyePosition();
         const auto &presentation = sequenceRuntime_
@@ -908,8 +932,45 @@ void Run3App::loadMap(const std::string &mapName) {
                                                            playerConfig);
     player_->spawn(staticMap_->spawnPosition());
     player_->setNoclip(options_.startNoclip);
+    if (const content::ConfigEntry *seedEntry =
+            mapConfig(staticMap_->definition(), "WorldSeed")) {
+      gameplay::SemiInfiniteWorldOptions worldOptions;
+      const auto [pointer, error] = std::from_chars(
+          seedEntry->value.data(),
+          seedEntry->value.data() + seedEntry->value.size(),
+          worldOptions.seed);
+      if (error != std::errc{} ||
+          pointer != seedEntry->value.data() + seedEntry->value.size()) {
+        throw std::runtime_error(
+            "WorldSeed must be an unsigned 64-bit integer");
+      }
+      const auto value = [this](const std::string_view key,
+                                const std::string &fallback) {
+        const content::ConfigEntry *entry =
+            mapConfig(staticMap_->definition(), key);
+        return entry == nullptr ? fallback : entry->value;
+      };
+      worldOptions.manifest = options_.paths.contentPath(
+          value("BlockManifest", "run3/bblocks/block_manifest.json"));
+      worldOptions.originBlock = value("WorldOriginBlock", "");
+      worldOptions.horizontalLoadRadiusCm =
+          std::stod(value("WorldLoadRadius", "20000"));
+      worldOptions.verticalLoadRadiusCm =
+          std::stod(value("WorldVerticalRadius", "3000"));
+      worldOptions.rebaseThresholdCm =
+          std::stod(value("WorldRebaseThreshold", "50000"));
+      worldOptions.logicalExtentCm =
+          std::stoll(value("WorldExtent", "100000000"));
+      worldOptions.lightBudget = static_cast<unsigned>(
+          std::stoul(value("WorldLightBudget", "3")));
+      worldOptions.lighting = options_.lighting;
+      semiInfiniteWorld_ = std::make_unique<gameplay::SemiInfiniteWorld>(
+          *sceneManager_, *physicsWorld_, std::move(worldOptions));
+      semiInfiniteWorld_->update(player_->state().position);
+    }
     physicsDebug_ = options_.physicsDebug;
     staticMap_->setDebugDraw(physicsDebug_);
+    if (semiInfiniteWorld_) semiInfiniteWorld_->setDebugDraw(physicsDebug_);
     camera_->setNearClipDistance(5.0F);
     camera_->setFarClipDistance(100000.0F);
     camera_->setFOVy(Ogre::Degree(static_cast<Ogre::Real>(
@@ -1011,6 +1072,7 @@ void Run3App::unloadMap(const bool runOnExit) {
   // only after all script-backed services have shut down.
   if (lighting_) lighting_->clearCompositorEffects();
   mapAudio_.reset();
+  semiInfiniteWorld_.reset();
   player_.reset();
   if (staticMap_) {
     staticMap_->unload();
@@ -1254,6 +1316,7 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
                !event.repeated && event.key == Key::F3) {
       physicsDebug_ = !physicsDebug_;
       staticMap_->setDebugDraw(physicsDebug_);
+      if (semiInfiniteWorld_) semiInfiniteWorld_->setDebugDraw(physicsDebug_);
       updatePhysicsDebugDraw();
       const std::size_t bodyCount =
           physicsWorld_ != nullptr ? physicsWorld_->bodyCount() : 0;

@@ -77,6 +77,7 @@ public:
   void unload() noexcept;
   void setDebugDraw(bool enabled);
   void syncDynamicTransforms();
+  void shiftVisualOrigin(physics::Vec3 offset);
 
   [[nodiscard]] physics::Vec3 spawnPosition() const noexcept;
   [[nodiscard]] const std::vector<AxisAlignedVolume> &ladderVolumes() const;

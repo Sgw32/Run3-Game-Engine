@@ -4,7 +4,9 @@
 #include <run3/app/Configuration.hpp>
 #include <run3/app/AppPaths.hpp>
 #include <run3/gameplay/LegacyMaterialCatalog.hpp>
+#include <run3/gameplay/SemiInfiniteWorld.hpp>
 #include <limits>
+#include <set>
 
 using namespace run3;
 using namespace run3::rendering;
@@ -117,7 +119,7 @@ TEST_CASE("Material inheritance preserves separate per-material light budgets") 
   REQUIRE(multipass);
   CHECK(multipass->surface.surface != Surface::Additive);
 }
-TEST_CASE("Derived overlay replaces core maps game and shaders with fallback") {
+TEST_CASE("Derived overlay replaces remaster namespaces with fallback") {
   const auto root=std::filesystem::path(RUN3_TEST_SOURCE_DIR)/"tests/fixtures/lighting";
   auto paths=AppPaths::resolve(root/"shell",root/"original",root/"user");
   paths.setContentOverlay(root/"overlay");
@@ -125,11 +127,81 @@ TEST_CASE("Derived overlay replaces core maps game and shaders with fallback") {
   CHECK(paths.contentPath("run3/maps/absent.scene")==root/"original/run3/maps/absent.scene");
   CHECK(paths.contentPath("run3/game/test.material")==root/"overlay/run3/game/test.material");
   CHECK(paths.contentPath("run3/game/absent.material")==root/"original/run3/game/absent.material");
+  CHECK(paths.contentPath("run3/fonts/test.fontdef")==root/"overlay/run3/fonts/test.fontdef");
+  CHECK(paths.contentPath("run3/fonts/absent.fontdef")==root/"original/run3/fonts/absent.fontdef");
+  CHECK(paths.contentPath("run3/bblocks/test.json")==root/"overlay/run3/bblocks/test.json");
+  CHECK(paths.contentPath("run3/bblocks/absent.json")==root/"original/run3/bblocks/absent.json");
   CHECK(paths.contentPath("run3/shaders/test.cg")==root/"overlay/run3/shaders/test.cg");
   CHECK(paths.contentPath("run3/shaders/absent.cg")==root/"original/run3/shaders/absent.cg");
   CHECK(paths.contentPath("run3/lua/denied.lua")==root/"original/run3/lua/denied.lua");
   CHECK_THROWS(paths.contentPath("../escape"));
   CHECK_THROWS(paths.setContentOverlay(root/"missing"));
+}
+
+TEST_CASE("Luniverse manifest and seeded biome tiles are deterministic") {
+  const auto root=std::filesystem::path(RUN3_TEST_SOURCE_DIR)/
+      "derived-content/luniverse/run3/bblocks/block_manifest.json";
+  const auto manifest=gameplay::loadBlockManifest(root);
+  REQUIRE(manifest.blocks.size()==11);
+  const gameplay::SeededBlockGenerator first(manifest,0x123456789abcdef0ULL,
+                                              "01_BACKROOMS_20");
+  const gameplay::SeededBlockGenerator second(manifest,0x123456789abcdef0ULL,
+                                               "01_BACKROOMS_20");
+  CHECK(first.blockFor({0,0}).id=="01_BACKROOMS_20");
+  CHECK(first.blockFor({137,-91}).id==second.blockFor({137,-91}).id);
+  // These fixed vectors are also consumed by tools/luniverse_map_viewer.py's
+  // uint64 generator and prevent the editor and runtime algorithms drifting.
+  CHECK(first.blockFor({-1,0}).id=="03_POOLROOMS_20_Drained_NS");
+  CHECK(first.blockFor({12,12}).id=="04_POOLROOMS_40_OpenIsland_EW");
+  CHECK(first.blockFor({137,-91}).id=="02_BACKROOMS_40_Atrium_EW");
+  CHECK(first.biomeFor({1,1})==first.biomeFor({2,2}));
+  const auto &tile=first.blockFor({0,0});
+  CHECK(tile.dimensionsCm.x==2000);
+  CHECK(tile.dimensionsCm.y==2000);
+  CHECK(tile.ports.size()==4);
+  CHECK(gameplay::opposite(gameplay::BlockSide::North)==
+        gameplay::BlockSide::South);
+
+  const auto &standard=manifest.blocks.at(0);
+  const auto houseIterator=std::find_if(
+      manifest.blocks.begin(),manifest.blocks.end(),[](const auto &block) {
+        return block.id=="05_HOUSE70_120x80";
+      });
+  REQUIRE(houseIterator!=manifest.blocks.end());
+  const auto &house=*houseIterator;
+  const auto standardSouth=std::find_if(
+      standard.ports.begin(),standard.ports.end(),[](const auto &port) {
+        return port.side==gameplay::BlockSide::South;
+      });
+  const auto houseNorth=std::find_if(
+      house.ports.begin(),house.ports.end(),[](const auto &port) {
+        return port.side==gameplay::BlockSide::North;
+      });
+  REQUIRE(standardSouth!=standard.ports.end());
+  REQUIRE(houseNorth!=house.ports.end());
+  const auto standardOrigin=gameplay::alignedBlockOrigin(
+      {},*houseNorth,*standardSouth);
+  CHECK(standardOrigin.x==Catch::Approx(0));
+  CHECK(standardOrigin.y==Catch::Approx(500));
+  CHECK(standardOrigin.z==Catch::Approx(-5000));
+
+  std::set<std::string> generatedMeshes;
+  for(std::int64_t z=-40;z<=40;++z) {
+    for(std::int64_t x=-40;x<=40;++x) {
+      const auto placement=first.placementForCell({x,z});
+      REQUIRE(placement.definition!=nullptr);
+      CHECK(x>=placement.anchor.x);
+      CHECK(z>=placement.anchor.z);
+      CHECK(x<placement.anchor.x+placement.widthCells);
+      CHECK(z<placement.anchor.z+placement.depthCells);
+      const auto repeated=first.placementForCell(placement.anchor);
+      CHECK(repeated.definition->id==placement.definition->id);
+      CHECK(repeated.widthCells==placement.widthCells);
+      CHECK(repeated.depthCells==placement.depthCells);
+      generatedMeshes.insert(placement.definition->mesh);
+    }
+  }
+  CHECK(generatedMeshes.size()==10);
 }
 TEST_CASE("Lighting material roles preserve unlit alpha and exclude volume noise") {
   gameplay::LegacyMaterialCatalog catalog;

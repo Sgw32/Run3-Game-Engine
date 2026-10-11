@@ -1,0 +1,7 @@
+font TestFont
+{
+    type truetype
+    source test.ttf
+    size 16
+    resolution 96
+}

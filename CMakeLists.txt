@@ -266,13 +266,15 @@ add_library(run3_gameplay STATIC
             source/gameplay/DynamicPhysicsScene.cpp
             source/gameplay/LegacyMaterialCatalog.cpp
             source/gameplay/PlayerController.cpp
+            source/gameplay/SemiInfiniteWorld.cpp
             source/gameplay/StaticMap.cpp)
 add_library(run3::gameplay ALIAS run3_gameplay)
 target_compile_features(run3_gameplay PUBLIC cxx_std_17)
 target_include_directories(
     run3_gameplay PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 target_link_libraries(run3_gameplay PUBLIC run3::physics run3::entities run3::rendering
-                      PRIVATE run3::warnings OgreMain OgreRTShaderSystem)
+                      PRIVATE run3::warnings OgreMain OgreRTShaderSystem
+                              nlohmann_json::nlohmann_json)
 
 # sol2 and the Lua C API are implementation details of this target. Game and
 # content code depend only on the Run3-owned ScriptEngine interface.

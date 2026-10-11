@@ -96,6 +96,14 @@ public:
   void setTransform(BodyId id, const Transform &value) override {
     requireBody(id).transform = value;
   }
+  void shiftOrigin(Vec3 offset) override {
+    for (auto &[id, body] : bodies_) {
+      static_cast<void>(id);
+      body.transform.position.x -= offset.x;
+      body.transform.position.y -= offset.y;
+      body.transform.position.z -= offset.z;
+    }
+  }
   Vec3 linearVelocity(BodyId id) const override {
     return requireBody(id).velocity;
   }

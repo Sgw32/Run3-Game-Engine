@@ -59,6 +59,7 @@ public:
   void toggleNoclip();
   void setOnLadder(bool enabled) noexcept;
   void teleport(physics::Vec3 centrePosition);
+  void applyOriginShift(physics::Vec3 offset) noexcept;
   void applyParentMotion(physics::Vec3 translationPerStep) noexcept;
   void setParented(bool enabled) noexcept;
 

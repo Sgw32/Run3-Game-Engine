@@ -62,6 +62,25 @@ TEST_CASE("legacy game units cross one centralized metre boundary") {
   CHECK_THAT(testWorld.units().metresPerGameUnit(), WithinAbs(0.5, 1e-12));
 }
 
+TEST_CASE("world origin shifts every physics body without changing velocity") {
+  for (const bool bullet : {false, true}) {
+    PhysicsWorld world = bullet ? run3::physics::createBulletPhysicsWorld()
+                                : run3::physics::createNullPhysicsWorld();
+    auto fixed = world.createBody(body(Shape::box({10,10,10}),
+                                       BodyMotion::Static,{1000,20,-300}));
+    auto moving = world.createBody(body(Shape::box({10,10,10}),
+                                        BodyMotion::Dynamic,{1200,50,-100},10));
+    world.setLinearVelocity(moving,{25,0,-4});
+    world.shiftOrigin({1000,0,-200});
+    CHECK(world.transform(fixed).position==Vec3{0,20,-100});
+    CHECK(world.transform(moving).position==Vec3{200,50,100});
+    const Vec3 velocity=world.linearVelocity(moving);
+    CHECK_THAT(velocity.x, WithinAbs(25, 1e-6));
+    CHECK_THAT(velocity.y, WithinAbs(0, 1e-6));
+    CHECK_THAT(velocity.z, WithinAbs(-4, 1e-6));
+  }
+}
+
 TEST_CASE("Bullet and null backends enforce the same invalid input contract") {
   PhysicsConfig invalidConfig;
   invalidConfig.maxCatchUpSteps = 0;

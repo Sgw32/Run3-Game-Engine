@@ -364,6 +364,25 @@ public:
     world_->updateSingleAabb(record.body.get());
   }
 
+  void shiftOrigin(Vec3 offset) override {
+    const btVector3 delta = toBullet(offset, units_);
+    for (auto &[id, record] : bodies_) {
+      static_cast<void>(id);
+      btTransform transform = record->body->getWorldTransform();
+      transform.setOrigin(transform.getOrigin() - delta);
+      record->body->setWorldTransform(transform);
+      record->body->setInterpolationWorldTransform(transform);
+      record->previous.position.x -= offset.x;
+      record->previous.position.y -= offset.y;
+      record->previous.position.z -= offset.z;
+      record->current.position.x -= offset.x;
+      record->current.position.y -= offset.y;
+      record->current.position.z -= offset.z;
+      world_->updateSingleAabb(record->body.get());
+    }
+    world_->computeOverlappingPairs();
+  }
+
   Vec3 linearVelocity(BodyId id) const override {
     return fromBullet(requireBody(id).body->getLinearVelocity(), units_);
   }

@@ -296,6 +296,15 @@ void PlayerController::teleport(physics::Vec3 position) {
   grounded_ = false;
 }
 
+void PlayerController::applyOriginShift(const physics::Vec3 offset) noexcept {
+  noclipPosition_.x -= offset.x;
+  noclipPosition_.y -= offset.y;
+  noclipPosition_.z -= offset.z;
+  parentedPosition_.x -= offset.x;
+  parentedPosition_.y -= offset.y;
+  parentedPosition_.z -= offset.z;
+}
+
 void PlayerController::applyParentMotion(physics::Vec3 motion) noexcept {
   parentMotion_ = add(parentMotion_, motion);
 }

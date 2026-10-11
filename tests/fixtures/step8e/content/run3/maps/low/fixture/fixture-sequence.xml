@@ -16,6 +16,9 @@
     <event name="transition">
       <changelevel map="nextchapter" secs="0"/>
     </event>
+    <event name="legacy-delayed-transition">
+      <changeleveld map="nextchapter" secs="0"/>
+    </event>
   </adents>
   <events>
     <cutscene name="intro" wait="-1">

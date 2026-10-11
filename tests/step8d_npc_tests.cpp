@@ -131,6 +131,22 @@ TEST_CASE("Step 8D navigation preserves the Bullet-owned vertical position",
   CHECK(state->transform.position.x > 0.0);
 }
 
+TEST_CASE("Step 8D player contacts cannot push NPCs off their route",
+          "[step8d][npc][physics]") {
+  RuntimeFixture fixture;
+  const auto intended = fixture.npcs->state("guide")->transform.position;
+  fixture.services.commands.clear();
+  fixture.services.transforms["guide"] = {
+      {intended.x + 25.0, intended.y - 3.0, intended.z - 12.0}, {}};
+  fixture.npcs->fixedUpdate();
+  const auto state = fixture.npcs->state("guide");
+  REQUIRE(state.has_value());
+  CHECK(state->transform.position.x == Catch::Approx(intended.x));
+  CHECK(state->transform.position.y == Catch::Approx(intended.y - 3.0));
+  CHECK(state->transform.position.z == Catch::Approx(intended.z));
+  CHECK(fixture.services.count<gameplay::SetRuntimeTransform>() == 1);
+}
+
 TEST_CASE("Step 8D facial playback pauses and resumes NPC navigation",
           "[step8d][npc][facial]") {
   RuntimeFixture fixture;

@@ -363,9 +363,18 @@ void NpcSystem::fixedUpdate(double seconds) {
     if (npc.parent.empty()) {
       if (const auto physicsTransform =
               impl_->services->runtimeTransform(npc.publicState.name)) {
-        // Bullet owns the body position (especially its gravity-driven Y).
-        // Navigation retains ownership of the facing rotation.
-        npc.publicState.transform.position = physicsTransform->position;
+        // Bullet owns vertical settling, but the NPC controller owns its
+        // authored route in X/Z.  Accepting the complete dynamic-body
+        // transform let player contacts permanently shove idle NPCs away from
+        // their posts and moving NPCs off their paths.
+        const double intendedX = npc.publicState.transform.position.x;
+        const double intendedZ = npc.publicState.transform.position.z;
+        npc.publicState.transform.position.y = physicsTransform->position.y;
+        if (std::abs(physicsTransform->position.x - intendedX) > 1.0e-6 ||
+            std::abs(physicsTransform->position.z - intendedZ) > 1.0e-6) {
+          impl_->services->submit(SetRuntimeTransform{
+              npc.publicState.handle, npc.publicState.transform});
+        }
       }
     }
     if (!npc.nearFired && !npc.nearScript.empty() &&
@@ -404,6 +413,10 @@ void NpcSystem::fixedUpdate(double seconds) {
       }
       continue;
     }
+    // Facial dialogue owns the NPC pose and pauses route motion in the legacy
+    // engine.  Keep gravity/route anchoring above active, but do not advance a
+    // waypoint until the presentation reports that facial playback ended.
+    if (impl_->services->runtimeFacialActive(npc.publicState.handle)) continue;
     if (npc.publicState.state != NpcState::Navigating) continue;
     if (npc.waypoint >= npc.path.size()) {
       npc.publicState.state = NpcState::Reached;

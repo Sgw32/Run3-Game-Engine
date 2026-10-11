@@ -1038,6 +1038,13 @@ public:
       finishCutscene();
       static_cast<void>(exitComputer());
       services->submit(ChangeRuntimeMap{attribute(action, "map", "")});
+    } else if (action.tag == "changeleveld") {
+      // The legacy delayed-level action was never consistently implemented by
+      // shipped Run3 content.  It must not make an otherwise loadable map
+      // fatal: keep the event running and report the skipped transition.
+      services->submit(RuntimeLog{
+          "warning: unsupported legacy event action <changeleveld> at " +
+          locationText(action.source) + " was skipped"});
     } else if (action.tag == "hurt") {
       services->submit(DamageRuntimePlayer{number(action, "damage", 1.0)});
     } else if (action.tag == "player") {
@@ -1573,6 +1580,14 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
       impl_->services->submit(RuntimeLog{call.arguments.empty() ? std::string{} : call.arguments.front()});
     } else if (call.name == "runScript") {
       impl_->services->submit(RunRuntimeScript{requireName()});
+    } else if (call.name == "changeLevel") {
+      // A Lua level change is terminal for the current presentation, just like
+      // an authored <changelevel> event.  Do this synchronously so a cutscene
+      // cannot keep advancing while Run3App prepares the next map.
+      impl_->queue.clear();
+      impl_->finishCutscene();
+      static_cast<void>(exitComputer());
+      impl_->services->submit(ChangeRuntimeMap{requireName()});
     } else if (call.name == "startEvent") {
       const std::string &name = requireName();
       if (!impl_->queueStandaloneEvent(name)) warnMissing("event", name);

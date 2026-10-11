@@ -266,12 +266,11 @@ void OgreLighting::configureMaterial(Ogre::Material &material,
   if (description.surface == Surface::Transparent)
     pass->setSceneBlending(Ogre::SBT_TRANSPARENT_ALPHA);
   if (description.surface == Surface::Additive) {
-    // Add colour exactly as legacy `scene_blend add` did, but retain the
-    // destination alpha of the compositor render target. Accumulating alpha
-    // here makes the billboard rectangle opaque to later fullscreen passes.
-    pass->setSeparateSceneBlending(Ogre::SBF_ONE, Ogre::SBF_ONE,
-                                   Ogre::SBF_ZERO, Ogre::SBF_ONE);
-    pass->setSeparateSceneBlendingOperation(Ogre::SBO_ADD, Ogre::SBO_ADD);
+    // Preserve Ogre's authored `scene_blend add` semantics exactly.  Some TLW
+    // screen materials rely on the preset state as well as ONE/ONE colour
+    // factors; a separate-alpha approximation renders them as flat quads on
+    // D3D11.
+    pass->setSceneBlending(Ogre::SBT_ADD);
   }
   if (description.surface == Surface::Cutout)
     pass->setAlphaRejectSettings(Ogre::CMPF_GREATER_EQUAL,

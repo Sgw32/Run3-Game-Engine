@@ -260,6 +260,42 @@ TEST_CASE("Step 8E chapter transition cancels presentation before request",
   CHECK(fixture.services.count<gameplay::ChangeRuntimeMap>() == 1);
 }
 
+TEST_CASE("Step 8E Lua changeLevel immediately ends a cutscene",
+          "[step8e][transition][lua]") {
+  ReadyFixture fixture;
+  fixture.runtime->start();
+  REQUIRE(fixture.runtime->startCutscene("intro"));
+  REQUIRE_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"world", "changeLevel", {"tlwhome01"}}));
+  CHECK(fixture.runtime->presentation().activeCutscene.empty());
+  CHECK_FALSE(fixture.runtime->presentation().playerFrozen);
+  const auto transition = std::find_if(
+      fixture.services.commands.begin(), fixture.services.commands.end(),
+      [](const auto &command) {
+        const auto *change = std::get_if<gameplay::ChangeRuntimeMap>(&command);
+        return change != nullptr && change->map == "tlwhome01";
+      });
+  CHECK(transition != fixture.services.commands.end());
+}
+
+TEST_CASE("Step 8E unsupported changeleveld warns without stopping the map",
+          "[step8e][transition]") {
+  ReadyFixture fixture;
+  fixture.runtime->start();
+  REQUIRE_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"sequence", "startEvent", {"legacy-delayed-transition"}}));
+  REQUIRE_NOTHROW(fixture.runtime->fixedUpdate());
+  CHECK(fixture.services.count<gameplay::ChangeRuntimeMap>() == 0);
+  const auto warning = std::find_if(
+      fixture.services.commands.begin(), fixture.services.commands.end(),
+      [](const auto &command) {
+        const auto *log = std::get_if<gameplay::RuntimeLog>(&command);
+        return log != nullptr && log->message.find("<changeleveld>") !=
+                                     std::string::npos;
+      });
+  CHECK(warning != fixture.services.commands.end());
+}
+
 TEST_CASE("Step 8E selected content constructs every computer and cutscene",
           "[step8e][content]") {
   const fs::path root = fs::path(RUN3_TEST_SOURCE_DIR) /

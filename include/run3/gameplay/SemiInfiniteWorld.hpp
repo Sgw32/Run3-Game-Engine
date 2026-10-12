@@ -115,6 +115,7 @@ struct SemiInfiniteWorldOptions {
   // so this can be raised without changing renderer or physics precision.
   std::int64_t logicalExtentCm{100000000};
   unsigned lightBudget{3};
+  bool terminators{true};
   rendering::LightingSettings lighting;
 };
 
@@ -122,7 +123,10 @@ struct SemiInfiniteWorldStats {
   std::size_t activeBlocks{};
   std::size_t activeTerminators{};
   std::size_t activeLights{};
+  std::size_t pooledBlocks{};
+  std::size_t pooledTerminators{};
   std::size_t generatedCells{};
+  std::uint64_t completedStreamPlans{};
   std::uint64_t rebases{};
   std::int64_t originXcm{};
   std::int64_t originYcm{};

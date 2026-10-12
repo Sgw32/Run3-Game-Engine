@@ -22,8 +22,10 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <fstream>
+#include <future>
 #include <limits>
 #include <set>
 #include <stdexcept>
@@ -412,12 +414,12 @@ public:
     root_ = scene_->getRootSceneNode()->createChildSceneNode(
         "Run3SemiInfiniteWorldRoot");
     createMaterials();
-    createTerminatorMesh();
+    if (options_.terminators) createTerminatorMesh();
     Ogre::LogManager::getSingleton().logMessage(
         "Luniverse: seed=" + std::to_string(options_.seed) +
         " active-radius=" + std::to_string(options_.horizontalLoadRadiusCm) +
         "cm logical-extent=" + std::to_string(options_.logicalExtentCm) +
-        "cm");
+        "cm terminators=" + (options_.terminators ? "on" : "off"));
   }
 
   ~Impl() { unload(); }
@@ -453,6 +455,11 @@ public:
     BlockCell cell;
     Ogre::SceneNode *node{};
     Ogre::Light *light{};
+  };
+  struct StreamPlan {
+    BlockCell centre;
+    std::unordered_map<BlockCell, BlockPlacement, CellHash> blocks;
+    std::unordered_set<TerminationKey, TerminationHash> terminations;
   };
 
   void createMaterials() {
@@ -494,17 +501,19 @@ public:
     if (houseLight != materials_.end() &&
         !manager.resourceExists(artificialSky, resourceGroup))
       houseLight->second->clone(artificialSky, resourceGroup);
-    rendering::MaterialDescription terminator;
-    terminator.name = "Run3/Luniverse/Terminator";
-    terminator.diffuseMap.name = "BACKROOMS_Atlas_4K.png";
-    terminator.diffuse = {0.38F, 0.16F, 0.10F, 1.0F};
-    terminator.roughness = 0.68F;
-    terminator.lightLimit = 3;
-    Ogre::MaterialPtr material = manager.getByName(terminator.name, resourceGroup);
-    if (!material) material = manager.create(terminator.name, resourceGroup);
-    rendering::OgreLighting::configureMaterial(
-        *material, terminator, options_.lighting, false);
-    materials_["TERMINATOR/Surface"] = material;
+    if (options_.terminators) {
+      rendering::MaterialDescription terminator;
+      terminator.name = "Run3/Luniverse/Terminator";
+      terminator.diffuseMap.name = "BACKROOMS_Atlas_4K.png";
+      terminator.diffuse = {0.38F, 0.16F, 0.10F, 1.0F};
+      terminator.roughness = 0.68F;
+      terminator.lightLimit = 3;
+      Ogre::MaterialPtr material = manager.getByName(terminator.name, resourceGroup);
+      if (!material) material = manager.create(terminator.name, resourceGroup);
+      rendering::OgreLighting::configureMaterial(
+          *material, terminator, options_.lighting, false);
+      materials_["TERMINATOR/Surface"] = material;
+    }
   }
 
   void createTerminatorMesh() {
@@ -558,55 +567,79 @@ public:
   void createBlock(const BlockPlacement &placement) {
     const BlockCell cell = placement.anchor;
     const BlockDefinition &definition = *placement.definition;
-    const std::string suffix = std::to_string(cell.x) + "/" + std::to_string(cell.z);
-    Ogre::Entity *entity = scene_->createEntity(
-        "Run3LuniverseBlock/" + suffix, definition.mesh, resourceGroup);
-    for (unsigned index = 0; index < entity->getNumSubEntities(); ++index) {
-      Ogre::SubEntity *sub = entity->getSubEntity(index);
-      const Ogre::MaterialPtr material = materialFor(definition.style,
-                                                      sub->getMaterialName());
-      if (material) sub->setMaterial(material);
-    }
-    entity->setCastShadows(true);
-    Ogre::SceneNode *node = root_->createChildSceneNode(
-        "Run3LuniverseBlockNode/" + suffix,
-        toOgre(localPosition(placement.rootCm)));
-    node->attachObject(entity);
-    node->showBoundingBox(debugDraw_);
-
-    Ogre::MeshPtr mesh = entity->getMesh();
-    auto geometry = geometry_.find(definition.mesh);
-    if (geometry == geometry_.end())
-      geometry = geometry_.emplace(definition.mesh, extractMesh(mesh)).first;
-    physics::BodyDesc body(physics::Shape::triangleMesh(
-        geometry->second.vertices, geometry->second.indices));
-    body.motion = physics::BodyMotion::Static;
-    body.group = physics::CollisionGroup::World;
-    body.mask = physics::collisionMask(physics::CollisionGroup::Player) |
-                physics::collisionMask(physics::CollisionGroup::Dynamic) |
-                physics::collisionMask(physics::CollisionGroup::Npc) |
-                physics::collisionMask(physics::CollisionGroup::Projectile);
-    body.transform.position = localPosition(placement.rootCm);
-    body.metadata.type = physics::BodyType::World;
     ActiveBlock active;
-    active.node = node;
-    active.entity = entity;
-    active.body = physics_->createBody(body);
+    auto &pool = blockPool_[definition.mesh];
+    if (!pool.empty()) {
+      active = std::move(pool.back());
+      pool.pop_back();
+      active.node->setPosition(toOgre(localPosition(placement.rootCm)));
+      active.node->setVisible(true);
+      active.node->showBoundingBox(debugDraw_);
+      physics::Transform transform;
+      transform.position = localPosition(placement.rootCm);
+      physics_->setTransform(active.body, transform);
+      physics_->setEnabled(active.body, true);
+      ++reusedBlocks_;
+    } else {
+      const std::string suffix = "Pool/" + std::to_string(allocatedBlocks_++);
+      Ogre::Entity *entity = scene_->createEntity(
+          "Run3LuniverseBlock/" + suffix, definition.mesh, resourceGroup);
+      for (unsigned index = 0; index < entity->getNumSubEntities(); ++index) {
+        Ogre::SubEntity *sub = entity->getSubEntity(index);
+        const Ogre::MaterialPtr material = materialFor(definition.style,
+                                                        sub->getMaterialName());
+        if (material) sub->setMaterial(material);
+      }
+      entity->setCastShadows(true);
+      Ogre::SceneNode *node = root_->createChildSceneNode(
+          "Run3LuniverseBlockNode/" + suffix,
+          toOgre(localPosition(placement.rootCm)));
+      node->attachObject(entity);
+      node->showBoundingBox(debugDraw_);
+
+      Ogre::MeshPtr mesh = entity->getMesh();
+      auto geometry = geometry_.find(definition.mesh);
+      if (geometry == geometry_.end())
+        geometry = geometry_.emplace(definition.mesh, extractMesh(mesh)).first;
+      physics::BodyDesc body(physics::Shape::triangleMesh(
+          geometry->second.vertices, geometry->second.indices));
+      body.motion = physics::BodyMotion::Static;
+      body.group = physics::CollisionGroup::World;
+      body.mask = physics::collisionMask(physics::CollisionGroup::Player) |
+                  physics::collisionMask(physics::CollisionGroup::Dynamic) |
+                  physics::collisionMask(physics::CollisionGroup::Npc) |
+                  physics::collisionMask(physics::CollisionGroup::Projectile);
+      body.transform.position = localPosition(placement.rootCm);
+      body.metadata.type = physics::BodyType::World;
+      active.node = node;
+      active.entity = entity;
+      active.body = physics_->createBody(body);
+    }
     active.definition = &definition;
     active.placement = placement;
     active_.emplace(cell, std::move(active));
     ++stats_.generatedCells;
   }
 
-  void destroyBlock(const BlockCell cell) noexcept {
+  void retireBlock(const BlockCell cell) noexcept {
     const auto found = active_.find(cell);
     if (found == active_.end()) return;
-    found->second.body.reset();
     try {
-      if (found->second.entity) scene_->destroyEntity(found->second.entity);
-      if (found->second.node) scene_->destroySceneNode(found->second.node);
+      physics_->setEnabled(found->second.body, false);
+      found->second.node->setVisible(false);
+      found->second.node->showBoundingBox(false);
     } catch (...) {}
+    blockPool_[found->second.definition->mesh].push_back(std::move(found->second));
     active_.erase(found);
+  }
+
+  void destroyBlockResources(ActiveBlock &block) noexcept {
+    block.body.reset();
+    try {
+      if (block.entity) scene_->destroyEntity(block.entity);
+      if (block.node) scene_->destroySceneNode(block.node);
+    } catch (...) {}
+    block = {};
   }
 
   void createTermination(const TerminationKey key) {
@@ -614,52 +647,78 @@ public:
     if (block == active_.end() || block->second.definition == nullptr) return;
     const BlockPort *socket = port(*block->second.definition, key.side);
     if (socket == nullptr) return;
-    const std::string suffix = std::to_string(key.cell.x) + "/" +
-        std::to_string(key.cell.z) + "/" + std::to_string(static_cast<int>(key.side));
-    Ogre::Entity *entity = scene_->createEntity(
-        "Run3LuniverseTerminator/" + suffix, "box.mesh", resourceGroup);
-    entity->setMaterial(materials_.at("TERMINATOR/Surface"));
-    entity->setCastShadows(true);
     physics::Vec3 position = localPosition(block->second.placement.rootCm);
     const physics::Vec3 socketPosition = authoredToOgre(socket->positionCm);
     position.x += socketPosition.x;
     position.y += socketPosition.y;
     position.z += socketPosition.z;
     position.y += socket->heightCm * 0.5;
-    Ogre::SceneNode *node = root_->createChildSceneNode(
-        "Run3LuniverseTerminatorNode/" + suffix, toOgre(position));
     physics::Quaternion rotation;
-    if (key.side == BlockSide::East || key.side == BlockSide::West) {
-      node->yaw(Ogre::Degree(90));
+    const bool rotated = key.side == BlockSide::East || key.side == BlockSide::West;
+    if (rotated)
       rotation = {std::sqrt(0.5), 0, std::sqrt(0.5), 0};
-    }
-    node->attachObject(entity);
-    node->showBoundingBox(debugDraw_);
-    physics::BodyDesc body(
-        physics::Shape::box({socket->widthCm * 0.5,
-                             socket->heightCm * 0.5, 25.0}));
-    body.motion = physics::BodyMotion::Static;
-    body.group = physics::CollisionGroup::World;
-    body.mask = physics::collisionMask(physics::CollisionGroup::All);
-    body.transform.position = position;
-    body.transform.rotation = rotation;
-    body.metadata.type = physics::BodyType::World;
     ActiveTermination active;
-    active.node = node;
-    active.entity = entity;
-    active.body = physics_->createBody(body);
+    if (!terminationPool_.empty()) {
+      active = std::move(terminationPool_.back());
+      terminationPool_.pop_back();
+      active.node->setPosition(toOgre(position));
+      active.node->setOrientation(Ogre::Quaternion::IDENTITY);
+      if (rotated) active.node->yaw(Ogre::Degree(90));
+      active.node->setVisible(true);
+      active.node->showBoundingBox(debugDraw_);
+      physics::Transform transform;
+      transform.position = position;
+      transform.rotation = rotation;
+      physics_->setTransform(active.body, transform);
+      physics_->setEnabled(active.body, true);
+      ++reusedTerminators_;
+    } else {
+      const std::string suffix =
+          "Pool/" + std::to_string(allocatedTerminators_++);
+      Ogre::Entity *entity = scene_->createEntity(
+          "Run3LuniverseTerminator/" + suffix, "box.mesh", resourceGroup);
+      entity->setMaterial(materials_.at("TERMINATOR/Surface"));
+      entity->setCastShadows(true);
+      Ogre::SceneNode *node = root_->createChildSceneNode(
+          "Run3LuniverseTerminatorNode/" + suffix, toOgre(position));
+      if (rotated) node->yaw(Ogre::Degree(90));
+      node->attachObject(entity);
+      node->showBoundingBox(debugDraw_);
+      physics::BodyDesc body(
+          physics::Shape::box({socket->widthCm * 0.5,
+                               socket->heightCm * 0.5, 25.0}));
+      body.motion = physics::BodyMotion::Static;
+      body.group = physics::CollisionGroup::World;
+      body.mask = physics::collisionMask(physics::CollisionGroup::All);
+      body.transform.position = position;
+      body.transform.rotation = rotation;
+      body.metadata.type = physics::BodyType::World;
+      active.node = node;
+      active.entity = entity;
+      active.body = physics_->createBody(body);
+    }
     terminations_.emplace(key, std::move(active));
   }
 
-  void destroyTermination(const TerminationKey key) noexcept {
+  void retireTermination(const TerminationKey key) noexcept {
     const auto found = terminations_.find(key);
     if (found == terminations_.end()) return;
-    found->second.body.reset();
     try {
-      if (found->second.entity) scene_->destroyEntity(found->second.entity);
-      if (found->second.node) scene_->destroySceneNode(found->second.node);
+      physics_->setEnabled(found->second.body, false);
+      found->second.node->setVisible(false);
+      found->second.node->showBoundingBox(false);
     } catch (...) {}
+    terminationPool_.push_back(std::move(found->second));
     terminations_.erase(found);
+  }
+
+  void destroyTerminationResources(ActiveTermination &termination) noexcept {
+    termination.body.reset();
+    try {
+      if (termination.entity) scene_->destroyEntity(termination.entity);
+      if (termination.node) scene_->destroySceneNode(termination.node);
+    } catch (...) {}
+    termination = {};
   }
 
   std::size_t foreignLightCount() const {
@@ -674,13 +733,6 @@ public:
   }
 
   void refreshLights(const physics::Vec3 player) {
-    for (ActiveLight &active : lights_) {
-      try {
-        if (active.light) scene_->destroyLight(active.light);
-        if (active.node) scene_->destroySceneNode(active.node);
-      } catch (...) {}
-    }
-    lights_.clear();
     const std::size_t foreignLights = foreignLightCount();
     foreignLightsSeen_ = foreignLights;
     const std::size_t available = foreignLights >= options_.lightBudget
@@ -702,12 +754,25 @@ public:
                 return left.second.z < right.second.z;
               });
     const std::size_t count = std::min(available, candidates.size());
+    // The budget is tiny and fixed. Allocate the complete light pool during
+    // the first refresh, then only retarget existing lights while streaming.
+    while (lights_.size() < options_.lightBudget) {
+      const std::size_t poolIndex = lights_.size();
+      const std::string name = "Run3LuniverseLight/Pool/" +
+                               std::to_string(poolIndex);
+      Ogre::Light *light = scene_->createLight(name);
+      light->setType(Ogre::Light::LT_SPOTLIGHT);
+      Ogre::SceneNode *node = root_->createChildSceneNode(name + "Node");
+      node->attachObject(light);
+      node->setDirection(Ogre::Vector3::NEGATIVE_UNIT_Y,
+                         Ogre::Node::TS_WORLD);
+      lights_.push_back({{}, node, light});
+    }
     for (std::size_t index = 0; index < count; ++index) {
       const BlockCell cell = candidates[index].second;
       const BlockDefinition &definition = *active_.at(cell).definition;
-      const std::string name = "Run3LuniverseLight/" + std::to_string(cell.x) +
-                               "/" + std::to_string(cell.z);
-      Ogre::Light *light = scene_->createLight(name);
+      ActiveLight &active = lights_[index];
+      Ogre::Light *light = active.light;
       light->setType(Ogre::Light::LT_SPOTLIGHT);
       light->setDiffuseColour(definition.light.colour[0],
                               definition.light.colour[1],
@@ -722,31 +787,69 @@ public:
       physics::Vec3 position = localPosition(active_.at(cell).placement.rootCm);
       const physics::Vec3 offset = authoredToOgre(definition.light.positionCm);
       position.x += offset.x; position.y += offset.y; position.z += offset.z;
-      Ogre::SceneNode *node = root_->createChildSceneNode(name + "Node", toOgre(position));
-      node->attachObject(light);
-      node->setDirection(Ogre::Vector3::NEGATIVE_UNIT_Y,
-                         Ogre::Node::TS_WORLD);
-      lights_.push_back({cell, node, light});
+      active.cell = cell;
+      active.node->setPosition(toOgre(position));
+      active.node->setVisible(true);
     }
+    for (std::size_t index = count; index < lights_.size(); ++index) {
+      lights_[index].light->setCastShadows(false);
+      lights_[index].node->setVisible(false);
+    }
+    activeLightCount_ = count;
   }
 
-  void update(const physics::Vec3 player) {
+  void prewarmBlockPool() {
+    if (blockPoolPrewarmed_) return;
+    const std::size_t generatedBefore = stats_.generatedCells;
+    std::int64_t fake = -1000000;
+    for (const BlockDefinition &definition : manifest_.blocks) {
+      if (definition.termination) continue;
+      BlockPlacement placement;
+      placement.anchor = {fake--, -1000000};
+      placement.definition = &definition;
+      placement.rootCm = {};
+      placement.widthCells = static_cast<unsigned>(
+          std::llround(definition.dimensionsCm.x / standardCellCm));
+      placement.depthCells = static_cast<unsigned>(
+          std::llround(definition.dimensionsCm.y / standardCellCm));
+      createBlock(placement);
+      retireBlock(placement.anchor);
+    }
+    stats_.generatedCells = generatedBefore;
+    stats_.pooledBlocks = 0;
+    for (const auto &[mesh, blocks] : blockPool_) {
+      static_cast<void>(mesh);
+      stats_.pooledBlocks += blocks.size();
+    }
+    blockPoolPrewarmed_ = true;
+    Ogre::LogManager::getSingleton().logMessage(
+        "Luniverse cache: blocks=" + std::to_string(stats_.pooledBlocks) +
+        " lights=" + std::to_string(lights_.size()) +
+        " terminators=" + std::to_string(terminationPool_.size()));
+  }
+
+  BlockCell centreWithHysteresis(const physics::Vec3 player) const {
     const double globalX = player.x + static_cast<double>(originX_);
     const double globalZ = player.z + static_cast<double>(originZ_);
-    const BlockCell centre{static_cast<std::int64_t>(std::llround(globalX / standardCellCm)),
-                           static_cast<std::int64_t>(std::llround(globalZ / standardCellCm))};
-    if (lastCentre_ && *lastCentre_ == centre) {
-      // DotScene and scripts may add or remove lights after construction.
-      // Rebuild only when that foreign count changes, preserving the cap.
-      if (foreignLightCount() != foreignLightsSeen_) refreshLights(player);
-      return;
-    }
-    lastCentre_ = centre;
+    if (!navigationCentre_)
+      return {static_cast<std::int64_t>(std::llround(globalX / standardCellCm)),
+              static_cast<std::int64_t>(std::llround(globalZ / standardCellCm))};
+    BlockCell result = *navigationCentre_;
+    constexpr double threshold = standardCellCm * 0.70;
+    while (globalX - result.x * standardCellCm > threshold) ++result.x;
+    while (globalX - result.x * standardCellCm < -threshold) --result.x;
+    while (globalZ - result.z * standardCellCm > threshold) ++result.z;
+    while (globalZ - result.z * standardCellCm < -threshold) --result.z;
+    return result;
+  }
+
+  StreamPlan buildPlan(const BlockCell centre) const {
+    StreamPlan plan;
+    plan.centre = centre;
     const std::int64_t radius = static_cast<std::int64_t>(
         std::ceil(options_.horizontalLoadRadiusCm / standardCellCm));
     const std::int64_t maximumCell =
         (options_.logicalExtentCm / 2) / static_cast<std::int64_t>(standardCellCm);
-    std::unordered_map<BlockCell, BlockPlacement, CellHash> desired;
     for (std::int64_t x = centre.x - radius; x <= centre.x + radius; ++x) {
       for (std::int64_t z = centre.z - radius; z <= centre.z + radius; ++z) {
         if (std::abs(x) > maximumCell || std::abs(z) > maximumCell) continue;
@@ -763,75 +866,118 @@ public:
               std::abs(placement.anchor.z) <= maximumCell &&
               std::abs(maximumX) <= maximumCell &&
               std::abs(maximumZ) <= maximumCell)
-            desired.emplace(placement.anchor, placement);
+            plan.blocks.emplace(placement.anchor, placement);
         }
       }
     }
+    if (!options_.terminators) return plan;
+    using Socket = std::tuple<std::int64_t, std::int64_t, std::int64_t, int>;
+    std::set<Socket> sockets;
+    for (const auto &[cell, placement] : plan.blocks) {
+      static_cast<void>(cell);
+      for (const BlockPort &socket : placement.definition->ports) {
+        const physics::Vec3 offset = authoredToOgre(socket.positionCm);
+        sockets.emplace(
+            static_cast<std::int64_t>(std::llround(placement.rootCm.x + offset.x)),
+            static_cast<std::int64_t>(std::llround(placement.rootCm.y + offset.y)),
+            static_cast<std::int64_t>(std::llround(placement.rootCm.z + offset.z)),
+            static_cast<int>(socket.side));
+      }
+    }
+    for (const auto &[cell, placement] : plan.blocks) {
+      for (const BlockPort &socket : placement.definition->ports) {
+        const physics::Vec3 offset = authoredToOgre(socket.positionCm);
+        const Socket mate{
+            static_cast<std::int64_t>(std::llround(placement.rootCm.x + offset.x)),
+            static_cast<std::int64_t>(std::llround(placement.rootCm.y + offset.y)),
+            static_cast<std::int64_t>(std::llround(placement.rootCm.z + offset.z)),
+            static_cast<int>(opposite(socket.side))};
+        if (sockets.find(mate) == sockets.end())
+          plan.terminations.insert({cell, socket.side});
+      }
+    }
+    return plan;
+  }
+
+  void applyPlan(StreamPlan plan, const physics::Vec3 player) {
+    std::vector<TerminationKey> staleEnds;
+    for (const auto &[key, active] : terminations_) {
+      static_cast<void>(active);
+      if (plan.terminations.find(key) == plan.terminations.end())
+        staleEnds.push_back(key);
+    }
+    for (const TerminationKey key : staleEnds) retireTermination(key);
+
     std::vector<BlockCell> stale;
     for (const auto &[cell, active] : active_) {
       static_cast<void>(active);
-      if (desired.find(cell) == desired.end()) stale.push_back(cell);
+      if (plan.blocks.find(cell) == plan.blocks.end()) stale.push_back(cell);
     }
-    for (const BlockCell cell : stale) destroyBlock(cell);
+    for (const BlockCell cell : stale) retireBlock(cell);
     std::vector<BlockCell> missing;
-    for (const auto &[cell, placement] : desired) {
+    for (const auto &[cell, placement] : plan.blocks) {
       static_cast<void>(placement);
       if (active_.find(cell) == active_.end()) missing.push_back(cell);
     }
-    std::sort(missing.begin(), missing.end(), [centre](const BlockCell left,
-                                                       const BlockCell right) {
+    std::sort(missing.begin(), missing.end(), [centre = plan.centre](
+                  const BlockCell left, const BlockCell right) {
       const auto dl = std::abs(left.x - centre.x) + std::abs(left.z - centre.z);
       const auto dr = std::abs(right.x - centre.x) + std::abs(right.z - centre.z);
       if (dl != dr) return dl < dr;
       if (left.x != right.x) return left.x < right.x;
       return left.z < right.z;
     });
-    for (const BlockCell cell : missing) createBlock(desired.at(cell));
+    for (const BlockCell cell : missing) createBlock(plan.blocks.at(cell));
 
-    std::unordered_set<TerminationKey, TerminationHash> desiredEnds;
-    using Socket = std::tuple<std::int64_t, std::int64_t, std::int64_t, int>;
-    std::set<Socket> sockets;
-    for (const auto &[cell, active] : active_) {
-      static_cast<void>(cell);
-      for (const BlockPort &socket : active.definition->ports) {
-        const physics::Vec3 offset = authoredToOgre(socket.positionCm);
-        sockets.emplace(
-            static_cast<std::int64_t>(std::llround(active.placement.rootCm.x + offset.x)),
-            static_cast<std::int64_t>(std::llround(active.placement.rootCm.y + offset.y)),
-            static_cast<std::int64_t>(std::llround(active.placement.rootCm.z + offset.z)),
-            static_cast<int>(socket.side));
-      }
-    }
-    for (const auto &[cell, active] : active_) {
-      for (const BlockPort &socket : active.definition->ports) {
-        const physics::Vec3 offset = authoredToOgre(socket.positionCm);
-        const Socket mate{
-            static_cast<std::int64_t>(std::llround(active.placement.rootCm.x + offset.x)),
-            static_cast<std::int64_t>(std::llround(active.placement.rootCm.y + offset.y)),
-            static_cast<std::int64_t>(std::llround(active.placement.rootCm.z + offset.z)),
-            static_cast<int>(opposite(socket.side))};
-        if (sockets.find(mate) == sockets.end())
-          desiredEnds.insert({cell, socket.side});
-      }
-    }
-    std::vector<TerminationKey> staleEnds;
-    for (const auto &[key, active] : terminations_) {
-      static_cast<void>(active);
-      if (desiredEnds.find(key) == desiredEnds.end()) staleEnds.push_back(key);
-    }
-    for (const TerminationKey key : staleEnds) destroyTermination(key);
-    for (const TerminationKey key : desiredEnds)
+    for (const TerminationKey key : plan.terminations)
       if (terminations_.find(key) == terminations_.end()) createTermination(key);
     refreshLights(player);
+    lastCentre_ = plan.centre;
+    ++stats_.completedStreamPlans;
     stats_.activeBlocks = active_.size();
     stats_.activeTerminators = terminations_.size();
-    stats_.activeLights = lights_.size();
+    stats_.activeLights = activeLightCount_;
+    stats_.pooledBlocks = 0;
+    for (const auto &[mesh, blocks] : blockPool_) {
+      static_cast<void>(mesh);
+      stats_.pooledBlocks += blocks.size();
+    }
+    stats_.pooledTerminators = terminationPool_.size();
     stats_.originXcm = originX_; stats_.originYcm = originY_; stats_.originZcm = originZ_;
     Ogre::LogManager::getSingleton().logMessage(
-        "Luniverse stream: cell=" + std::to_string(centre.x) + "," +
-        std::to_string(centre.z) + " blocks=" + std::to_string(active_.size()) +
+        "Luniverse stream: cell=" + std::to_string(plan.centre.x) + "," +
+        std::to_string(plan.centre.z) + " blocks=" + std::to_string(active_.size()) +
         " terminators=" + std::to_string(terminations_.size()) +
-        " lights=" + std::to_string(lights_.size()));
+        " lights=" + std::to_string(activeLightCount_) +
+        " pools=" + std::to_string(stats_.pooledBlocks) + "/" +
+        std::to_string(stats_.pooledTerminators) +
+        " reused=" + std::to_string(reusedBlocks_) + "/" +
+        std::to_string(reusedTerminators_) +
+        " allocated=" + std::to_string(allocatedBlocks_) + "/" +
+        std::to_string(allocatedTerminators_));
+  }
+
+  void startPlanning(const BlockCell centre) {
+    planning_ = std::async(std::launch::async,
+                           [this, centre] { return buildPlan(centre); });
+  }
+
+  void update(const physics::Vec3 player) {
+    const BlockCell centre = centreWithHysteresis(player);
+    navigationCentre_ = centre;
+    if (!lastCentre_) {
+      applyPlan(buildPlan(centre), player);
+      prewarmBlockPool();
+      return;
+    }
+    if (planning_.valid() &&
+        planning_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+      StreamPlan plan = planning_.get();
+      if (plan.centre == centre) applyPlan(std::move(plan), player);
+    }
+    if (!planning_.valid() && !(*lastCentre_ == centre)) startPlanning(centre);
+    // DotScene and scripts may add or remove lights after construction.
+    if (foreignLightCount() != foreignLightsSeen_) refreshLights(player);
   }
 
   std::optional<physics::Vec3> requestedOriginShift(const physics::Vec3 player) const {
@@ -864,7 +1010,6 @@ public:
     }
     for (ActiveLight &active : lights_)
       active.node->setPosition(active.node->getPosition() - translation);
-    lastCentre_.reset();
     ++stats_.rebases;
     stats_.originXcm = originX_; stats_.originYcm = originY_; stats_.originZcm = originZ_;
     Ogre::LogManager::getSingleton().logMessage(
@@ -883,6 +1028,9 @@ public:
   }
 
   void unload() noexcept {
+    if (planning_.valid()) {
+      try { static_cast<void>(planning_.get()); } catch (...) {}
+    }
     for (ActiveLight &active : lights_) {
       try {
         if (active.light) scene_->destroyLight(active.light);
@@ -890,13 +1038,31 @@ public:
       } catch (...) {}
     }
     lights_.clear();
-    while (!terminations_.empty()) destroyTermination(terminations_.begin()->first);
-    while (!active_.empty()) destroyBlock(active_.begin()->first);
+    activeLightCount_ = 0;
+    while (!terminations_.empty()) {
+      ActiveTermination active = std::move(terminations_.begin()->second);
+      terminations_.erase(terminations_.begin());
+      destroyTerminationResources(active);
+    }
+    for (ActiveTermination &active : terminationPool_)
+      destroyTerminationResources(active);
+    terminationPool_.clear();
+    while (!active_.empty()) {
+      ActiveBlock active = std::move(active_.begin()->second);
+      active_.erase(active_.begin());
+      destroyBlockResources(active);
+    }
+    for (auto &[mesh, blocks] : blockPool_) {
+      static_cast<void>(mesh);
+      for (ActiveBlock &active : blocks) destroyBlockResources(active);
+    }
+    blockPool_.clear();
     if (root_ != nullptr) {
       try { scene_->destroySceneNode(root_); } catch (...) {}
       root_ = nullptr;
     }
     stats_.activeBlocks = stats_.activeTerminators = stats_.activeLights = 0;
+    stats_.pooledBlocks = stats_.pooledTerminators = 0;
   }
 
   Ogre::SceneManager *scene_{};
@@ -909,14 +1075,24 @@ public:
   std::unordered_map<std::string, Ogre::MaterialPtr> materials_;
   std::unordered_map<std::string, MeshGeometry> geometry_;
   std::unordered_map<BlockCell, ActiveBlock, CellHash> active_;
+  std::unordered_map<std::string, std::vector<ActiveBlock>> blockPool_;
   std::unordered_map<TerminationKey, ActiveTermination, TerminationHash> terminations_;
+  std::vector<ActiveTermination> terminationPool_;
   std::vector<ActiveLight> lights_;
   std::optional<BlockCell> lastCentre_;
+  std::optional<BlockCell> navigationCentre_;
+  std::future<StreamPlan> planning_;
   std::int64_t originX_{};
   std::int64_t originY_{};
   std::int64_t originZ_{};
   std::size_t foreignLightsSeen_{};
+  std::size_t activeLightCount_{};
+  std::uint64_t allocatedBlocks_{};
+  std::uint64_t reusedBlocks_{};
+  std::uint64_t allocatedTerminators_{};
+  std::uint64_t reusedTerminators_{};
   bool debugDraw_{};
+  bool blockPoolPrewarmed_{};
   SemiInfiniteWorldStats stats_;
 };
 

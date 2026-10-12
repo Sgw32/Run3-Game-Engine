@@ -950,6 +950,20 @@ void Run3App::loadMap(const std::string &mapName) {
             mapConfig(staticMap_->definition(), key);
         return entry == nullptr ? fallback : entry->value;
       };
+      const auto boolean = [&value](const std::string_view key,
+                                    const bool fallback) {
+        const std::string parsed = lower(
+            value(key, fallback ? std::string("true") : std::string("false")));
+        if (parsed == "true" || parsed == "1" || parsed == "yes" ||
+            parsed == "on")
+          return true;
+        if (parsed == "false" || parsed == "0" || parsed == "no" ||
+            parsed == "off")
+          return false;
+        throw std::runtime_error("Map configuration value for '" +
+                                 std::string(key) +
+                                 "' is not a boolean: " + parsed);
+      };
       worldOptions.manifest = options_.paths.contentPath(
           value("BlockManifest", "run3/bblocks/block_manifest.json"));
       worldOptions.originBlock = value("WorldOriginBlock", "");
@@ -963,6 +977,7 @@ void Run3App::loadMap(const std::string &mapName) {
           std::stoll(value("WorldExtent", "100000000"));
       worldOptions.lightBudget = static_cast<unsigned>(
           std::stoul(value("WorldLightBudget", "3")));
+      worldOptions.terminators = boolean("WorldTerminators", true);
       worldOptions.lighting = options_.lighting;
       semiInfiniteWorld_ = std::make_unique<gameplay::SemiInfiniteWorld>(
           *sceneManager_, *physicsWorld_, std::move(worldOptions));

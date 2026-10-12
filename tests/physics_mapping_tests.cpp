@@ -236,6 +236,14 @@ TEST_CASE("Bullet exposes enabled collision bounds as renderer-neutral lines") {
 
   world.setEnabled(handle, false);
   CHECK(world.debugLines().empty());
+  CHECK_FALSE(world.raycastClosest({{100.0, 500.0, 300.0},
+                                    {100.0, 0.0, 300.0}}));
+  world.setTransform(handle, {{200.0, 200.0, 300.0}, {}});
+  world.setEnabled(handle, true);
+  const auto moved = world.raycastClosest({{200.0, 500.0, 300.0},
+                                           {200.0, 0.0, 300.0}});
+  REQUIRE(moved);
+  CHECK(moved->body == handle.id());
 }
 
 TEST_CASE("raycast results are nearest-first and honor groups and masks") {

@@ -317,7 +317,8 @@ public:
         ++iterator;
       }
     }
-    world_->removeRigidBody(found->second->body.get());
+    if (found->second->enabled)
+      world_->removeRigidBody(found->second->body.get());
     bodies_.erase(found);
   }
 
@@ -361,7 +362,7 @@ public:
     record.previous = value;
     record.current = value;
     record.body->activate(true);
-    world_->updateSingleAabb(record.body.get());
+    if (record.enabled) world_->updateSingleAabb(record.body.get());
   }
 
   void shiftOrigin(Vec3 offset) override {
@@ -378,7 +379,7 @@ public:
       record->current.position.x -= offset.x;
       record->current.position.y -= offset.y;
       record->current.position.z -= offset.z;
-      world_->updateSingleAabb(record->body.get());
+      if (record->enabled) world_->updateSingleAabb(record->body.get());
     }
     world_->computeOverlappingPairs();
   }
@@ -481,11 +482,16 @@ public:
 
   void setEnabled(BodyId id, bool enabled) override {
     BodyRecord &record = requireBody(id);
+    if (record.enabled == enabled) return;
     record.enabled = enabled;
     if (enabled) {
+      world_->addRigidBody(record.body.get(),
+                           filterBits(collisionMask(record.group)),
+                           filterBits(record.mask));
       record.body->forceActivationState(ACTIVE_TAG);
       world_->updateSingleAabb(record.body.get());
     } else {
+      world_->removeRigidBody(record.body.get());
       record.body->forceActivationState(DISABLE_SIMULATION);
     }
   }

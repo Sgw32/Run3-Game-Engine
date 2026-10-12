@@ -8,9 +8,9 @@ REM Luniverse streamed-world evaluation. Extra arguments override defaults.
     --content-overlay "%~dp0derived-content\luniverse" ^
     --map luniverse ^
     --user-dir ".\build\user\windows-release" ^
-    --windowed ^
-    --lighting-pipeline fast-forward --shadow-quality low --exposure 0.8 ^
-    --resolution 1280x720 --fov 75 ^
+    --fullscreen ^
+    --lighting-pipeline legacy-forward --shadow-quality high --exposure 1.6 ^
+    --resolution 1920x1080 --fov 75 ^
     --texture-quality high --model-quality high --scene-quality high ^
     --audio-backend miniaudio ^
     %*

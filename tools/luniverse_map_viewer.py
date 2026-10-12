@@ -24,6 +24,15 @@ OCCUPANCY_SALT = 0x4F43435550414E43
 VARIANT_SALT = 0x56415249414E5400
 
 
+def config_bool(value: str, key: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes", "on"}:
+        return True
+    if normalized in {"false", "0", "no", "off"}:
+        return False
+    raise ValueError(f"{key} must be a boolean, got {value!r}")
+
+
 def u64(value: int) -> int:
     return value & MASK64
 
@@ -147,6 +156,7 @@ class WorldConfig:
     vertical_radius_cm: float
     extent_cm: int
     light_budget: int
+    terminators: bool
 
     @classmethod
     def load(cls, path: Path, content_root: Path | None = None) -> "WorldConfig":
@@ -176,6 +186,8 @@ class WorldConfig:
             float(values.get("WorldVerticalRadius", "3000")),
             int(values.get("WorldExtent", "100000000")),
             int(values.get("WorldLightBudget", "3")),
+            config_bool(values.get("WorldTerminators", "true"),
+                        "WorldTerminators"),
         )
 
 
@@ -455,7 +467,9 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
                         point = self.screen_for_cell(socket_x / STANDARD_CELL_CM,
                                                      socket_z / STANDARD_CELL_CM)
                         mated = self.world.port_is_mated(placement, port)
-                        colour = QColor("#3cff88") if mated else QColor("#ff344f")
+                        colour = (QColor("#3cff88") if mated else
+                                  QColor("#ff344f") if self.config.terminators else
+                                  QColor("#ffb347"))
                         painter.setPen(QPen(colour, 3))
                         painter.drawEllipse(point, 3.0, 3.0)
             # World origin.
@@ -559,7 +573,9 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
             form.addRow(QLabel(
                 "Left click: inspect\nMiddle/right drag: pan\nWheel: zoom\n"
                 "WASD/arrows: move\nHome: origin\n"
-                "Green socket: connected\nRed socket: terminator"))
+                "Green socket: connected\n" +
+                ("Red socket: terminator" if cfg.terminators else
+                 "Orange socket: open (terminators disabled)")))
             form.addRow(self.details)
             splitter = QSplitter()
             splitter.addWidget(self.canvas)
@@ -587,7 +603,8 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
             self.statusBar().showMessage(
                 f"{self.config.path} | {len(self.world.tiles)} runtime tiles | "
                 f"biome span {self.world.biome_span * 20} m | "
-                f"world {self.config.extent_cm / 100000:.0f} km square"
+                f"world {self.config.extent_cm / 100000:.0f} km square | "
+                f"terminators {'on' if self.config.terminators else 'off'}"
             )
 
         def show_selection(self, info: dict[str, object]) -> None:
@@ -603,7 +620,7 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
                     self.config.path, seed, self.config.manifest_path,
                     self.config.origin_block, self.config.load_radius_cm,
                     self.config.vertical_radius_cm, self.config.extent_cm,
-                    self.config.light_budget,
+                    self.config.light_budget, self.config.terminators,
                 )
                 self.canvas.set_world(self.world, self.config)
                 self.update_status()
@@ -670,7 +687,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             config = WorldConfig(config.path, options.seed, config.manifest_path,
                                  config.origin_block, config.load_radius_cm,
                                  config.vertical_radius_cm, config.extent_cm,
-                                 config.light_budget)
+                                 config.light_budget, config.terminators)
         if options.self_test:
             verify_runtime_vectors(world.manifest)
             print("Luniverse generator parity vectors: OK")

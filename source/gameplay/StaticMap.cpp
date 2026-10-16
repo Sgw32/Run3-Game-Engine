@@ -393,9 +393,20 @@ public:
             std::to_string(budget.textures) +
             "; no authored shadow light may be silently dropped");
       }
+      // IntegratedPSSM3 is configured globally for the atlas capacity. On a
+      // map with no authored shadow light, however, there is no valid
+      // light-to-projector mapping for compositor scene passes. Ogre 14.5 can
+      // then index past its shadow-camera list while resolving
+      // texture_worldviewproj_matrix (tlwdelusion05). There is no shadow to
+      // render in this case, so disable the scene shadow path entirely. A
+      // subsequent map load restores it as soon as it has a real caster.
+      sceneManager_->setShadowTechnique(casters == 0
+          ? Ogre::SHADOWTYPE_NONE
+          : Ogre::SHADOWTYPE_TEXTURE_MODULATIVE_INTEGRATED);
       Ogre::LogManager::getSingleton().logMessage(
           "Step 9B: map local-light shadows=" + std::to_string(casters) +
-          "/" + std::to_string(budget.textures));
+          "/" + std::to_string(budget.textures) +
+          (casters == 0 ? "; shadow projector stage disabled" : ""));
     }
     Ogre::LogManager::getSingleton().logMessage(
         "Step 6C map " + map + ": visuals=" +

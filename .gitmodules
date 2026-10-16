@@ -7,3 +7,6 @@
 [submodule "mygui_buttons"]
 	path = mygui_buttons
 	url = https://github.com/Omegapy/MyGUI.git
+[submodule "Run3Ogitor"]
+	path = Run3Ogitor
+	url = https://github.com/PHOL-LABS/Run3Ogitor.git

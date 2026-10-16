@@ -299,11 +299,20 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
   options.lighting.shadowUpdateInterval =
       static_cast<unsigned>(shadowUpdateInterval);
   options.lightingLab = configuredBool(configuration, "lighting-lab");
+  options.glowLab = configuredBool(configuration, "glow-lab");
+  options.glowLabNoEffect =
+      configuredBool(configuration, "glow-lab-no-effect");
   options.lightingCapture = configuredBool(configuration, "lighting-capture");
   options.lightingReload = configuredBool(configuration, "lighting-reload");
   options.lightingResize = configuredBool(configuration, "lighting-resize");
-  if (options.lightingLab && !options.mapName.empty())
-    throw std::runtime_error("--lighting-lab and --map are mutually exclusive");
+  if ((options.lightingLab || options.glowLab) && !options.mapName.empty())
+    throw std::runtime_error(
+        "--lighting-lab/--glow-lab and --map are mutually exclusive");
+  if (options.lightingLab && options.glowLab)
+    throw std::runtime_error(
+        "--lighting-lab and --glow-lab are mutually exclusive");
+  if (options.glowLabNoEffect && !options.glowLab)
+    throw std::runtime_error("--glow-lab-no-effect requires --glow-lab");
   const auto variant = configuration.valueOr("content.variant", "original");
   if (variant != "original" && variant != "nextgen" && variant != "tlwrm" &&
       variant != "luniverse")
@@ -395,7 +404,7 @@ void printRun3AppUsage() {
       << "       [--lighting-pipeline legacy-forward|deferred|pbr|fast-forward]\n"
       << "       [--shadow-quality off|low|medium|high|ultra] [--exposure N]\n"
       << "       [--shadow-update-interval 1..8]\n"
-      << "       [--lighting-lab] [--lighting-capture]\n"
+      << "       [--lighting-lab|--glow-lab] [--lighting-capture]\n"
       << "       [--content-variant original|nextgen|tlwrm|luniverse] [--content-overlay PATH]\n"
       << "Precedence: command line > user config > content defaults.\n"
       << "Relative paths are resolved from the executable directory.\n";
@@ -797,7 +806,7 @@ void Run3App::setup() {
                             Ogre::Node::TS_WORLD);
     lightNode->attachObject(light);
   }
-  if (options_.mapName.empty() && !options_.lightingLab) {
+  if (options_.mapName.empty() && !options_.lightingLab && !options_.glowLab) {
     Ogre::Entity *cube =
         sceneManager_->createEntity("Run3ShellCube", Ogre::SceneManager::PT_CUBE);
     cubeNode_ = sceneManager_->getRootSceneNode()->createChildSceneNode();
@@ -830,6 +839,11 @@ void Run3App::setup() {
                                             "legacy-compositors",
                                         options_.textureQuality);
   if (options_.lightingLab) lighting_->createLab();
+  if (options_.glowLab) {
+    lighting_->createGlowLab();
+    if (!options_.glowLabNoEffect)
+      lighting_->setCompositorEnabled("Glow", true);
+  }
   ui_ = ui::createMyGuiUiSystem(
       *getRenderWindow(), *sceneManager_, *camera_, options_.paths.logDir(),
       [this](const ui::MenuAction &action) { handleMenuAction(action); },
@@ -867,7 +881,8 @@ void Run3App::setup() {
     loadMap(options_.mapName);
   }
 
-  ui_->showMenu(options_.mapName.empty() && !options_.lightingLab);
+  ui_->showMenu(options_.mapName.empty() && !options_.lightingLab &&
+                !options_.glowLab);
   showSystemCursor(false);
   if (options_.introEnabled) {
     Ogre::LogManager::getSingleton().logMessage(

@@ -506,6 +506,57 @@ void OgreLighting::createLab() {
   }
   message("LightingLab: deterministic 60-Hz presentation time; stable point lighting and spot shadows enabled");
 }
+
+void OgreLighting::createGlowLab() {
+  auto &s = *impl_;
+  s.lab = s.scene.getRootSceneNode()->createChildSceneNode("Run3/GlowLab");
+  s.scene.setAmbientLight(Ogre::ColourValue(0.22F, 0.22F, 0.22F));
+  s.camera.setFarClipDistance(5000);
+  s.camera.getParentSceneNode()->setPosition(0, 260, 1050);
+  s.camera.getParentSceneNode()->lookAt({0, 90, 0}, Ogre::Node::TS_WORLD);
+
+  auto cube = [&](const std::string &entityName,
+                  const std::string &materialName, const Ogre::Vector3 &position,
+                  const Ogre::Vector3 &scale,
+                  const Ogre::ColourValue &diffuse,
+                  const Ogre::ColourValue &emissive = Ogre::ColourValue::Black) {
+    auto *entity = s.scene.createEntity(entityName, Ogre::SceneManager::PT_CUBE);
+    s.entities.push_back(entity);
+    auto *node = s.lab->createChildSceneNode();
+    node->setPosition(position);
+    node->setScale(scale);
+    node->attachObject(entity);
+    auto material = Ogre::MaterialManager::getSingleton().create(materialName,
+                                                                  group);
+    MaterialDescription description;
+    description.name = materialName;
+    description.diffuse = {diffuse.r, diffuse.g, diffuse.b, diffuse.a};
+    description.emissive = {emissive.r, emissive.g, emissive.b};
+    description.specular = {.08F, .08F, .08F};
+    description.shininess = 64.0F;
+    description.roughness = .5F;
+    configureMaterial(*material, description, s.settings);
+    entity->setMaterial(material);
+    return node;
+  };
+
+  cube("Run3/GlowLabFloor", "Run3/GlowLab/Floor", {0, -35, 0},
+       {8.5F, .25F, 4.0F}, Ogre::ColourValue(.18F, .20F, .24F));
+  cube("Run3/GlowLabRed", "Run3/GlowLab/NonGlowRed", {-280, 90, 0},
+       {1.35F, 1.35F, 1.35F}, Ogre::ColourValue(.75F, .06F, .04F));
+  // The compatibility name retains the generated lab material for its normal
+  // pass while resolving the authored Run3/highDetailGlow technique only when
+  // the compositor renders the `glow` material scheme.
+  cube("Run3/GlowLabCyan",
+       "Run3/CompatTexture/GlowLab/Run3/highDetailGlow", {0, 90, 0},
+       {1.35F, 1.35F, 1.35F}, Ogre::ColourValue(.02F, .55F, .75F),
+       Ogre::ColourValue(.02F, .35F, .5F));
+  cube("Run3/GlowLabGreen", "Run3/GlowLab/NonGlowGreen", {280, 90, 0},
+       {1.35F, 1.35F, 1.35F}, Ogre::ColourValue(.05F, .68F, .12F));
+
+  message("GlowLab: only the centre cyan cube has an authored glow scheme");
+}
+
 void OgreLighting::update(double seconds) {
   impl_->compositorEffects->update(seconds);
   impl_->shaderErrors.check();

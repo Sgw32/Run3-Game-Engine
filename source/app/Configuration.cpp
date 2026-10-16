@@ -168,7 +168,9 @@ CommandLine parseCommandLine(const std::vector<std::string> &arguments,
       result.validateContent = true;
       continue;
     }
-    if (argument == "--lighting-lab" || argument == "--lighting-capture" ||
+    if (argument == "--lighting-lab" || argument == "--glow-lab" ||
+        argument == "--glow-lab-no-effect" ||
+        argument == "--lighting-capture" ||
         argument == "--lighting-reload" || argument == "--lighting-resize") {
       result.values[argument.substr(2)] = "true";
       continue;

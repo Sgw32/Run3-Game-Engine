@@ -20,6 +20,7 @@ public:
                                   const std::filesystem::path &programCache,
                                   std::string_view textureQuality);
   void createLab();
+  void createGlowLab();
   void update(double seconds);
   void setCompositorEnabled(std::string_view name, bool enabled);
   void setCompositorShaderParameter(std::string_view material,

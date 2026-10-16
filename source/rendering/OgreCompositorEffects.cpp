@@ -10,8 +10,11 @@
 #include <OgreMaterialManager.h>
 #include <OgrePass.h>
 #include <OgreRenderSystem.h>
+#include <OgreRenderQueue.h>
+#include <OgreRenderable.h>
 #include <OgreResourceGroupManager.h>
 #include <OgreRoot.h>
+#include <OgreSceneManager.h>
 #include <OgreScriptCompiler.h>
 #include <OgreShaderGenerator.h>
 #include <OgreTechnique.h>
@@ -652,7 +655,8 @@ void addLocationIfPresent(Ogre::ResourceGroupManager &resources,
 
 class OgreCompositorEffects::Impl final
     : public Ogre::CompositorInstance::Listener,
-      public Ogre::MaterialManager::Listener {
+      public Ogre::MaterialManager::Listener,
+      public Ogre::RenderQueue::RenderableListener {
 public:
   explicit Impl(Ogre::Viewport &target) : viewport(target) {}
 
@@ -660,12 +664,16 @@ public:
     clear();
     try {
       if (materialListenerRegistered)
-        Ogre::MaterialManager::getSingleton().removeListener(this);
+        for (const Ogre::String &scheme : {"glow", "GlassObj", "geom"})
+          Ogre::MaterialManager::getSingleton().removeListener(this, scheme);
+      if (renderQueue != nullptr && renderQueue->getRenderableListener() == this)
+        renderQueue->setRenderableListener(previousRenderableListener);
       if (auto *generator = Ogre::RTShader::ShaderGenerator::getSingletonPtr())
         for (const Ogre::MaterialPtr &material : generatedSchemeMaterials)
           if (material) generator->removeAllShaderBasedTechniques(*material);
       generatedSchemeMaterials.clear();
       generatedSchemeMaterialNames.clear();
+      blackFallbackTechnique = nullptr;
       blackMaterial.reset();
       auto &resources = Ogre::ResourceGroupManager::getSingleton();
       if (resources.resourceGroupExists(resourceGroup))
@@ -740,6 +748,62 @@ public:
                                  "blur.material"})
         parseScript(shaders / script, true, programCache, {}, {}, {}, true);
 
+      // RTSS treats an unlit, textureless fixed-function pass as white on
+      // D3D11. The original GlowMaterialListener expected its mGlowBlack pass
+      // to output literal zero instead. Keep RTSS's vertex stage (which safely
+      // handles the renderable's geometry layout) and provide an explicit
+      // zero-output fragment stage for that fallback.
+      constexpr std::string_view blackFragmentSource = R"hlsl(
+float4 run3LegacyGlowBlackVS(
+    float4 position : POSITION,
+    uniform float4x4 worldViewProj) : SV_POSITION
+{
+    return mul(worldViewProj, position);
+}
+
+float4 run3LegacyGlowBlackPS(float4 position : SV_POSITION) : SV_Target
+{
+    return float4(0.0, 0.0, 0.0, 0.0);
+}
+)hlsl";
+      const fs::path blackFragmentPath =
+          programCache / "Run3LegacyGlowBlack.hlsl";
+      if (!fs::is_regular_file(blackFragmentPath) ||
+          readText(blackFragmentPath) != blackFragmentSource) {
+        std::ofstream output(blackFragmentPath,
+                             std::ios::binary | std::ios::trunc);
+        if (!output)
+          throw std::runtime_error(
+              "cannot create black glow fragment-program overlay");
+        output.write(blackFragmentSource.data(),
+                     static_cast<std::streamsize>(blackFragmentSource.size()));
+      }
+      std::string blackProgramScript = R"ogre(
+vertex_program Run3/LegacyScheme/BlackVP hlsl
+{
+    source Run3LegacyGlowBlack.hlsl
+    entry_point run3LegacyGlowBlackVS
+    target vs_4_0
+    default_params
+    {
+        param_named_auto worldViewProj worldviewproj_matrix
+    }
+}
+
+fragment_program Run3/LegacyScheme/BlackFP hlsl
+{
+    source Run3LegacyGlowBlack.hlsl
+    entry_point run3LegacyGlowBlackPS
+    target ps_4_0
+}
+)ogre";
+      Ogre::DataStreamPtr blackProgramStream(
+          OGRE_NEW Ogre::MemoryDataStream(
+              "Run3LegacyGlowBlack.program", blackProgramScript.data(),
+              blackProgramScript.size(), false, true));
+      Ogre::ScriptCompilerManager::getSingleton().parseScript(
+          blackProgramStream, resourceGroup);
+
       // SSAO's geometry pass is the exact authored geom_vs/geom_ps pair. Only
       // those two declarations are selected so obsolete unrelated lighting
       // programs in diffuse.program are never loaded.
@@ -784,13 +848,33 @@ public:
       blackPass->setDiffuse(0, 0, 0, 0);
       blackPass->setSpecular(0, 0, 0, 0);
       blackPass->setSelfIllumination(0, 0, 0);
-      // The legacy GlowMaterialListener used an unlit black fallback for
-      // objects without a glow technique.  Suppressing colour writes is the
-      // exact, shader-independent equivalent on D3D11 and prevents a generated
-      // RTSS fallback from contaminating the glow extraction target.
-      blackPass->setColourWriteEnabled(false);
-      Ogre::MaterialManager::getSingleton().addListener(this);
+      // MaterialManager falls back to the material's ordinary technique when
+      // a listener returns null. Use explicit programs for the replacement:
+      // RTSS regenerates its generated passes during validation and would
+      // otherwise restore its white unlit fragment program.
+      blackPass->setColourWriteEnabled(true);
+      blackPass->setVertexProgram("Run3/LegacyScheme/BlackVP");
+      blackPass->setFragmentProgram("Run3/LegacyScheme/BlackFP");
+      blackMaterial->load();
+      blackFallbackTechnique = blackTechnique;
+      if (!blackFallbackTechnique->isSupported())
+        throw std::runtime_error(
+            "cannot create the shader-backed black glow fallback");
+      // Register per scheme, rather than as a generic listener. Modern Ogre's
+      // RTSS also installs a generic missing-scheme listener; if it runs first
+      // it manufactures an ordinary textured technique for "glow" and turns
+      // the extraction target into a copy of the full scene. Scheme-specific
+      // listeners are intentionally arbitrated before generic listeners.
+      for (const Ogre::String &scheme : {"glow", "GlassObj", "geom"})
+        Ogre::MaterialManager::getSingleton().addListener(this, scheme);
       materialListenerRegistered = true;
+      if (Ogre::Camera *camera = viewport.getCamera()) {
+        if (Ogre::SceneManager *scene = camera->getSceneManager()) {
+          renderQueue = scene->getRenderQueue();
+          previousRenderableListener = renderQueue->getRenderableListener();
+          renderQueue->setRenderableListener(this);
+        }
+      }
       Ogre::LogManager::getSingleton().logMessage(
           "Legacy compositor catalogue loaded from authored Ogre scripts and " +
           std::to_string(schemeMaterials.size()) +
@@ -917,13 +1001,7 @@ public:
       const Ogre::Renderable *) override {
     if (scheme != "glow" && scheme != "GlassObj" && scheme != "geom")
       return nullptr;
-    std::string sourceName = material->getName();
-    static constexpr std::string_view compatibilityPrefix =
-        "Run3/CompatTexture/";
-    if (sourceName.rfind(compatibilityPrefix, 0) == 0) {
-      const std::size_t slash = sourceName.find('/', compatibilityPrefix.size());
-      if (slash != std::string::npos) sourceName.erase(0, slash + 1);
-    }
+    std::string sourceName = legacySourceName(material->getName());
     if (const auto found = schemeMaterials.find(lower(sourceName));
         found != schemeMaterials.end()) {
       Ogre::MaterialPtr source = Ogre::MaterialManager::getSingleton().getByName(
@@ -932,10 +1010,20 @@ public:
         source->load();
         for (Ogre::Technique *technique : source->getTechniques())
           if (technique->getSchemeName() == scheme) {
-            if (hasCompletePrograms(technique)) return technique;
+            if (hasCompletePrograms(technique)) {
+              ++authoredSchemeSelections;
+              return technique;
+            }
             if (Ogre::Technique *generated =
-                    shaderBackedTechnique(source, technique, scheme))
+                    shaderBackedTechnique(source, technique, scheme)) {
+              ++authoredSchemeSelections;
               return generated;
+            }
+            if (failedAuthoredSchemes.insert(lower(sourceName)).second)
+              Ogre::LogManager::getSingleton().logMessage(
+                  "Legacy compositor warning: authored '" + sourceName +
+                  "' " + scheme +
+                  " technique could not be translated; using black filter");
           }
       }
     }
@@ -943,13 +1031,53 @@ public:
     // glow/glass technique contribute black to those extraction passes. Ogre's
     // D3D11 renderer has no fixed-function pipeline, so RTSS translates this
     // original unlit black technique to its shader equivalent.
-    if ((scheme == "glow" || scheme == "GlassObj") && blackMaterial)
-      return shaderBackedTechnique(blackMaterial, blackMaterial->getTechnique(0),
-                                   scheme);
+    if ((scheme == "glow" || scheme == "GlassObj") &&
+        blackFallbackTechnique != nullptr) {
+      ++blackSchemeSelections;
+      return blackFallbackTechnique;
+    }
     return nullptr;
   }
 
+  bool renderableQueued(Ogre::Renderable *renderable, const Ogre::uint8 group,
+                        const Ogre::ushort priority,
+                        Ogre::Technique **technique,
+                        Ogre::RenderQueue *queue) override {
+    if (previousRenderableListener != nullptr &&
+        !previousRenderableListener->renderableQueued(
+            renderable, group, priority, technique, queue))
+      return false;
+    const Ogre::String &scheme =
+        Ogre::MaterialManager::getSingleton().getActiveScheme();
+    if (scheme != "glow" && scheme != "GlassObj" && scheme != "geom")
+      return true;
+    const Ogre::MaterialPtr &material = renderable->getMaterial();
+    if (!material) return true;
+    if (Ogre::Technique *replacement = handleSchemeNotFound(
+            0, scheme, material.get(), 0, renderable)) {
+      // The extraction target is already black. Reject missing-scheme
+      // renderables instead of relying on a translated fixed-function black
+      // pass; this prevents RTSS from turning that pass into white on D3D11.
+      if ((scheme == "glow" || scheme == "GlassObj") &&
+          replacement == blackFallbackTechnique)
+        return false;
+      *technique = replacement;
+    }
+    return true;
+  }
+
   void clear() noexcept {
+    if (authoredSchemeSelections != 0 || blackSchemeSelections != 0) {
+      try {
+        Ogre::LogManager::getSingleton().logMessage(
+            "Legacy compositor material schemes: authored=" +
+            std::to_string(authoredSchemeSelections) + ", black-filtered=" +
+            std::to_string(blackSchemeSelections));
+      } catch (...) {
+      }
+      authoredSchemeSelections = 0;
+      blackSchemeSelections = 0;
+    }
     for (const auto &[name, instance] : instances) {
       try {
         instance->setEnabled(false);
@@ -963,6 +1091,20 @@ public:
   }
 
 private:
+  static std::string legacySourceName(std::string name) {
+    // Runtime-compatible materials preserve the authored name after the
+    // numeric uniqueness component.  Scheme selection must be based on that
+    // authored name, not on the generated clone name.
+    for (const std::string_view prefix : {"Run3/CompatTexture/",
+                                          "Run3/ParticleCompat/"}) {
+      if (name.rfind(prefix, 0) != 0) continue;
+      const std::size_t slash = name.find('/', prefix.size());
+      if (slash != std::string::npos) name.erase(0, slash + 1);
+      break;
+    }
+    return name;
+  }
+
   static bool hasCompletePrograms(Ogre::Technique *technique) {
     if (technique == nullptr || technique->getNumPasses() == 0) return false;
     for (Ogre::Pass *pass : technique->getPasses())
@@ -1047,9 +1189,15 @@ private:
   Ogre::Viewport &viewport;
   bool configured{};
   bool materialListenerRegistered{};
+  Ogre::RenderQueue *renderQueue{};
+  Ogre::RenderQueue::RenderableListener *previousRenderableListener{};
   Ogre::MaterialPtr blackMaterial;
+  Ogre::Technique *blackFallbackTechnique{};
+  std::size_t authoredSchemeSelections{};
+  std::size_t blackSchemeSelections{};
   std::vector<Ogre::MaterialPtr> generatedSchemeMaterials;
   std::unordered_set<std::string> generatedSchemeMaterialNames;
+  std::unordered_set<std::string> failedAuthoredSchemes;
   std::unordered_map<std::string, std::string> schemeMaterials;
   std::unordered_map<std::string, Ogre::CompositorInstance *> instances;
   std::unordered_map<std::string, std::unordered_map<std::string, float>>

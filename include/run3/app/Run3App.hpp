@@ -74,6 +74,8 @@ struct Run3AppOptions {
   std::string newGameMap{"tlwintro"};
   rendering::LightingSettings lighting;
   bool lightingLab{};
+  bool glowLab{};
+  bool glowLabNoEffect{};
   bool lightingCapture{};
   bool lightingReload{};
   bool lightingResize{};

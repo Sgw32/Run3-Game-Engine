@@ -175,8 +175,20 @@ TEST_CASE("player strafe follows camera right at rotated headings") {
   player.setCommand({1, 0, 0, false, false, false});
   player.fixedUpdate();
   CHECK(player.state().velocity.x == Catch::Approx(0.0).margin(0.001));
-  CHECK(player.state().velocity.z == Catch::Approx(300.0));
+  CHECK(player.state().velocity.z == Catch::Approx(-300.0));
   static_cast<void>(floor);
+}
+
+TEST_CASE("noclip strafe follows camera right at rotated headings") {
+  PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
+  PlayerController player(world);
+  player.spawn({0, 100, 0});
+  player.setYawRadians(3.14159265358979323846 * 0.5);
+  player.setNoclip(true);
+  player.setCommand({1, 0, 0, false, false, false});
+  player.fixedUpdate(1.0);
+  CHECK(player.state().position.x == Catch::Approx(0.0).margin(0.001));
+  CHECK(player.state().position.z == Catch::Approx(-650.0));
 }
 
 TEST_CASE("duck preserves feet and blocked ceiling prevents unduck") {

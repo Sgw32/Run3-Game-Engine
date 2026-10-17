@@ -173,7 +173,10 @@ void PlayerController::fixedUpdate(double seconds) {
     // alive, but do not let train deltas prevent free inspection.
     parentMotion_ = {};
     const physics::Vec3 direction = viewDirection();
-    const physics::Vec3 right{std::cos(yaw_), 0.0, std::sin(yaw_)};
+    // Ogre's yaw rotates local +X towards -Z.  Keep noclip strafing on that
+    // camera-right axis; using +sin(yaw) makes the axis cease to be
+    // perpendicular to viewDirection() except at a few headings.
+    const physics::Vec3 right{std::cos(yaw_), 0.0, -std::sin(yaw_)};
     physics::Vec3 motion = add(multiply(right, command_.strafe),
                                multiply(direction, command_.forward));
     motion.y += command_.vertical;

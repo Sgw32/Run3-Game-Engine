@@ -167,6 +167,10 @@ public:
       casterPass->setLightingEnabled(false);
       casterPass->setDepthWriteEnabled(true);
       casterPass->setDepthCheckEnabled(true);
+      // Match Ogre's stock PSSM depth caster.  Slope-scale bias is important
+      // for faces viewed at grazing light angles, where an unbiased depth map
+      // produces the characteristic parallel acne stripes.
+      casterPass->setDepthBias(-1.0F, -1.0F);
       casterMaterial->setReceiveShadows(false);
       // Let RTSS generate the position-only caster for every programmable
       // pipeline. Ogre/ShadowBlend is a colour-shadow receiver/caster pair;
@@ -181,7 +185,7 @@ public:
       // creates a view-dependent clipping plane through point-light volume.
       scene.setShadowTextureCountPerLightType(Ogre::Light::LT_POINT, 0);
       scene.setShadowTextureSettings(static_cast<Ogre::uint16>(budget.resolution),
-                                    static_cast<Ogre::uint16>(budget.textures), Ogre::PF_DEPTH16);
+                                    static_cast<Ogre::uint16>(budget.textures), Ogre::PF_DEPTH32);
       scene.setShadowTextureSelfShadow(true);
       scene.setShadowFarDistance(budget.distance);
       shadowFallback = std::make_unique<ShadowFallbackGuard>(scene);
@@ -193,6 +197,7 @@ public:
       globalState->addTemplateSubRenderState(shadow);
       message("local shadow atlas=" + std::to_string(budget.textures) + "x" +
               std::to_string(budget.resolution) +
+              "; depth=32-bit; range=" + std::to_string(budget.distance) +
               "; spotlights use authored cones; point lights remain "
               "omnidirectional and do not use Ogre's camera-facing shadow approximation");
       message("shadow texture refresh interval=" +

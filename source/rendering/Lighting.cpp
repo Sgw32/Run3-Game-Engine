@@ -36,8 +36,11 @@ ShadowBudget shadowBudget(ShadowQuality quality, LightingPipeline pipeline) {
   // largest authored light set in the shipped maps and leaves enough D3D11
   // sampler slots for the complete legacy/PBR surface texture set.
   // 512, 1024, 2048, 4096 - shadow map size depending on quality
+  // The former 2,500-unit low-quality range made directional shadows end in
+  // a small camera-following square.  Preserve the quality scaling while
+  // covering ten times the world distance at every tier.
   return {512U << (std::min(tier, 4U) - 1U), 6U, 1U,
-          tier >= 3 ? 16U : 4U, 2500.0F * static_cast<float>(1U << (tier - 1U))};
+          tier >= 3 ? 16U : 4U, 25000.0F * static_cast<float>(1U << (tier - 1U))};
 }
 float roughnessFromShininess(float shininess) {
   if (!std::isfinite(shininess) || shininess < 0)

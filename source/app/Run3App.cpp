@@ -549,8 +549,10 @@ int Run3App::run() {
           const physics::Vec3 forward{-std::sin(yawRadians_) * horizontal,
                                       std::sin(pitchRadians_),
                                       -std::cos(yawRadians_) * horizontal};
+          // Match Ogre's camera-local +X direction.  The opposite Z sign
+          // makes strafing depend on yaw and can even add a forward component.
           const physics::Vec3 right{std::cos(yawRadians_), 0.0,
-                                    std::sin(yawRadians_)};
+                                    -std::sin(yawRadians_)};
           physics::Vec3 motion{
               right.x * command.strafe + forward.x * command.forward,
               forward.y * command.forward,

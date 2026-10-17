@@ -67,6 +67,7 @@ constexpr Ogre::Real npcHalfRateAnimationDistance = 2500.0F;
 struct FlashlightConfig {
   Ogre::Real innerDegrees{60.0F};
   Ogre::Real outerDegrees{80.0F};
+  Ogre::Real falloff{1.0F};
   Ogre::Real range{3000.0F};
   bool allowed{true};
 };
@@ -76,15 +77,21 @@ FlashlightConfig loadFlashlightConfig(const AppPaths &paths) {
   std::ifstream stream(paths.contentPath("run3/core/player.cfg"));
   std::string line;
   while (std::getline(stream, line)) {
-    const auto separator = line.find(':');
+    auto separator = line.find('=');
+    if (separator == std::string::npos) separator = line.find(':');
     if (separator == std::string::npos) continue;
     const std::string key = line.substr(0, separator);
     const std::string value = line.substr(separator + 1);
     try {
       if (key == "flashConeI") result.innerDegrees = std::stof(value);
       else if (key == "flashConeO") result.outerDegrees = std::stof(value);
+      else if (key == "flashFalloff" || key == "flashlight.falloff")
+        result.falloff = std::stof(value);
+      else if (key == "flashlight.inner-degrees") result.innerDegrees = std::stof(value);
+      else if (key == "flashlight.outer-degrees") result.outerDegrees = std::stof(value);
+      else if (key == "flashlight.range") result.range = std::stof(value);
       else if (key == "Range") result.range = std::stof(value);
-      else if (key == "allowFlashLight")
+      else if (key == "allowFlashLight" || key == "flashlight.allowed")
         result.allowed = value == "true" || value == "1";
     } catch (const std::exception &) {
       Ogre::LogManager::getSingleton().logMessage(
@@ -96,6 +103,7 @@ FlashlightConfig loadFlashlightConfig(const AppPaths &paths) {
   result.outerDegrees =
       std::clamp(result.outerDegrees, result.innerDegrees, 175.0F);
   result.range = std::clamp(result.range, 1.0F, 100000.0F);
+  result.falloff = std::clamp(result.falloff, 0.01F, 128.0F);
   return result;
 }
 
@@ -476,7 +484,8 @@ public:
     flashlight->setDiffuseColour(0.5F, 0.5F, 0.5F);
     flashlight->setSpecularColour(0.0F, 0.0F, 0.0F);
     flashlight->setSpotlightRange(Ogre::Degree(flashlightConfig.innerDegrees),
-                                  Ogre::Degree(flashlightConfig.outerDegrees));
+                                  Ogre::Degree(flashlightConfig.outerDegrees),
+                                  flashlightConfig.falloff);
     // The legacy shader ignored the linear/quadratic coefficients. Constant
     // attenuation retains its authored range in Ogre's modern light path.
     flashlight->setAttenuation(flashlightConfig.range, 1.0F, 0.0F, 0.0F);

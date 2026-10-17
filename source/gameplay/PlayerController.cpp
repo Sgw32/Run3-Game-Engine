@@ -226,7 +226,7 @@ void PlayerController::fixedUpdate(double seconds) {
     forward /= moveLength;
   }
   const physics::Vec3 forwardAxis{-std::sin(yaw_), 0.0, -std::cos(yaw_)};
-  const physics::Vec3 rightAxis{std::cos(yaw_), 0.0, -std::sin(yaw_)};
+  const physics::Vec3 rightAxis{std::cos(yaw_), 0.0, std::sin(yaw_)};
   physics::Vec3 horizontal =
       add(multiply(forwardAxis, forward), multiply(rightAxis, strafe));
   tryStep(horizontal);

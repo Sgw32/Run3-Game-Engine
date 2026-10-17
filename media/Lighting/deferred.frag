@@ -65,10 +65,15 @@ void main()
     float weight = 1.0;
     if (lightPosition[i].w != 0.0) {
       vec4 a = attenuation[i];
-      weight = distanceToLight < a.x ? 1.0/max(a.y+a.z*distanceToLight+a.w*distanceToLight*distanceToLight,0.001) : 0.0;
+      // Legacy Run3 shaders fade a local light as 1-(distance/range)^2.
+      // Keep the authored attenuation coefficients, then apply that range
+      // envelope instead of ending the cone at a visibly hard plane.
+      float rangeRatio = distanceToLight/max(a.x,0.001);
+      float rangeFade = clamp(1.0-rangeRatio*rangeRatio,0.0,1.0);
+      weight = distanceToLight < a.x ? rangeFade/max(a.y+a.z*distanceToLight+a.w*distanceToLight*distanceToLight,0.001) : 0.0;
       if (lightPosition[i].w == 2.0) {
         float cosine = dot(-l,lightDirection[i].xyz);
-        weight *= pow(clamp((cosine-cone[i].y)/max(cone[i].x-cone[i].y,0.0001),0.0,1.0),cone[i].z);
+        weight *= pow(clamp((cosine-cone[i].y)/max(cone[i].x-cone[i].y,0.0001),0.0,1.0),max(cone[i].z*0.4,0.0001));
       }
     }
     float lambert = max(dot(n,l),0.0);

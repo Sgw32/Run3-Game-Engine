@@ -191,6 +191,28 @@ double meshLodBias(const std::string &quality) {
   return 1.0;
 }
 
+void overlayConfig(ConfigValues &target, const ConfigValues &source) {
+  for (const auto &[key, value] : source) target[key] = value;
+}
+
+std::vector<std::string> splitConsoleCommand(const std::string &command) {
+  std::vector<std::string> result;
+  std::string token;
+  bool quoted = false;
+  for (const char character : command) {
+    if (character == '"') {
+      quoted = !quoted;
+    } else if (std::isspace(static_cast<unsigned char>(character)) && !quoted) {
+      if (!token.empty()) { result.push_back(std::move(token)); token.clear(); }
+    } else {
+      token.push_back(character);
+    }
+  }
+  if (quoted) throw std::invalid_argument("unterminated quote");
+  if (!token.empty()) result.push_back(std::move(token));
+  return result;
+}
+
 } // namespace
 
 Run3AppOptions loadRun3AppOptions(int argc, char **argv,
@@ -224,24 +246,52 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
 
   AppPaths paths = AppPaths::resolve(executable, requestedContentRoot,
                                      commandLine.userRoot);
+  const fs::path installedShare =
+      (executableDir / ".." / "share" / "run3").lexically_normal();
   const ConfigValues contentDefaults =
       Configuration::readFile(paths.contentPath("config/run3.cfg"));
   const ConfigValues userValues =
       Configuration::readFile(paths.configDir() / "run3.cfg");
-  const Configuration configuration = Configuration::merge(
+  const Configuration bootstrapConfiguration = Configuration::merge(
       contentDefaults, userValues, commandLine.values);
 
   std::optional<fs::path> contentRoot = requestedContentRoot;
   std::optional<fs::path> userRoot = commandLine.userRoot;
   if (!contentRoot) {
-    contentRoot = configuredRoot(configuration, "content-root", executableDir);
+    contentRoot = configuredRoot(bootstrapConfiguration, "content-root", executableDir);
   }
   if (!userRoot) {
-    userRoot = configuredRoot(configuration, "user-root", executableDir);
+    userRoot = configuredRoot(bootstrapConfiguration, "user-root", executableDir);
   }
   if (contentRoot || userRoot) {
     paths = AppPaths::resolve(executable, contentRoot, userRoot);
   }
+
+  const auto variant = bootstrapConfiguration.valueOr("content.variant", "original");
+  if (const auto overlay = bootstrapConfiguration.find("content.overlay"))
+    paths.setContentOverlay(configuredPath(*overlay, executableDir));
+  else if (variant == "nextgen")
+    paths.setContentOverlay(paths.userPath("derived-content/nextgen"));
+  else if (variant == "tlwrm")
+    paths.setContentOverlay(paths.userPath("derived-content/tlwrm"));
+  else if (variant == "luniverse")
+    paths.setContentOverlay(paths.userPath("derived-content/luniverse"));
+
+  ConfigValues defaults = Configuration::readFile(installedShare / "config" /
+                                                   "performance.cfg");
+  overlayConfig(defaults, Configuration::readFile(installedShare / "config" /
+                                                  "player.cfg"));
+  overlayConfig(defaults, Configuration::readFile(paths.contentRoot() /
+                                                  "config" / "run3.cfg"));
+  if (!paths.contentOverlay().empty()) {
+    overlayConfig(defaults, Configuration::readFile(
+        paths.contentOverlay() / "run3" / "core" / "performance.cfg"));
+    overlayConfig(defaults, Configuration::readFile(
+        paths.contentOverlay() / "run3" / "core" / "player.cfg"));
+  }
+  const Configuration configuration = Configuration::merge(
+      defaults, Configuration::readFile(paths.configDir() / "run3.cfg"),
+      commandLine.values);
 
 #ifdef _WIN32
   const std::string defaultRenderer = "d3d11";
@@ -252,8 +302,6 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
   if (validateContent && frames == 0) {
     frames = 1;
   }
-  const fs::path installedShare =
-      (executableDir / ".." / "share" / "run3").lexically_normal();
   fs::path manifestPath = configuration.valueOr("manifest", "");
   if (manifestPath.empty()) {
     const fs::path localManifest = paths.contentRoot() / "manifest.json";
@@ -313,19 +361,10 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
         "--lighting-lab and --glow-lab are mutually exclusive");
   if (options.glowLabNoEffect && !options.glowLab)
     throw std::runtime_error("--glow-lab-no-effect requires --glow-lab");
-  const auto variant = configuration.valueOr("content.variant", "original");
   if (variant != "original" && variant != "nextgen" && variant != "tlwrm" &&
       variant != "luniverse")
     throw std::runtime_error(
         "content.variant must be original, nextgen, tlwrm or luniverse");
-  if (const auto overlay = configuration.find("content.overlay"))
-    options.paths.setContentOverlay(configuredPath(*overlay, executableDir));
-  else if (variant == "nextgen")
-    options.paths.setContentOverlay(options.paths.userPath("derived-content/nextgen"));
-  else if (variant == "tlwrm")
-    options.paths.setContentOverlay(options.paths.userPath("derived-content/tlwrm"));
-  else if (variant == "luniverse")
-    options.paths.setContentOverlay(options.paths.userPath("derived-content/luniverse"));
   options.mapQuality = configuredQuality(
       configuration, "scene-quality",
       configuration.valueOr("map-quality", "low"));
@@ -346,6 +385,30 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
     throw std::runtime_error(
         "player-height-cm must be between 120 and 240 centimetres");
   }
+  options.player.radius = configuredDouble(configuration, "player.radius", 20.0);
+  options.player.standingHeight = configuredDouble(
+      configuration, "player.standing-height", options.playerHeightCm);
+  if (commandLine.values.find("player-height-cm") != commandLine.values.end())
+    options.player.standingHeight = options.playerHeightCm;
+  options.player.crouchingHeight = configuredDouble(
+      configuration, "player.crouching-height",
+      options.player.standingHeight * (11.0 / 18.0));
+  options.player.eyeOffset = configuredDouble(
+      configuration, "player.eye-offset",
+      options.player.standingHeight * (5.0 / 12.0));
+  options.player.crouchingEyeOffset = configuredDouble(
+      configuration, "player.crouching-eye-offset",
+      options.player.crouchingHeight * (5.0 / 22.0));
+  options.player.massKg = configuredDouble(configuration, "player.mass", 40.0);
+  options.player.walkSpeed = configuredDouble(configuration, "player.walk-speed", 300.0);
+  options.player.runSpeed = configuredDouble(configuration, "player.run-speed", 520.0);
+  options.player.noclipSpeed = configuredDouble(configuration, "player.noclip-speed", 650.0);
+  options.player.jumpSpeed = configuredDouble(configuration, "player.jump-speed", 360.0);
+  options.player.ladderSpeed = configuredDouble(configuration, "player.ladder-speed", 220.0);
+  options.player.stepHeight = configuredDouble(configuration, "player.step-height", 35.0);
+  options.player.groundProbe = configuredDouble(configuration, "player.ground-probe", 8.0);
+  options.player.interactionDistance = configuredDouble(configuration, "player.use-distance", 250.0);
+  options.player.weaponDistance = configuredDouble(configuration, "player.weapon-distance", 100000.0);
   options.verticalFovDegrees = configuredDouble(configuration, "fov", 75.0);
   if (options.verticalFovDegrees < 35.0 ||
       options.verticalFovDegrees > 120.0) {
@@ -358,6 +421,7 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
   options.fullscreen = configuredBool(configuration, "fullscreen");
   options.startNoclip = configuredBool(configuration, "noclip");
   options.physicsDebug = configuredBool(configuration, "physics-debug");
+  options.devMode = configuredBool(configuration, "dev-mode");
   options.introEnabled = configuredBool(configuration, "intro", false);
   options.uiScale = static_cast<float>(
       configuredDouble(configuration, "ui-scale", 1.0));
@@ -455,8 +519,12 @@ int Run3App::run() {
       if (player_) {
         gameplay::PlayerCommand command;
         const InputState &state = input_.state();
-        const bool frozen = sequenceRuntime_ &&
-                            sequenceRuntime_->presentation().playerFrozen;
+        const bool uiBlocked = ui_ && (ui_->menuVisible() ||
+                                       ui_->computerActive() ||
+                                       ui_->inventoryVisible() ||
+                                       ui_->consoleVisible());
+        const bool frozen = uiBlocked || (sequenceRuntime_ &&
+                            sequenceRuntime_->presentation().playerFrozen);
         command.forward = frozen ? 0.0
             : (options_.inputBindings.down(state, InputAction::MoveForward) ? 1.0 : 0.0) -
               (options_.inputBindings.down(state, InputAction::MoveBackward) ? 1.0 : 0.0);
@@ -475,6 +543,31 @@ int Run3App::run() {
                              (command.crouch ? 1.0 : 0.0);
           command.jump = false;
           command.crouch = false;
+        }
+        if (legacyNoclip_ && !frozen) {
+          const double horizontal = std::cos(pitchRadians_);
+          const physics::Vec3 forward{-std::sin(yawRadians_) * horizontal,
+                                      std::sin(pitchRadians_),
+                                      -std::cos(yawRadians_) * horizontal};
+          const physics::Vec3 right{std::cos(yawRadians_), 0.0,
+                                    std::sin(yawRadians_)};
+          physics::Vec3 motion{
+              right.x * command.strafe + forward.x * command.forward,
+              forward.y * command.forward,
+              right.z * command.strafe + forward.z * command.forward};
+          motion.y += (options_.inputBindings.down(state, InputAction::Jump) ? 1.0 : 0.0) -
+                      (command.crouch ? 1.0 : 0.0);
+          const double length = std::sqrt(motion.x * motion.x + motion.y * motion.y +
+                                          motion.z * motion.z);
+          if (length > 1.0) {
+            motion.x /= length; motion.y /= length; motion.z /= length;
+          }
+          const double distance = options_.player.noclipSpeed *
+                                  frame.elapsed.count();
+          detachedCameraPosition_.x += motion.x * distance;
+          detachedCameraPosition_.y += motion.y * distance;
+          detachedCameraPosition_.z += motion.z * distance;
+          command = {};
         }
         bool onLadder = false;
         if (staticMap_) {
@@ -506,6 +599,11 @@ int Run3App::run() {
             physicsWorld_->shiftOrigin(*shift);
             staticMap_->shiftVisualOrigin(*shift);
             player_->applyOriginShift(*shift);
+            if (legacyNoclip_) {
+              detachedCameraPosition_.x -= shift->x;
+              detachedCameraPosition_.y -= shift->y;
+              detachedCameraPosition_.z -= shift->z;
+            }
             semiInfiniteWorld_->applyOriginShift(*shift);
             playerPosition = player_->state().position;
           }
@@ -525,6 +623,16 @@ int Run3App::run() {
               static_cast<Ogre::Real>(pose.rotation.x),
               static_cast<Ogre::Real>(pose.rotation.y),
               static_cast<Ogre::Real>(pose.rotation.z));
+        } else if (legacyNoclip_) {
+          cameraNode_->setPosition(
+              static_cast<Ogre::Real>(detachedCameraPosition_.x),
+              static_cast<Ogre::Real>(detachedCameraPosition_.y),
+              static_cast<Ogre::Real>(detachedCameraPosition_.z));
+          cameraNode_->setOrientation(
+              Ogre::Quaternion(Ogre::Radian(static_cast<Ogre::Real>(yawRadians_)),
+                               Ogre::Vector3::UNIT_Y) *
+              Ogre::Quaternion(Ogre::Radian(static_cast<Ogre::Real>(pitchRadians_)),
+                               Ogre::Vector3::UNIT_X));
         } else {
           cameraNode_->setPosition(static_cast<Ogre::Real>(eye.x),
                                    static_cast<Ogre::Real>(eye.y),
@@ -850,8 +958,11 @@ void Run3App::setup() {
       {std::to_string(options_.windowWidth) + "x" +
            std::to_string(options_.windowHeight),
        options_.verticalFovDegrees, options_.mouseSensitivity,
-       options_.inputBindings},
+       options_.inputBindings, options_.devMode},
       options_.uiScale);
+  ui_->setConsoleCommandHandler(
+      [this](std::string command) { executeConsoleCommand(std::move(command)); });
+  registerConsoleCommands();
   Ogre::LogManager::getSingleton().logMessage(
       "Run3 display: " + std::to_string(options_.windowWidth) + "x" +
       std::to_string(options_.windowHeight) +
@@ -937,14 +1048,8 @@ void Run3App::loadMap(const std::string &mapName) {
          options_.resourceProfile, options_.textureQuality,
          meshLodBias(options_.modelQuality), options_.lighting});
     static_cast<void>(mapStats);
-    gameplay::PlayerConfig playerConfig;
-    playerConfig.standingHeight = options_.playerHeightCm;
-    playerConfig.crouchingHeight = options_.playerHeightCm * (11.0 / 18.0);
-    playerConfig.eyeOffset = options_.playerHeightCm * (5.0 / 12.0);
-    playerConfig.crouchingEyeOffset =
-        playerConfig.crouchingHeight * (5.0 / 22.0);
     player_ = std::make_unique<gameplay::PlayerController>(*physicsWorld_,
-                                                           playerConfig);
+                                                           options_.player);
     player_->spawn(staticMap_->spawnPosition());
     player_->setNoclip(options_.startNoclip);
     if (const content::ConfigEntry *seedEntry =
@@ -1062,6 +1167,7 @@ void Run3App::loadMap(const std::string &mapName) {
 
 void Run3App::unloadMap(const bool runOnExit) {
   mapMusicStartFrame_.reset();
+  legacyNoclip_ = false;
   std::exception_ptr failure;
   if (sequenceRuntime_) {
     try { sequenceRuntime_->unload(runOnExit); }
@@ -1264,6 +1370,32 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
       requestQuit();
       continue;
     }
+    const bool keyPress = event.type == InputEventType::KeyPressed &&
+                          !event.repeated;
+    if (ui_ && ui_->consoleVisible()) {
+      if (consoleToggleTextPending_ &&
+          event.type == InputEventType::TextEntered) {
+        consoleToggleTextPending_ = false;
+        if (event.text == ".") continue;
+      }
+      if (keyPress && (event.key == Key::Escape || event.key == Key::Period)) {
+        ui_->setConsoleVisible(false);
+      } else {
+        static_cast<void>(ui_->handleInput(event));
+      }
+      refreshMouseCapture();
+      continue;
+    }
+    if (options_.devMode && keyPress && event.key == Key::Period && ui_) {
+      ui_->setConsoleVisible(true);
+      consoleToggleTextPending_ = true;
+      refreshMouseCapture();
+      continue;
+    }
+    if (options_.devMode && keyPress && event.key == Key::Slash && player_) {
+      setLegacyNoclip(!legacyNoclip_);
+      continue;
+    }
     if (event.type == InputEventType::KeyPressed && !event.repeated &&
         event.key == Key::F5) {
            Ogre::LogManager::getSingleton().logMessage("Screenshot");
@@ -1331,12 +1463,6 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
       pitchRadians_ = std::clamp(
           pitchRadians_ - static_cast<double>(event.deltaY) * sensitivity,
           -1.553343034, 1.553343034);
-    } else if (player_ && event.type == InputEventType::KeyPressed &&
-               !event.repeated && event.key == Key::N) {
-      player_->toggleNoclip();
-      Ogre::LogManager::getSingleton().logMessage(
-          std::string("Player noclip: ") +
-          (player_->state().noclip ? "enabled" : "disabled"));
     } else if (sequenceServices_ &&
                event.type == InputEventType::KeyPressed && !event.repeated &&
                event.key ==
@@ -1423,6 +1549,100 @@ void Run3App::captureScreenshot() {
     Ogre::LogManager::getSingleton().logMessage(
         "Screenshot failed: " + std::string(error.what()));
   }
+}
+
+void Run3App::consoleLine(std::string line) {
+  Ogre::LogManager::getSingleton().logMessage("Developer console: " + line);
+  if (ui_) ui_->appendConsole(std::move(line));
+}
+
+void Run3App::setLegacyNoclip(const bool enabled) {
+  if (!player_ || legacyNoclip_ == enabled) return;
+  if (enabled && player_->state().noclip) player_->setNoclip(false);
+  if (enabled && cameraNode_) {
+    const Ogre::Vector3 position = cameraNode_->getPosition();
+    detachedCameraPosition_ = {position.x, position.y, position.z};
+  }
+  legacyNoclip_ = enabled;
+  consoleLine(std::string("noclip: ") + (enabled ? "on (camera detached)" : "off"));
+}
+
+void Run3App::executeConsoleCommand(std::string command) {
+  consoleLine("> " + command);
+  if (!options_.devMode) {
+    consoleLine("Developer mode is disabled in Options.");
+    return;
+  }
+  try {
+    std::vector<std::string> words = splitConsoleCommand(command);
+    if (words.empty()) return;
+    const std::string name = lower(words.front());
+    words.erase(words.begin());
+    const auto found = consoleCommands_.find(name);
+    if (found == consoleCommands_.end()) {
+      consoleLine("Unknown command '" + name + "'. Type help.");
+      return;
+    }
+    found->second(words);
+  } catch (const std::exception &error) {
+    consoleLine("Error: " + std::string(error.what()));
+  }
+}
+
+void Run3App::registerConsoleCommands() {
+  consoleCommands_.clear();
+  const auto requestedState = [](const std::vector<std::string> &arguments,
+                                 const bool current) {
+    if (arguments.empty() || lower(arguments.front()) == "toggle") return !current;
+    if (arguments.size() != 1) throw std::invalid_argument("expected on, off, or toggle");
+    const std::string value = lower(arguments.front());
+    if (value == "on" || value == "1" || value == "true") return true;
+    if (value == "off" || value == "0" || value == "false") return false;
+    throw std::invalid_argument("expected on, off, or toggle");
+  };
+  consoleCommands_["help"] = [this](const std::vector<std::string> &) {
+    std::vector<std::string> names;
+    names.reserve(consoleCommands_.size());
+    for (const auto &[name, command] : consoleCommands_) {
+      static_cast<void>(command); names.push_back(name);
+    }
+    std::sort(names.begin(), names.end());
+    std::string line = "Commands:";
+    for (const auto &name : names) line += " " + name;
+    consoleLine(std::move(line));
+  };
+  consoleCommands_["clear"] = [this](const std::vector<std::string> &) {
+    if (ui_) ui_->clearConsole();
+  };
+  consoleCommands_["noclip"] = [this, requestedState](const auto &arguments) {
+    setLegacyNoclip(requestedState(arguments, legacyNoclip_));
+  };
+  consoleCommands_["noclip_new"] = [this, requestedState](const auto &arguments) {
+    if (!player_) throw std::runtime_error("no player is loaded");
+    const bool enabled = requestedState(arguments, player_->state().noclip);
+    if (enabled && legacyNoclip_) setLegacyNoclip(false);
+    player_->setNoclip(enabled);
+    consoleLine(std::string("noclip_new: ") + (enabled ? "on" : "off"));
+  };
+  consoleCommands_["map"] = [this](const auto &arguments) {
+    if (arguments.size() != 1) throw std::invalid_argument("usage: map <name>");
+    requestMapChange(arguments.front());
+    if (ui_) ui_->setConsoleVisible(false);
+  };
+  consoleCommands_["fov"] = [this](const auto &arguments) {
+    if (arguments.size() != 1) throw std::invalid_argument("usage: fov <35..120>");
+    const double value = std::stod(arguments.front());
+    if (value < 35.0 || value > 120.0) throw std::invalid_argument("FOV must be 35..120");
+    options_.verticalFovDegrees = value;
+    camera_->setFOVy(Ogre::Degree(static_cast<Ogre::Real>(value)));
+    consoleLine("FOV set to " + std::to_string(value));
+  };
+  consoleCommands_["screenshot"] = [this](const std::vector<std::string> &) {
+    captureScreenshot();
+  };
+  consoleCommands_["quit"] = [this](const std::vector<std::string> &) {
+    requestQuit();
+  };
 }
 
 void Run3App::cycleDebugOverlay() {
@@ -1585,6 +1805,12 @@ void Run3App::handleMenuAction(const ui::MenuAction &action) {
     options_.verticalFovDegrees = action.verticalFov;
     options_.mouseSensitivity = action.mouseSensitivity;
     options_.inputBindings = action.bindings;
+    options_.devMode = action.devMode;
+    if (!options_.devMode) {
+      setLegacyNoclip(false);
+      if (player_ && player_->state().noclip) player_->setNoclip(false);
+      ui_->setConsoleVisible(false);
+    }
     camera_->setFOVy(Ogre::Degree(static_cast<Ogre::Real>(action.verticalFov)));
     getRenderWindow()->resize(width, height);
     updateAspectRatio();
@@ -1597,6 +1823,7 @@ void Run3App::handleMenuAction(const ui::MenuAction &action) {
       userValues["fov"] = std::to_string(action.verticalFov);
       userValues["input.mouse-sensitivity"] =
           std::to_string(action.mouseSensitivity);
+      userValues["dev-mode"] = action.devMode ? "true" : "false";
       for (const auto &definition : inputActionDefinitions()) {
         userValues["input.bind." + std::string(definition.id)] =
             std::string(keyName(action.bindings.key(definition.action)));
@@ -1620,7 +1847,8 @@ void Run3App::handleMenuAction(const ui::MenuAction &action) {
 void Run3App::refreshMouseCapture() {
   const bool capture = player_ != nullptr && options_.frameLimit == 0 &&
                        ui_ != nullptr && !ui_->menuVisible() &&
-                       !ui_->computerActive() && !ui_->inventoryVisible();
+                       !ui_->computerActive() && !ui_->inventoryVisible() &&
+                       !ui_->consoleVisible();
   if (capture != gameplayMouseCapture_) setGameplayMouseCapture(capture);
 }
 

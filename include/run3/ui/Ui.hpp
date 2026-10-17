@@ -110,6 +110,7 @@ struct OptionsMenuSettings {
   double verticalFov{75.0};
   double mouseSensitivity{1.0};
   InputBindings bindings;
+  bool devMode{};
 };
 
 struct MenuAction {
@@ -119,6 +120,7 @@ struct MenuAction {
   double verticalFov{};
   double mouseSensitivity{1.0};
   InputBindings bindings;
+  bool devMode{};
 };
 
 using MenuActionHandler = std::function<void(const MenuAction &)>;
@@ -139,6 +141,9 @@ public:
   virtual void setHudVisible(bool visible) = 0;
   virtual void setSubtitle(std::string text, double seconds) = 0;
   virtual void setConsoleVisible(bool visible) = 0;
+  [[nodiscard]] virtual bool consoleVisible() const noexcept = 0;
+  virtual void setConsoleCommandHandler(UiCallback callback) = 0;
+  virtual void clearConsole() = 0;
   virtual void appendConsole(std::string line) = 0;
   virtual void setLoading(bool visible, std::string text) = 0;
   virtual void setInventoryEnabled(bool enabled) = 0;

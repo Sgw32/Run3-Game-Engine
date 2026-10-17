@@ -883,6 +883,8 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/media/Lighting"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/Media")
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/media/LegacyCompositors"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/Media")
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/config/"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/run3/config")
 install(FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/scripts/StdQuad_vp.program"
         "${CMAKE_CURRENT_SOURCE_DIR}/OgreSDK/Media/materials/scripts/Bloom2.material"

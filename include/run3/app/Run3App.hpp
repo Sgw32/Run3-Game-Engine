@@ -20,9 +20,12 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace Ogre {
 class Camera;
@@ -60,6 +63,7 @@ struct Run3AppOptions {
   std::string modelQuality{"medium"};
   std::string resourceProfile{"resources_low_low.cfg"};
   double playerHeightCm{180.0};
+  gameplay::PlayerConfig player;
   double verticalFovDegrees{75.0};
   std::uint32_t windowWidth{1280};
   std::uint32_t windowHeight{720};
@@ -67,6 +71,7 @@ struct Run3AppOptions {
   bool fullscreen{};
   bool startNoclip{};
   bool physicsDebug{};
+  bool devMode{};
   bool introEnabled{};
   float uiScale{1.0F};
   double mouseSensitivity{1.0};
@@ -116,6 +121,10 @@ private:
   void requestQuit();
   void handleMenuAction(const ui::MenuAction &action);
   void refreshMouseCapture();
+  void setLegacyNoclip(bool enabled);
+  void executeConsoleCommand(std::string command);
+  void registerConsoleCommands();
+  void consoleLine(std::string line);
 
   Run3AppOptions options_;
   EventQueueInput input_;
@@ -144,6 +153,9 @@ private:
   double pitchRadians_{};
   bool physicsDebug_{};
   bool gameplayMouseCapture_{};
+  bool legacyNoclip_{};
+  bool consoleToggleTextPending_{};
+  physics::Vec3 detachedCameraPosition_{};
   std::uint64_t renderedFrames_{};
   std::optional<std::uint64_t> mapMusicStartFrame_;
   std::uint64_t simulatedSteps_{};
@@ -151,6 +163,9 @@ private:
   bool validationFailed_{};
   unsigned debugOverlayPage_{};
   std::optional<std::string> pendingMapChange_;
+  using ConsoleCommand =
+      std::function<void(const std::vector<std::string> &)>;
+  std::unordered_map<std::string, ConsoleCommand> consoleCommands_;
 };
 
 } // namespace run3

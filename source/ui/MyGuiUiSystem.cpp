@@ -347,7 +347,8 @@ public:
       return true;
     }
 
-    const Context context = computerActive() ? Context::Computer : Context::Main;
+    const Context context = computerActive() ? Context::Computer
+                            : consoleVisible_ ? Context::Hud : Context::Main;
     const auto roots = rootWidgets();
     VisibilityGuard guard(roots, context, reverse_);
     auto &input = MyGUI::InputManager::getInstance();
@@ -432,6 +433,21 @@ public:
   void setConsoleVisible(const bool visible) override {
     consoleVisible_ = visible;
     syncHudVisibility();
+    if (visible) {
+      if (const auto input = findWidget(Context::Hud, "hud.console.input"))
+        MyGUI::InputManager::getInstance().setKeyFocusWidget(&widget(*input));
+    } else {
+      MyGUI::InputManager::getInstance().resetKeyFocusWidget();
+    }
+  }
+  bool consoleVisible() const noexcept override { return consoleVisible_; }
+  void setConsoleCommandHandler(UiCallback callback) override {
+    consoleCommand_ = std::move(callback);
+  }
+  void clearConsole() override {
+    consoleText_.clear();
+    if (auto handle = findWidget(Context::Hud, "hud.console.output"))
+      setCaption(widget(*handle), WidgetType::Text, {});
   }
   void appendConsole(std::string line) override {
     if (!consoleText_.empty()) consoleText_ += '\n';
@@ -439,7 +455,7 @@ public:
     constexpr std::size_t maximum = 8192;
     if (consoleText_.size() > maximum)
       consoleText_.erase(0, consoleText_.size() - maximum);
-    if (auto handle = findWidget(Context::Hud, "hud.console"))
+    if (auto handle = findWidget(Context::Hud, "hud.console.output"))
       setCaption(widget(*handle), WidgetType::Text, consoleText_);
   }
   void setLoading(const bool visible, std::string text) override {
@@ -723,6 +739,10 @@ private:
       emitAction(MenuAction{MenuActionKind::NewGame, {}, {}, 0.0});
     else if (name == "menu.chapter.open") showPage("chapter");
     else if (name == "menu.options.open") showPage("options");
+    else if (name == "menu.options.devmode") {
+      settings_.devMode = !settings_.devMode;
+      sender->castType<MyGUI::Button>()->setStateSelected(settings_.devMode);
+    }
     else if (name == "menu.options.controls") showPage("controls");
     else if (name == "menu.back.controls") {
       pendingBinding_.reset();
@@ -745,6 +765,7 @@ private:
       }
       action.mouseSensitivity = settings_.mouseSensitivity;
       action.bindings = settings_.bindings;
+      action.devMode = settings_.devMode;
       emitAction(action);
     } else if (name.rfind("menu.controls.bind.", 0) == 0) {
       const std::string_view id{name.data() + 19, name.size() - 19};
@@ -767,8 +788,14 @@ private:
   }
   void onEditSubmit(MyGUI::EditBox *sender) {
     const auto found = reverse_.find(sender);
-    if (found != reverse_.end())
+    if (found != reverse_.end()) {
       registry_.emit(found->second, UiEvent::Submit, sender->getCaption());
+      if (registry_.require(found->second).name == "hud.console.input") {
+        std::string command = sender->getCaption();
+        sender->setCaption({});
+        if (!command.empty() && consoleCommand_) consoleCommand_(std::move(command));
+      }
+    }
   }
   void onScrollChanged(MyGUI::ScrollBar *sender, const std::size_t position) {
     const auto found = reverse_.find(sender);
@@ -788,11 +815,11 @@ private:
       widget(*handle).setVisible(visible);
   }
   void syncHudVisibility() {
-    const bool active = debugVisible_ ||
-                        (hudVisible_ && (consoleVisible_ || loadingVisible_));
+    const bool active = debugVisible_ || consoleVisible_ ||
+                        (hudVisible_ && loadingVisible_);
     if (const auto root = findWidget(Context::Hud, "hud.root"))
       widget(*root).setVisible(active);
-    setWidgetVisible("hud.console", active && consoleVisible_);
+    setWidgetVisible("hud.console.panel", active && consoleVisible_);
     setWidgetVisible("hud.loading", active && loadingVisible_);
     setWidgetVisible("hud.inventory", false);
     setWidgetVisible("hud.debug", debugVisible_);
@@ -887,11 +914,15 @@ private:
         std::clamp(settings_.mouseSensitivity, 0.1, 4.0) * 100.0 - 10.0)));
     refreshSensitivityCaption();
     createWidget({Context::Main, options, WidgetType::Button,
-                  "menu.options.controls", {30, 305, 310, 44}, "Keyboard controls"});
+                  "menu.options.devmode", {30, 292, 310, 38}, "Developer mode"});
+    if (const auto devMode = findWidget(Context::Main, "menu.options.devmode"))
+      widget(*devMode).castType<MyGUI::Button>()->setStateSelected(settings_.devMode);
     createWidget({Context::Main, options, WidgetType::Button,
-                  "menu.options.apply", {30, 365, 310, 44}, "Apply and save"});
+                  "menu.options.controls", {30, 338, 310, 40}, "Keyboard controls"});
     createWidget({Context::Main, options, WidgetType::Button,
-                  "menu.back.options", {30, 425, 310, 44}, "Back"});
+                  "menu.options.apply", {30, 386, 310, 40}, "Apply and save"});
+    createWidget({Context::Main, options, WidgetType::Button,
+                  "menu.back.options", {30, 434, 310, 40}, "Back"});
 
     const WidgetHandle controls = createWidget(
         {Context::Main, root, WidgetType::Panel, "menu.page.controls",
@@ -920,8 +951,15 @@ private:
   void buildHud() {
     const WidgetHandle root = createWidget(
         {Context::Hud, {}, WidgetType::Panel, "hud.root", {0, 0, 1280, 720}, {}});
-    createWidget({Context::Hud, root, WidgetType::Text, "hud.console",
-                  {20, 20, 800, 320}, {}});
+    const WidgetHandle console = createWidget(
+        {Context::Hud, root, WidgetType::Panel, "hud.console.panel",
+         {18, 18, 920, 390}, {}});
+    widget(console).changeWidgetSkin("PanelSkin");
+    widget(console).setColour(MyGUI::Colour{0.02F, 0.02F, 0.025F, 0.92F});
+    createWidget({Context::Hud, console, WidgetType::Text, "hud.console.output",
+                  {12, 10, 896, 326}, {}});
+    createWidget({Context::Hud, console, WidgetType::Edit, "hud.console.input",
+                  {12, 340, 896, 38}, {}});
     createWidget({Context::Hud, root, WidgetType::Text, "hud.loading",
                   {440, 330, 400, 60}, "Loading..."});
     createWidget({Context::Hud, root, WidgetType::Text, "hud.inventory",
@@ -949,6 +987,7 @@ private:
   std::optional<InputAction> pendingBinding_;
   std::string computerOwner_;
   std::string consoleText_;
+  UiCallback consoleCommand_;
   int mouseX_{};
   int mouseY_{};
   int wheel_{};

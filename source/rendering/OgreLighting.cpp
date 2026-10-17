@@ -188,6 +188,16 @@ public:
                                     static_cast<Ogre::uint16>(budget.textures), Ogre::PF_DEPTH32);
       scene.setShadowTextureSelfShadow(true);
       scene.setShadowFarDistance(budget.distance);
+      // Ogre defaults to placing a directional shadow volume 60% of its
+      // range in the camera's *look* direction. At this scale that makes
+      // turning or pitching the camera drag a hard, unshadowed plane across
+      // the nearby scene. Centre it on the viewer instead, so orientation
+      // changes only what is visible and not what is covered by the atlas.
+      scene.setShadowDirLightTextureOffset(0.0F);
+      // The stock 10,000-unit extrusion predates our extended shadow range
+      // and can put nearby casters behind the directional shadow camera at
+      // shallow light angles. Cover the complete diameter plus margin.
+      scene.setShadowDirectionalLightExtrusionDistance(budget.distance * 2.0F);
       shadowFallback = std::make_unique<ShadowFallbackGuard>(scene);
       auto *shadow = generator.createSubRenderState("SGX_IntegratedPSSM3");
       parameter(shadow, "light_count", std::to_string(budget.textures));

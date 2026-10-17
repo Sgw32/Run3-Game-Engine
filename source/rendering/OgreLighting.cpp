@@ -553,6 +553,9 @@ void OgreLighting::createGlowLab() {
        Ogre::ColourValue(.02F, .35F, .5F));
   cube("Run3/GlowLabGreen", "Run3/GlowLab/NonGlowGreen", {280, 90, 0},
        {1.35F, 1.35F, 1.35F}, Ogre::ColourValue(.05F, .68F, .12F));
+  cube("Run3/GlowLabOccluder", "Run3/GlowLab/NonGlowOccluder",
+       {62, 90, 180}, {.72F, 1.6F, .3F},
+       Ogre::ColourValue(.12F, .14F, .18F));
 
   message("GlowLab: only the centre cyan cube has an authored glow scheme");
 }

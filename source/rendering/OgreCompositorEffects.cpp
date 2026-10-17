@@ -196,6 +196,32 @@ float4 run3_splat4(float4 v) { return v; }
   return std::string(helpers) + source;
 }
 
+std::string separateD3D11SamplerBindings(std::string source) {
+  // Cg's combined sampler register maps both texture and sampler state with a
+  // single sN declaration. The D3D11 compiler accepts that syntax for
+  // compatibility, but reflection aliases multiple textures to t0. Express
+  // both register spaces explicitly so compositor inputs 0 and 1 remain
+  // distinct while retaining the authored sampling and blur calculations.
+  static const std::regex declaration(
+      R"(uniform[ \t]+sampler2D[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*:[ \t]*register[ \t]*\([ \t]*s([0-9]+)[ \t]*\))");
+  std::vector<std::string> samplers;
+  for (std::sregex_iterator match(source.begin(), source.end(), declaration),
+       end; match != end; ++match)
+    samplers.push_back((*match)[1].str());
+  source = std::regex_replace(
+      source, declaration,
+      "uniform Texture2D $1Texture : register(t$2), "
+      "uniform SamplerState $1Sampler : register(s$2)");
+  for (const std::string &sampler : samplers) {
+    source = std::regex_replace(
+        source,
+        std::regex(R"(\btex2D[ \t]*\([ \t]*)" + sampler +
+                   R"([ \t]*,[ \t]*)"),
+        sampler + "Texture.Sample(" + sampler + "Sampler, ");
+  }
+  return source;
+}
+
 void writeCgOverlay(const fs::path &sourceRoot, const fs::path &programCache,
                     const std::string &sourceName,
                     const std::string &overlayName) {
@@ -203,6 +229,8 @@ void writeCgOverlay(const fs::path &sourceRoot, const fs::path &programCache,
   const fs::path output = programCache / overlayName;
   std::string translated = translateCgSource(readText(sourceRoot /
                                                        sourceName));
+  if (lower(fs::path(sourceName).filename().string()) == "glow.cg")
+    translated = separateD3D11SamplerBindings(std::move(translated));
   if (fs::is_regular_file(output) && readText(output) == translated) return;
   std::ofstream stream(output, std::ios::binary | std::ios::trunc);
   if (!stream)
@@ -455,6 +483,62 @@ void parseScript(const fs::path &path, const bool convertCg,
       path.filename().string(), text.data(), text.size(), false, true));
   Ogre::ScriptCompilerManager::getSingleton().parseScript(stream,
                                                            resourceGroup);
+}
+
+void parseScriptText(const std::string &name, std::string text) {
+  Ogre::DataStreamPtr stream(OGRE_NEW Ogre::MemoryDataStream(
+      name, text.data(), text.size(), false, true));
+  Ogre::ScriptCompilerManager::getSingleton().parseScript(stream,
+                                                           resourceGroup);
+}
+
+std::string d3d11GlowCompositorOverlay() {
+  // This is the authored Glow graph with only its final expression split:
+  // scene + verticalBlur(AtoB) * 3 becomes a copy pass followed by an
+  // additive pass. D3D11 can then bind each legacy input independently.
+  return R"ogre(compositor Glow
+{
+    technique
+    {
+        texture rt0 target_width target_height PF_A8R8G8B8
+        texture glowMap target_width target_height PF_A8R8G8B8
+        texture AtoB target_width target_height PF_A8R8G8B8
+
+        target rt0 { input previous }
+        target glowMap
+        {
+            input none
+            material_scheme glow
+            pass clear {}
+            pass render_scene {}
+        }
+        target AtoB
+        {
+            input none
+            pass clear {}
+            pass render_quad
+            {
+                material GlowCompositorMat/GlowA
+                input 0 glowMap
+            }
+        }
+        target_output
+        {
+            input none
+            pass render_quad
+            {
+                material Run3/LegacyGlow/Copy
+                input 0 rt0
+            }
+            pass render_quad
+            {
+                material Run3/LegacyGlow/AddVertical
+                input 0 AtoB
+            }
+        }
+    }
+}
+)ogre";
 }
 
 struct SchemeMaterialSource {
@@ -748,6 +832,93 @@ public:
                                  "blur.material"})
         parseScript(shaders / script, true, programCache, {}, {}, {}, true);
 
+      constexpr std::string_view glowCompositeSource = R"hlsl(
+float4 run3LegacyGlowCopy(
+    float4 position : POSITION, float2 uv : TEXCOORD0,
+    uniform Texture2D sceneTexture : register(t0),
+    uniform SamplerState sceneSampler : register(s0)) : SV_Target
+{
+    return sceneTexture.Sample(sceneSampler, uv);
+}
+
+float4 run3LegacyGlowAddVertical(
+    float4 position : POSITION, float2 uv : TEXCOORD0,
+    uniform Texture2D blurTexture : register(t0),
+    uniform SamplerState blurSampler : register(s0),
+    uniform float4 invTexSize) : SV_Target
+{
+    float4 colour = float4(0, 0, 0, 0);
+    float blurSize = 2.0 * invTexSize.y;
+    colour += blurTexture.Sample(blurSampler, float2(uv.x, uv.y - 4.0 * blurSize)) * 1.0 / 25.0;
+    colour += blurTexture.Sample(blurSampler, float2(uv.x, uv.y - 3.0 * blurSize)) * 2.0 / 25.0;
+    colour += blurTexture.Sample(blurSampler, float2(uv.x, uv.y - 2.0 * blurSize)) * 3.0 / 25.0;
+    colour += blurTexture.Sample(blurSampler, float2(uv.x, uv.y -       blurSize)) * 4.0 / 25.0;
+    colour += blurTexture.Sample(blurSampler, uv)                                  * 5.0 / 25.0;
+    colour += blurTexture.Sample(blurSampler, float2(uv.x, uv.y +       blurSize)) * 4.0 / 25.0;
+    colour += blurTexture.Sample(blurSampler, float2(uv.x, uv.y + 2.0 * blurSize)) * 3.0 / 25.0;
+    colour += blurTexture.Sample(blurSampler, float2(uv.x, uv.y + 3.0 * blurSize)) * 2.0 / 25.0;
+    colour += blurTexture.Sample(blurSampler, float2(uv.x, uv.y + 4.0 * blurSize)) * 1.0 / 25.0;
+    return colour * 3.0;
+}
+)hlsl";
+      const fs::path glowCompositePath =
+          programCache / "Run3LegacyGlowComposite.hlsl";
+      if (!fs::is_regular_file(glowCompositePath) ||
+          readText(glowCompositePath) != glowCompositeSource) {
+        std::ofstream output(glowCompositePath,
+                             std::ios::binary | std::ios::trunc);
+        if (!output)
+          throw std::runtime_error(
+              "cannot create D3D11 glow-composition overlay");
+        output.write(glowCompositeSource.data(), static_cast<std::streamsize>(
+                                                    glowCompositeSource.size()));
+      }
+      const std::string glowCompositeScript = R"ogre(
+fragment_program Run3/LegacyGlow/CopyFP hlsl
+{
+    source Run3LegacyGlowComposite.hlsl
+    entry_point run3LegacyGlowCopy
+    target ps_4_0
+}
+fragment_program Run3/LegacyGlow/AddVerticalFP hlsl
+{
+    source Run3LegacyGlowComposite.hlsl
+    entry_point run3LegacyGlowAddVertical
+    target ps_4_0
+    default_params
+    {
+        param_named_auto invTexSize inverse_texture_size 0
+    }
+}
+material Run3/LegacyGlow/Copy
+{
+    technique { pass
+    {
+        lighting off
+        depth_check off
+        depth_write off
+        vertex_program_ref Ogre/Compositor/StdQuad_vp {}
+        fragment_program_ref Run3/LegacyGlow/CopyFP {}
+        texture_unit { tex_address_mode clamp filtering trilinear }
+    }}
+}
+material Run3/LegacyGlow/AddVertical
+{
+    technique { pass
+    {
+        lighting off
+        depth_check off
+        depth_write off
+        scene_blend add
+        vertex_program_ref Ogre/Compositor/StdQuad_vp {}
+        fragment_program_ref Run3/LegacyGlow/AddVerticalFP {}
+        texture_unit { tex_address_mode clamp filtering trilinear }
+    }}
+}
+)ogre";
+      parseScriptText("Run3LegacyGlowComposite.material",
+                      glowCompositeScript);
+
       // RTSS treats an unlit, textureless fixed-function pass as white on
       // D3D11. The original GlowMaterialListener expected its mGlowBlack pass
       // to output literal zero instead. Keep RTSS's vertex stage (which safely
@@ -822,7 +993,9 @@ fragment_program Run3/LegacyScheme/BlackFP hlsl
 
       parseScript(shaders / "NewHDR.compositor", false, programCache, {},
                   "NewHDR");
-      for (const char *script : {"runEffects.compositor", "glow.compositor",
+      parseScriptText("Run3LegacyGlow.compositor",
+                      d3d11GlowCompositorOverlay());
+      for (const char *script : {"runEffects.compositor",
                                  "ssao.compositor", "blur.compositor"})
         parseScript(shaders / script, false, programCache);
 
@@ -1055,12 +1228,6 @@ fragment_program Run3/LegacyScheme/BlackFP hlsl
     if (!material) return true;
     if (Ogre::Technique *replacement = handleSchemeNotFound(
             0, scheme, material.get(), 0, renderable)) {
-      // The extraction target is already black. Reject missing-scheme
-      // renderables instead of relying on a translated fixed-function black
-      // pass; this prevents RTSS from turning that pass into white on D3D11.
-      if ((scheme == "glow" || scheme == "GlassObj") &&
-          replacement == blackFallbackTechnique)
-        return false;
       *technique = replacement;
     }
     return true;

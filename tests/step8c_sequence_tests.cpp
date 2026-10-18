@@ -483,6 +483,26 @@ TEST_CASE("Step 8C legacy flashlight bindings remain typed",
       fixture.services.commands[1]));
 }
 
+TEST_CASE("Step 8C gameText2 retains legacy typewriter timing",
+          "[step8c][lua][ui]") {
+  FixtureRuntime fixture;
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"ui", "gameText2", {"Incoming message", "0.25", "4"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"ui", "gameText2", {"Default timing"}}));
+  REQUIRE(fixture.services.commands.size() == 2);
+  const auto &explicitText = std::get<gameplay::SetRuntimeTypewriterText>(
+      fixture.services.commands[0]);
+  CHECK(explicitText.text == "Incoming message");
+  CHECK(explicitText.fadeSeconds == Catch::Approx(0.25));
+  CHECK(explicitText.typeSeconds == Catch::Approx(4.0));
+  const auto &defaultText = std::get<gameplay::SetRuntimeTypewriterText>(
+      fixture.services.commands[1]);
+  CHECK(defaultText.text == "Default timing");
+  CHECK(defaultText.fadeSeconds == Catch::Approx(0.5));
+  CHECK(defaultText.typeSeconds == Catch::Approx(3.0));
+}
+
 TEST_CASE("Step 8C legacy Lua compositor bindings retain names and parameters",
           "[step8c][lua][compositor]") {
   FixtureRuntime fixture;

@@ -1658,6 +1658,16 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
       const double seconds = call.arguments.size() >= 3
           ? argumentNumber(call, 2) : 3.0;
       impl_->services->submit(SetRuntimeSubtitle{text, seconds});
+    } else if (call.name == "gameText2") {
+      const std::string text = requireName();
+      const double fadeSeconds = call.arguments.size() >= 2
+          ? argumentNumber(call, 1) : 0.5;
+      const double typeSeconds = call.arguments.size() >= 3
+          ? argumentNumber(call, 2) : 3.0;
+      if (fadeSeconds < 0.0 || typeSeconds < 0.0)
+        throw std::invalid_argument("text timings must be non-negative");
+      impl_->services->submit(
+          SetRuntimeTypewriterText{text, fadeSeconds, typeSeconds});
     } else if (call.name == "enableInventory" ||
                call.name == "disableInventory") {
       impl_->services->submit(SetRuntimeInventoryEnabled{

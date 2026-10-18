@@ -1136,6 +1136,11 @@ public:
       if (gameTextOverlay == nullptr || gameTextElement == nullptr) {
         throw std::runtime_error("legacy Run3/GameText overlay was not created");
       }
+      gameTextTyped = false;
+      gameTextTypedValue.clear();
+      Ogre::ColourValue colour = gameTextElement->getColour();
+      colour.a = 1.0F;
+      gameTextElement->setColour(colour);
       gameTextElement->setCaption(text);
       gameTextSeconds = std::max(0.0, seconds);
       if (text.empty()) gameTextOverlay->hide();
@@ -1147,10 +1152,67 @@ public:
     }
   }
 
+  void setTypedGameText(const std::string &text, const double fadeSeconds,
+                        const double typeSeconds) {
+    // Initialise the shared legacy overlay first, then replace its static
+    // lifetime with the original HUD::flashText2 typewriter state.
+    setGameText(text, 0.0);
+    if (gameTextOverlay == nullptr || gameTextElement == nullptr || text.empty())
+      return;
+    gameTextTyped = true;
+    gameTextTypedValue = text;
+    gameTextFadeSeconds = std::max(0.0, fadeSeconds);
+    gameTextTypeSeconds = std::max(0.0, typeSeconds);
+    gameTextElapsed = 0.0;
+    gameTextSeconds = gameTextFadeSeconds * 2.0 + gameTextTypeSeconds;
+    // A zero-duration request must still be visible for the current frame.
+    if (gameTextSeconds <= 0.0) gameTextSeconds = 0.000001;
+    gameTextElement->setCaption("_");
+    Ogre::ColourValue colour = gameTextElement->getColour();
+    colour.a = gameTextFadeSeconds > 0.0 ? 0.0F : 1.0F;
+    gameTextElement->setColour(colour);
+    gameTextOverlay->show();
+  }
+
   void updateGameText(const float seconds) {
     if (gameTextOverlay == nullptr || gameTextSeconds <= 0.0) return;
-    gameTextSeconds -= seconds;
-    if (gameTextSeconds <= 0.0) gameTextOverlay->hide();
+    const double elapsed = std::max(0.0F, seconds);
+    gameTextSeconds -= elapsed;
+    if (gameTextTyped) {
+      gameTextElapsed += elapsed;
+      const double typingElapsed = std::max(
+          0.0, gameTextElapsed - gameTextFadeSeconds);
+      const double progress = gameTextTypeSeconds > 0.0
+          ? std::clamp(typingElapsed / gameTextTypeSeconds, 0.0, 1.0)
+          : 1.0;
+      const std::size_t count = static_cast<std::size_t>(
+          std::floor(static_cast<double>(gameTextTypedValue.size()) * progress));
+      std::string caption = gameTextTypedValue.substr(0, count);
+      // The legacy HUD alternated the underscore every half second.
+      if (static_cast<std::uint64_t>(gameTextElapsed * 2.0) % 2U == 0U)
+        caption += '_';
+      gameTextElement->setCaption(caption);
+
+      float alpha = 1.0F;
+      if (gameTextFadeSeconds > 0.0 &&
+          gameTextElapsed < gameTextFadeSeconds) {
+        alpha = static_cast<float>(gameTextElapsed / gameTextFadeSeconds);
+      } else if (gameTextFadeSeconds > 0.0 &&
+                 gameTextElapsed > gameTextFadeSeconds + gameTextTypeSeconds) {
+        alpha = static_cast<float>(1.0 -
+            (gameTextElapsed - gameTextFadeSeconds - gameTextTypeSeconds) /
+                gameTextFadeSeconds);
+      }
+      Ogre::ColourValue colour = gameTextElement->getColour();
+      colour.a = std::clamp(alpha, 0.0F, 1.0F);
+      gameTextElement->setColour(colour);
+    }
+    if (gameTextSeconds <= 0.0) {
+      gameTextElement->setCaption("");
+      gameTextOverlay->hide();
+      gameTextTyped = false;
+      gameTextTypedValue.clear();
+    }
   }
 
   void destroyAll() noexcept {
@@ -1163,6 +1225,8 @@ public:
       try { crosshairOverlay->hide(); } catch (...) {}
     }
     gameTextSeconds = 0.0;
+    gameTextTyped = false;
+    gameTextTypedValue.clear();
     while (!computerMaterialBindings.empty())
       restoreComputerMaterial(computerMaterialBindings.begin()->first);
     for (auto &[id, attached] : attachments) {
@@ -1663,6 +1727,11 @@ public:
   Ogre::OverlayElement *gameTextElement{};
   Ogre::Overlay *crosshairOverlay{};
   double gameTextSeconds{};
+  bool gameTextTyped{};
+  std::string gameTextTypedValue;
+  double gameTextFadeSeconds{};
+  double gameTextTypeSeconds{};
+  double gameTextElapsed{};
   double meshLodBias{1.0};
   double defaultFovDegrees{75.0};
   Ogre::ColourValue baseAmbient{0.25F, 0.25F, 0.25F};
@@ -1958,6 +2027,10 @@ void OgreSequenceServices::submit(const GameCommand &command) {
           },
           [this](const SetRuntimeSubtitle &value) {
             impl_->setGameText(value.text, value.seconds);
+          },
+          [this](const SetRuntimeTypewriterText &value) {
+            impl_->setTypedGameText(value.text, value.fadeSeconds,
+                                    value.typeSeconds);
           },
           [this](const SetRuntimeInventoryEnabled &value) {
             impl_->ui->setInventoryEnabled(value.enabled);

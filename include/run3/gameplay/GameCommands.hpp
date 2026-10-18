@@ -130,6 +130,11 @@ struct ApplyRuntimeParentMotion { physics::Vec3 translation; };
 struct SetRuntimePlayerParented { bool parented{}; };
 struct SetRuntimeHudVisible { bool visible{true}; };
 struct SetRuntimeSubtitle { std::string text; double seconds{}; };
+struct SetRuntimeTypewriterText {
+  std::string text;
+  double fadeSeconds{0.5};
+  double typeSeconds{3.0};
+};
 struct SetRuntimeInventoryEnabled { bool enabled{true}; };
 struct SetRuntimeFlashlightAllowed { bool allowed{true}; };
 struct ToggleRuntimeFlashlight {};
@@ -229,7 +234,8 @@ using GameCommand =
                  DamageRuntimePlayer, TeleportRuntimePlayer,
                  ApplyRuntimeParentMotion, SetRuntimePlayerParented,
                  SetRuntimeHudVisible,
-                  SetRuntimeSubtitle, SetRuntimeInventoryEnabled,
+                  SetRuntimeSubtitle, SetRuntimeTypewriterText,
+                  SetRuntimeInventoryEnabled,
                   SetRuntimeFlashlightAllowed, ToggleRuntimeFlashlight,
                   SetRuntimeFov,
                   SetRuntimeCompositor,

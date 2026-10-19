@@ -51,6 +51,10 @@ struct LightingSettings {
   LightingPipeline pipeline{LightingPipeline::LegacyForward};
   ShadowQuality shadows{ShadowQuality::Off};
   float exposure{1.0F};
+  // Run3 world units are centimetres. High and ultra directional shadows use
+  // these explicit PSSM boundaries instead of coupling range to resolution.
+  std::array<float, 3> directionalShadowDistances{6000.0F, 100000.0F,
+                                                   500000.0F};
   // One is Ogre's original every-frame behaviour. The application selects a
   // conservative interval of two for legacy/fast-forward authored lighting.
   unsigned shadowUpdateInterval{1};

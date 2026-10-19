@@ -8,6 +8,8 @@
 #include <OgreShaderGenerator.h>
 #include <OgreShaderRenderState.h>
 #include <OgreShaderSubRenderState.h>
+#include <OgreShadowCameraSetup.h>
+#include <OgreShadowCameraSetupPSSM.h>
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <chrono>
@@ -125,6 +127,8 @@ public:
   std::vector<double> frameMilliseconds;
   std::size_t frames{};
   Ogre::ColourValue probeAmbient{-1, -1, -1};
+  bool directionalPssm{};
+  unsigned activeShadowTextures{};
 
   Impl(Ogre::SceneManager &s, Ogre::Camera &c, Ogre::Viewport &v,
        LightingSettings config) : scene(s), camera(c), viewport(v), settings(config) {}
@@ -187,7 +191,9 @@ public:
       scene.setShadowTextureSettings(static_cast<Ogre::uint16>(budget.resolution),
                                     static_cast<Ogre::uint16>(budget.textures), Ogre::PF_DEPTH32);
       scene.setShadowTextureSelfShadow(true);
-      scene.setShadowFarDistance(budget.distance);
+      const float directionalDistance = budget.splits > 1
+          ? settings.directionalShadowDistances[2] : budget.distance;
+      scene.setShadowFarDistance(directionalDistance);
       // Ogre defaults to placing a directional shadow volume 60% of its
       // range in the camera's *look* direction. At this scale that makes
       // turning or pitching the camera drag a hard, unshadowed plane across
@@ -197,7 +203,8 @@ public:
       // The stock 10,000-unit extrusion predates our extended shadow range
       // and can put nearby casters behind the directional shadow camera at
       // shallow light angles. Cover the complete diameter plus margin.
-      scene.setShadowDirectionalLightExtrusionDistance(budget.distance * 2.0F);
+      scene.setShadowDirectionalLightExtrusionDistance(
+          directionalDistance * 2.0F);
       shadowFallback = std::make_unique<ShadowFallbackGuard>(scene);
       auto *shadow = generator.createSubRenderState("SGX_IntegratedPSSM3");
       parameter(shadow, "light_count", std::to_string(budget.textures));
@@ -205,6 +212,7 @@ public:
       globalState->setLightCountAutoUpdate(false);
       globalState->setLightCount(budget.textures);
       globalState->addTemplateSubRenderState(shadow);
+      activeShadowTextures = budget.textures;
       message("local shadow atlas=" + std::to_string(budget.textures) + "x" +
               std::to_string(budget.resolution) +
               "; depth=32-bit; range=" + std::to_string(budget.distance) +
@@ -221,6 +229,108 @@ public:
     compositorEffects = std::make_unique<OgreCompositorEffects>(viewport);
     message("requested/effective pipeline=" + std::string(pipelineName(settings.pipeline)));
   }
+
+  void configureMapShadows() {
+    const auto budget = shadowBudget(settings.shadows, settings.pipeline);
+    if (budget.textures == 0) return;
+
+    unsigned authoredLights{};
+    unsigned directionalCasters{};
+    unsigned spotlightCasters{};
+    unsigned pointCasters{};
+    for (const auto &[name, object] : scene.getMovableObjects("Light")) {
+      if (name == "Run3/InternalShadowFallback") continue;
+      ++authoredLights;
+      const auto *light = static_cast<const Ogre::Light *>(object);
+      if (!light->getCastShadows()) continue;
+      switch (light->getType()) {
+      case Ogre::Light::LT_DIRECTIONAL: ++directionalCasters; break;
+      case Ogre::Light::LT_SPOTLIGHT: ++spotlightCasters; break;
+      case Ogre::Light::LT_POINT: ++pointCasters; break;
+      default: break;
+      }
+    }
+
+    // Ogre's stock IntegratedPSSM3 state represents either one cascaded light
+    // or N independently shadowed lights. It cannot encode both layouts in a
+    // single generated pass. Use stock PSSM wherever the authored map has one
+    // directional light only; mixed maps retain every spotlight shadow via
+    // the established multi-light path.
+    const bool usePssm = budget.splits == 3 && authoredLights == 1 &&
+                         directionalCasters == 1 && spotlightCasters == 0 &&
+                         pointCasters == 0;
+    auto &generator = Ogre::RTShader::ShaderGenerator::getSingleton();
+    auto *globalState = generator.getRenderState(Ogre::MSN_SHADERGEN);
+
+    if (usePssm) {
+      auto setup = Ogre::PSSMShadowCameraSetup::create();
+      auto pssm = std::static_pointer_cast<Ogre::PSSMShadowCameraSetup>(setup);
+      const Ogre::PSSMShadowCameraSetup::SplitPointList splitPoints{
+          camera.getNearClipDistance(), settings.directionalShadowDistances[0],
+          settings.directionalShadowDistances[1],
+          settings.directionalShadowDistances[2]};
+      pssm->setSplitPoints(splitPoints);
+      pssm->setSplitPadding(camera.getNearClipDistance() * 2.0F);
+      pssm->setOptimalAdjustFactor(0, 2.0F);
+      pssm->setOptimalAdjustFactor(1, 1.0F);
+      pssm->setOptimalAdjustFactor(2, 0.5F);
+      scene.setShadowCameraSetup(setup);
+      scene.setShadowTextureCountPerLightType(Ogre::Light::LT_DIRECTIONAL, 3);
+      scene.setShadowTextureCountPerLightType(Ogre::Light::LT_SPOTLIGHT, 1);
+      scene.setShadowTextureSettings(
+          static_cast<Ogre::uint16>(budget.resolution), 3, Ogre::PF_DEPTH32);
+      scene.setShadowFarDistance(settings.directionalShadowDistances[2]);
+      scene.setShadowDirectionalLightExtrusionDistance(
+          settings.directionalShadowDistances[2] * 2.0F);
+
+      auto *shadow = generator.createSubRenderState("SGX_IntegratedPSSM3");
+      shadow->setParameter("split_points", Ogre::Any(splitPoints));
+      parameter(shadow, "filter",
+                budget.filterSamples == 16 ? "pcf16" : "pcf4");
+      globalState->setLightCountAutoUpdate(false);
+      globalState->setLightCount(1);
+      globalState->addTemplateSubRenderState(shadow);
+      directionalPssm = true;
+      activeShadowTextures = 3;
+      message("directional PSSM enabled: splits=" +
+              std::to_string(settings.directionalShadowDistances[0]) + "," +
+              std::to_string(settings.directionalShadowDistances[1]) + "," +
+              std::to_string(settings.directionalShadowDistances[2]) +
+              " resolution=" + std::to_string(budget.resolution) +
+              " filter=" +
+              (budget.filterSamples == 16 ? std::string("pcf16")
+                                          : std::string("pcf4")));
+    } else {
+      scene.setShadowCameraSetup(Ogre::DefaultShadowCameraSetup::create());
+      scene.setShadowTextureCountPerLightType(Ogre::Light::LT_DIRECTIONAL, 1);
+      scene.setShadowTextureCountPerLightType(Ogre::Light::LT_SPOTLIGHT, 1);
+      scene.setShadowTextureSettings(
+          static_cast<Ogre::uint16>(budget.resolution),
+          static_cast<Ogre::uint16>(budget.textures), Ogre::PF_DEPTH32);
+      const float directionalDistance = budget.splits > 1
+          ? settings.directionalShadowDistances[2] : budget.distance;
+      scene.setShadowFarDistance(directionalDistance);
+      scene.setShadowDirectionalLightExtrusionDistance(
+          directionalDistance * 2.0F);
+
+      auto *shadow = generator.createSubRenderState("SGX_IntegratedPSSM3");
+      parameter(shadow, "light_count", std::to_string(budget.textures));
+      parameter(shadow, "filter",
+                budget.filterSamples == 16 ? "pcf16" : "pcf4");
+      globalState->setLightCountAutoUpdate(false);
+      globalState->setLightCount(budget.textures);
+      globalState->addTemplateSubRenderState(shadow);
+      directionalPssm = false;
+      activeShadowTextures = budget.textures;
+      message("directional PSSM not selected for mixed map: authored=" +
+              std::to_string(authoredLights) + " directional-casters=" +
+              std::to_string(directionalCasters) + " spotlight-casters=" +
+              std::to_string(spotlightCasters) +
+              "; preserving multi-light shadows");
+    }
+    generator.invalidateScheme(Ogre::MSN_SHADERGEN);
+  }
+
   ~Impl() {
     compositorEffects.reset();
     post.reset();
@@ -231,6 +341,7 @@ public:
       scene.destroySceneNode(lab);
     }
     scene.setShadowTechnique(Ogre::SHADOWTYPE_NONE);
+    scene.setShadowCameraSetup(Ogre::DefaultShadowCameraSetup::create());
     shadowFallback.reset();
     scene.setShadowTextureCasterMaterial(Ogre::MaterialPtr{});
     auto &generator = Ogre::RTShader::ShaderGenerator::getSingleton();
@@ -258,6 +369,8 @@ void OgreLighting::configureLegacyCompositors(
   impl_->compositorEffects->configure(contentRoot, shaderRoot, supportAssets,
                                       programCache, textureQuality);
 }
+
+void OgreLighting::configureMapShadows() { impl_->configureMapShadows(); }
 
 void OgreLighting::configureMaterial(Ogre::Material &material,
                                     const MaterialDescription &description,
@@ -635,7 +748,10 @@ void OgreLighting::writeReport(const std::filesystem::path &path, Ogre::RenderWi
     {"rtss_vertex_programs",Ogre::RTShader::ShaderGenerator::getSingleton().getShaderCount(Ogre::GPT_VERTEX_PROGRAM)},
     {"rtss_fragment_programs",Ogre::RTShader::ShaderGenerator::getSingleton().getShaderCount(Ogre::GPT_FRAGMENT_PROGRAM)},
     {"gpu_timing_note","No GPU timer query; FPS is not GPU timing"},
-    {"shadow_maps",budget.textures},{"shadow_resolution",budget.resolution},
+    {"shadow_maps",s.activeShadowTextures},{"shadow_resolution",budget.resolution},
+    {"shadow_splits",s.directionalPssm ? 3 : 1},
+    {"directional_pssm",s.directionalPssm},
+    {"shadow_cascade_distances",s.settings.directionalShadowDistances},
     {"cpu_wall_seconds",std::chrono::duration<double>(std::chrono::steady_clock::now()-s.started).count()}};
   if (const auto *scene = dynamic_cast<const Run3SceneManager *>(&s.scene)) {
     report["shadow_update_interval_frames"] = scene->shadowUpdateInterval();

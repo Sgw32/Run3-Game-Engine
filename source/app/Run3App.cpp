@@ -337,6 +337,21 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
       configuredDouble(configuration, "render.exposure", 1.0));
   if (options.lighting.exposure <= 0 || options.lighting.exposure > 32)
     throw std::runtime_error("render.exposure must be in (0,32]");
+  options.lighting.directionalShadowDistances = {
+      static_cast<float>(configuredDouble(
+          configuration, "render.shadow_cascade_1_distance", 6000.0)),
+      static_cast<float>(configuredDouble(
+          configuration, "render.shadow_cascade_2_distance", 100000.0)),
+      static_cast<float>(configuredDouble(
+          configuration, "render.shadow_cascade_3_distance", 500000.0))};
+  const auto &shadowDistances = options.lighting.directionalShadowDistances;
+  if (shadowDistances[0] <= 5.0F ||
+      shadowDistances[0] >= shadowDistances[1] ||
+      shadowDistances[1] >= shadowDistances[2]) {
+    throw std::runtime_error(
+        "directional shadow cascade distances must be ordered, with "
+        "cascade 1 greater than the 5-unit camera near plane");
+  }
   const bool forwardPipeline =
       options.lighting.pipeline == rendering::LightingPipeline::LegacyForward ||
       options.lighting.pipeline == rendering::LightingPipeline::FastForward;
@@ -1109,9 +1124,15 @@ void Run3App::loadMap(const std::string &mapName) {
     staticMap_->setDebugDraw(physicsDebug_);
     if (semiInfiniteWorld_) semiInfiniteWorld_->setDebugDraw(physicsDebug_);
     camera_->setNearClipDistance(5.0F);
-    camera_->setFarClipDistance(100000.0F);
+    const rendering::ShadowBudget mapShadowBudget = rendering::shadowBudget(
+        options_.lighting.shadows, options_.lighting.pipeline);
+    const float configuredShadowFar = mapShadowBudget.splits > 1
+        ? options_.lighting.directionalShadowDistances[2]
+        : mapShadowBudget.distance;
+    camera_->setFarClipDistance(std::max(100000.0F, configuredShadowFar));
     camera_->setFOVy(Ogre::Degree(static_cast<Ogre::Real>(
         options_.verticalFovDegrees)));
+    lighting_->configureMapShadows();
 
     try {
       audio::MapAudioLoadResult loaded = audio::loadLegacyMapAudio(

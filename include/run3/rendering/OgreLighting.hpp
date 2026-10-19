@@ -22,6 +22,9 @@ public:
   void createLab();
   void createGlowLab();
   void update(double seconds);
+  // Selects stock Ogre PSSM for a single-directional-light map, or the
+  // multi-light layout when authored local shadow lights must coexist.
+  void configureMapShadows();
   void setCompositorEnabled(std::string_view name, bool enabled);
   void setCompositorShaderParameter(std::string_view material,
                                     std::string_view parameter,

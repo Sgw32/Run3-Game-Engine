@@ -475,6 +475,18 @@ struct LegacyMaterialCatalog::Impl {
         surface.surface = rendering::Surface::Transparent;
       }
     }
+    // The legacy high-detail templates bind white.png as a neutral default
+    // for their per-light specular pass.  It is not an authored gloss mask.
+    // Keeping it after collapsing the old ambient + once-per-light passes
+    // into one RTSS pass applies a full-strength highlight to every texel and
+    // washes alpha-blended descendants (wires, grates, foliage) white.  A
+    // child which supplies its own SpecularMap remains authoritative.
+    if (surface.surface == rendering::Surface::Transparent &&
+        input.specularMap.empty() &&
+        lower(fs::path(surface.specularMap.name).filename().string()) ==
+            "white.png") {
+      surface.specularMap.name.clear();
+    }
     surface.lighting = result.lighting;
     visiting.erase(found->first);
     return result;

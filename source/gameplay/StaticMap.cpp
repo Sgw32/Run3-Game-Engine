@@ -359,7 +359,30 @@ public:
         }
       }
       void processSkeletonName(Ogre::Mesh *, Ogre::String *) override {}
-      void processMeshCompleted(Ogre::Mesh *) override {}
+      void processMeshCompleted(Ogre::Mesh *mesh) override {
+        // processMaterialName runs before Ogre has exposed the completed
+        // submesh declaration, so its position-only material is necessarily
+        // provisional. Replace it as soon as vertex semantics are known.
+        // Otherwise any entity creation path which does not immediately call
+        // applyCompatibleMaterials inherits an opaque, textureless material;
+        // this was visible as white boxes on legacy transparent meshes.
+        for (unsigned index = 0; index < mesh->getNumSubMeshes(); ++index) {
+          Ogre::SubMesh *subMesh = mesh->getSubMesh(index);
+          const auto source = owner_->generatedMaterialSources_.find(
+              subMesh->getMaterialName());
+          if (source == owner_->generatedMaterialSources_.end()) continue;
+          const Ogre::VertexData *vertices = subMesh->useSharedVertices
+              ? mesh->sharedVertexData : subMesh->vertexData;
+          const bool normals = vertexDataHasNormals(vertices);
+          const bool textured = vertices != nullptr &&
+              vertices->vertexDeclaration->findElementBySemantic(
+                  Ogre::VES_TEXTURE_COORDINATES) != nullptr;
+          if (const Ogre::MaterialPtr material = owner_->compatibleMaterial(
+                  source->second, normals, textured, false, false)) {
+            subMesh->setMaterialName(material->getName());
+          }
+        }
+      }
 
     private:
       Impl *owner_{};

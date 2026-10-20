@@ -87,6 +87,20 @@ TEST_CASE("Material inheritance preserves separate per-material light budgets") 
   CHECK(catalog.find("Two")->surface.lightLimit==2);
   CHECK(catalog.find("Eight")->surface.lightLimit==8);
   CHECK(catalog.find("Cutout")->surface.surface==Surface::Cutout);
+  const auto transparentPlaceholder =
+      catalog.find("TransparentInheritedPlaceholder");
+  REQUIRE(transparentPlaceholder);
+  CHECK(transparentPlaceholder->surface.surface == Surface::Transparent);
+  CHECK(transparentPlaceholder->surface.diffuseMap.name == "wire.dds");
+  CHECK(transparentPlaceholder->surface.specularMap.name.empty());
+  const auto transparentGloss = catalog.find("TransparentAuthoredGloss");
+  REQUIRE(transparentGloss);
+  CHECK(transparentGloss->surface.specularMap.name == "glass_gloss.dds");
+  const auto transparentAlias = catalog.find("TransparentLegacyAlias");
+  REQUIRE(transparentAlias);
+  CHECK(transparentAlias->surface.surface == Surface::Transparent);
+  CHECK(transparentAlias->surface.diffuseMap.name == "wire.dds");
+  CHECK(transparentAlias->surface.specularMap.name.empty());
   const auto animated = catalog.find("AnimatedScreen");
   REQUIRE(animated);
   CHECK_FALSE(animated->surface.lighting);

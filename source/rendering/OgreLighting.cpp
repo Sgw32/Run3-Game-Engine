@@ -454,6 +454,14 @@ void OgreLighting::configureMaterial(Ogre::Material &material,
     texture->setHardwareGammaEnabled(settings.pipeline == LightingPipeline::Pbr || settings.pipeline == LightingPipeline::Deferred);
     texture->setTextureFiltering(Ogre::TFO_ANISOTROPIC);
     texture->setTextureAnisotropy(settings.pipeline == LightingPipeline::FastForward ? 2 : 8);
+    if (description.surface == Surface::Transparent ||
+        description.surface == Surface::Cutout) {
+      // Lighting may change RGB, but authored opacity comes exclusively from
+      // the diffuse texture.  Making that contract explicit prevents RTSS
+      // lighting stages from replacing/modulating DDS alpha with the material
+      // colour and turning transparent cards into pale rectangles.
+      texture->setAlphaOperation(Ogre::LBX_SOURCE1, Ogre::LBS_TEXTURE);
+    }
   }
   if (!description.reflectionMap.name.empty()) {
     auto *reflection = pass->createTextureUnitState();

@@ -221,3 +221,29 @@ material LitMultipass
     }
   }
 }
+
+material TransparentTemplate
+{
+  set_texture_alias SpecularMap white.png
+  set $specularCol "1 1 1"
+  technique
+  {
+    pass
+    {
+      scene_blend alpha_blend
+      depth_write off
+    }
+  }
+}
+material TransparentInheritedPlaceholder : TransparentTemplate
+{
+  set_texture_alias MainTexture wire.dds
+}
+material TransparentAuthoredGloss : TransparentTemplate
+{
+  set_texture_alias MainTexture glass.dds
+  set_texture_alias SpecularMap glass_gloss.dds
+}
+material TransparentLegacyAlias : TransparentInheritedPlaceholder
+{
+}

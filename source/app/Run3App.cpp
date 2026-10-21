@@ -730,7 +730,6 @@ int Run3App::run() {
       if (ui_) {
         if (debugOverlayPage_ != 0U) updateDebugOverlay();
         ui_->update(static_cast<float>(frame.elapsed.count()));
-        ui_->renderComputerSurface();
       }
       updatePhysicsDebugDraw();
       if (lighting_) lighting_->update(static_cast<double>(renderedFrames_) / 60.0);
@@ -738,6 +737,12 @@ int Run3App::run() {
               static_cast<Ogre::Real>(frame.elapsed.count()))) {
         break;
       }
+      // Update virtual computer displays only after Ogre has established the
+      // main viewport for this frame. MyGUI's RTT backend restores that
+      // viewport in end(); rendering earlier leaves it null on first-frame
+      // computer activation and also updates a texture while the scene is
+      // about to sample it.
+      if (ui_) ui_->renderComputerSurface();
       ++renderedFrames_;
       if (options_.frameLimit != 0 && renderedFrames_ >= options_.frameLimit) {
         requestQuit();

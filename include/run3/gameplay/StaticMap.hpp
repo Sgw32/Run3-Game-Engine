@@ -99,6 +99,9 @@ public:
                                             std::string_view material);
   void applyCompatibleMaterials(Ogre::Entity &entity,
                                 std::string_view overrideMaterial = {});
+  [[nodiscard]] bool materialMatchesSource(
+      std::string_view runtimeMaterial,
+      std::string_view authoredMaterial) const noexcept;
 
 private:
   class Impl;

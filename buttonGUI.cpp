@@ -1977,6 +1977,25 @@ void buttonManager::update(void) {
   }
 }
 
+void buttonManager::setOverlayVisibility(const bool visible) {
+  for (button *item : buttons) {
+    if (item == nullptr || item->overlay == nullptr) continue;
+    if (visible && item->getVisibility()) item->overlay->show();
+    else item->overlay->hide();
+  }
+  for (buttonMesh *item : buttonMeshes) {
+    if (item == nullptr || item->overlay == nullptr) continue;
+    if (visible && item->parent != nullptr && item->parent->getVisibility())
+      item->overlay->show();
+    else
+      item->overlay->hide();
+  }
+  if (cursorButton != nullptr && cursorButton->overlay != nullptr) {
+    if (visible && cursorButton->getVisibility()) cursorButton->overlay->show();
+    else cursorButton->overlay->hide();
+  }
+}
+
 std::string buttonManager::keyCodeToString(const run3::Key &key, bool shift,
                                            bool alphanumericOnly) {
   // I apologize for my barbaric keyCode translation algorithm.

@@ -867,6 +867,7 @@ protected:
   const std::string name;
   void resetDimensions(void); // run this if the screen resolution changes.
   void update(void);
+
   short width;
   short height;
   short relX; // the relative position to the parent
@@ -1166,6 +1167,10 @@ public:
    * Call this every frame to have your buttons behave properly.
    */
   void update(void);
+
+  // Temporarily toggles the Ogre overlays without changing each button's
+  // authored visibility. Used to composite legacy controls into an RTT.
+  void setOverlayVisibility(bool visible);
 
   /**
    * Calls delete on all buttons and destroys all overlays to prepare for the

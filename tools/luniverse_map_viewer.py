@@ -198,13 +198,20 @@ class SeededWorld:
         self.manifest = manifest
         self.seed = seed
         live = tuple(block for block in manifest.blocks if not block.termination)
-        self.small = tuple(block for block in live if block.dimensions_cm[:2] == (2000.0, 2000.0))
-        self.large = tuple(block for block in live if block.dimensions_cm[:2] == (4000.0, 4000.0))
-        self.houses = tuple(block for block in live if block.dimensions_cm[:2] == (12000.0, 8000.0))
-        if not self.small or not self.large or not self.houses:
-            raise ValueError("manifest needs 20m, 40m and 120x80m occupancy blocks")
+        sides = lambda block: {port.side for port in block.ports}
+        self.small = tuple(
+            block for block in live
+            if block.dimensions_cm[:2] == (2000.0, 2000.0)
+            and sides(block) >= {"N", "S", "E", "W"})
+        self.horizontal_features = tuple(
+            block for block in live
+            if block.dimensions_cm[0] == 4000.0
+            and block.dimensions_cm[1] in (2000.0, 6000.0)
+            and sides(block) >= {"E", "W"})
+        if not self.small:
+            raise ValueError("manifest needs a four-port 20 metre occupancy block")
         self.tiles = live
-        self.styles = tuple(dict.fromkeys(block.style for block in self.small + self.large))
+        self.styles = tuple(dict.fromkeys(block.style for block in self.small))
         self.origin = self.small[0]
         if origin_block:
             matches = [block for block in self.small if block.identifier == origin_block]
@@ -232,20 +239,28 @@ class SeededWorld:
         macro_x, macro_z = x // 6, z // 4
         minimum_x, minimum_z = macro_x * 6, macro_z * 4
         origin_macro = macro_x == 0 and macro_z == 0
-        use_house = (not origin_macro and
-                     coordinate_hash(self.seed, macro_x, macro_z, OCCUPANCY_SALT) % 11 == 0)
-        if use_house:
-            block = self._select(self.houses, "HOUSE70", macro_x, macro_z, VARIANT_SALT)
-            return self._make_placement(minimum_x, minimum_z, block, 6, 4)
-        slot_x, slot_z = (x - minimum_x) // 2, (z - minimum_z) // 2
-        anchor_x, anchor_z = minimum_x + slot_x * 2, minimum_z + slot_z * 2
-        use_large = (not origin_macro and
-                     coordinate_hash(self.seed, anchor_x, anchor_z,
-                                     OCCUPANCY_SALT ^ 0x40) % 100 < 48)
-        if use_large:
-            block = self._select(self.large, self.biome(anchor_x, anchor_z),
-                                 anchor_x, anchor_z, VARIANT_SALT ^ 0x40)
-            return self._make_placement(anchor_x, anchor_z, block, 2, 2)
+        use_feature = (not origin_macro and self.horizontal_features and
+                       coordinate_hash(self.seed, macro_x, macro_z,
+                                       OCCUPANCY_SALT) % 8 == 0)
+        if use_feature:
+            right = (coordinate_hash(self.seed, macro_x, macro_z,
+                                     OCCUPANCY_SALT ^ 0x5249474854) & 1) != 0
+            feature_x = 4 if right else 0
+            probe_x, probe_z = minimum_x + feature_x, minimum_z + 1
+            candidates = tuple(
+                block for block in self.horizontal_features
+                if block.style == self.biome(probe_x, probe_z)
+            ) or self.horizontal_features
+            block = candidates[
+                coordinate_hash(self.seed, macro_x, macro_z,
+                                VARIANT_SALT ^ 0x484F52495A) % len(candidates)]
+            depth = round(block.dimensions_cm[1] / STANDARD_CELL_CM)
+            feature_z = 1 if depth == 1 else 0
+            if (feature_x <= x - minimum_x < feature_x + 2 and
+                    feature_z <= z - minimum_z < feature_z + depth):
+                return self._make_placement(minimum_x + feature_x,
+                                            minimum_z + feature_z,
+                                            block, 2, depth)
         block = (self.origin if (x, z) == (0, 0) else
                  self._select(self.small, self.biome(x, z), x, z, VARIANT_SALT))
         return self._make_placement(x, z, block, 1, 1)
@@ -322,12 +337,12 @@ def dump_region(world: SeededWorld, centre_x: int, centre_z: int, radius: int) -
 
 
 def verify_runtime_vectors(manifest: Manifest) -> None:
-    """Validate C++ parity, complete occupancy, and manifest mesh reachability."""
+    """Validate C++ parity, complete occupancy, and corridor-safe selection."""
     world = SeededWorld(manifest, 0x123456789ABCDEF0, "01_BACKROOMS_20")
     expected = {
-        (-1, 0): "03_POOLROOMS_20_Drained_NS",
-        (12, 12): "04_POOLROOMS_40_OpenIsland_EW",
-        (137, -91): "02_BACKROOMS_40_Atrium_EW",
+        (-1, 0): "15_WOODROOMS_20x20x5",
+        (12, 12): "03_POOLROOMS_20",
+        (137, -91): "09_OFFICE_20x20x5",
     }
     actual = {cell: world.block(*cell).identifier for cell in expected}
     if actual != expected:
@@ -347,10 +362,15 @@ def verify_runtime_vectors(manifest: Manifest) -> None:
                 raise RuntimeError(
                     f"placement is not stable at anchor {placement.anchor}")
             generated_meshes.add(placement.block.mesh)
-    expected_meshes = {block.mesh for block in world.tiles}
-    if generated_meshes != expected_meshes:
-        missing = sorted(expected_meshes - generated_meshes)
-        raise RuntimeError(f"manifest meshes not reachable by planner: {missing!r}")
+    eligible_meshes = {
+        block.mesh for block in world.small + world.horizontal_features
+    }
+    if not generated_meshes <= eligible_meshes:
+        unexpected = sorted(generated_meshes - eligible_meshes)
+        raise RuntimeError(f"unsafe meshes selected by planner: {unexpected!r}")
+    if world.horizontal_features and not (
+            generated_meshes & {block.mesh for block in world.horizontal_features}):
+        raise RuntimeError("compatible large features are never selected")
 
 
 def run_gui(config: WorldConfig, initial_world: SeededWorld,

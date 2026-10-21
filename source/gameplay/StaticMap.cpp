@@ -1449,4 +1449,21 @@ void StaticMap::applyCompatibleMaterials(Ogre::Entity &entity,
   }
 }
 
+bool StaticMap::materialMatchesSource(
+    const std::string_view runtimeMaterial,
+    const std::string_view authoredMaterial) const noexcept {
+  if (runtimeMaterial == authoredMaterial) return true;
+  const auto found = implementation_->generatedMaterialSources_.find(
+      std::string(runtimeMaterial));
+  if (found != implementation_->generatedMaterialSources_.end() &&
+      found->second == authoredMaterial) return true;
+  // A mesh may have been loaded and rewritten by another scene section
+  // before this StaticMap installed its serializer listener. Compatibility
+  // materials deliberately retain the authored name after the last slash.
+  return runtimeMaterial.size() > authoredMaterial.size() &&
+         runtimeMaterial.compare(runtimeMaterial.size() - authoredMaterial.size(),
+                                 authoredMaterial.size(), authoredMaterial) == 0 &&
+         runtimeMaterial[runtimeMaterial.size() - authoredMaterial.size() - 1] == '/';
+}
+
 } // namespace run3::gameplay

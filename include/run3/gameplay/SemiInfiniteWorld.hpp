@@ -100,8 +100,9 @@ private:
   std::size_t originIndex_{};
   std::vector<std::string> styles_;
   std::vector<std::size_t> smallIndices_;
-  std::vector<std::size_t> largeIndices_;
-  std::vector<std::size_t> houseIndices_;
+  // Wider blocks whose east/west sockets remain on the 20 m navigation
+  // lattice. They may replace a complete horizontal corridor segment.
+  std::vector<std::size_t> horizontalFeatureIndices_;
 };
 
 struct SemiInfiniteWorldOptions {

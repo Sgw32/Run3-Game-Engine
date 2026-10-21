@@ -163,6 +163,9 @@ public:
   [[nodiscard]] virtual bool computerActive() const noexcept = 0;
   [[nodiscard]] virtual bool computerActiveFor(std::string_view ownerKey) const noexcept = 0;
   virtual void setComputerDisplayMaterial(std::string material) = 0;
+  // Original Display.cpp command surface used by legacy computer Lua.
+  virtual void updateComputerDisplay(std::string_view command,
+                                     const std::vector<std::string> &arguments) = 0;
   virtual void renderComputerSurface() = 0;
   virtual void resetMapState() noexcept = 0;
 };

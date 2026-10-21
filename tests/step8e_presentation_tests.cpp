@@ -134,12 +134,28 @@ TEST_CASE("Step 8E computer captures backend-neutral input and exits safely",
   const auto materialUpdate = std::find_if(
       fixture.services.commands.rbegin(), fixture.services.commands.rend(),
       [](const auto &command) {
-        return std::holds_alternative<gameplay::SetComputerPresentation>(command);
+        return std::holds_alternative<gameplay::UpdateComputerDisplay>(command);
       });
   REQUIRE(materialUpdate != fixture.services.commands.rend());
-  CHECK(std::get<gameplay::SetComputerPresentation>(*materialUpdate).material ==
-        "TLW/Antique05");
-  CHECK(std::get<gameplay::SetComputerPresentation>(*materialUpdate).focused);
+  CHECK(std::get<gameplay::UpdateComputerDisplay>(*materialUpdate).command ==
+        "dMaterialSet");
+  CHECK(std::get<gameplay::UpdateComputerDisplay>(*materialUpdate).arguments ==
+        std::vector<std::string>{"TLW/Antique05"});
+  static_cast<void>(fixture.runtime->dispatchScriptCall(
+      {"display", "dClear", {}}));
+  static_cast<void>(fixture.runtime->dispatchScriptCall(
+      {"display", "dCompPrint", {"READY"}}));
+  CHECK(fixture.services.count<gameplay::UpdateComputerDisplay>() == 3);
+  const auto displayUpdate = std::find_if(
+      fixture.services.commands.rbegin(), fixture.services.commands.rend(),
+      [](const auto &command) {
+        return std::holds_alternative<gameplay::UpdateComputerDisplay>(command);
+      });
+  REQUIRE(displayUpdate != fixture.services.commands.rend());
+  CHECK(std::get<gameplay::UpdateComputerDisplay>(*displayUpdate).command ==
+        "dCompPrint");
+  CHECK(std::get<gameplay::UpdateComputerDisplay>(*displayUpdate).arguments ==
+        std::vector<std::string>{"READY"});
   CHECK(fixture.runtime->handleInput(
       {InputEventType::TextEntered, Key::Unknown, MouseButton::None, "a"}));
   CHECK(fixture.services.count<gameplay::SendComputerInput>() == 1);

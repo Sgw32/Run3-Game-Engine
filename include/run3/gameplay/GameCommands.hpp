@@ -174,6 +174,10 @@ struct SendComputerInput {
   int key{};
   bool pressed{};
 };
+struct UpdateComputerDisplay {
+  std::string command;
+  std::vector<std::string> arguments;
+};
 
 // Step 9 may replace this presentation-only adapter. Gameplay communicates
 // solely in backend-neutral handles, material keys, text and Run3 keys.
@@ -242,7 +246,7 @@ using GameCommand =
                  SetRuntimeShaderParameter, SetRuntimeEffectEnabled,
                  CreateRuntimeParticle, DestroyRuntimeParticle,
                  SetComputerPresentation,
-                 SendComputerInput, SetRuntimeDarkness,
+                 SendComputerInput, UpdateComputerDisplay, SetRuntimeDarkness,
                  PlayRuntimeAnimation, NpcRuntimeCommand,
                  DestroyNpcRuntimeCommand,
                  SetNpcAttachment,

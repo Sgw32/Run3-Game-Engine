@@ -281,27 +281,37 @@ SeededBlockGenerator::SeededBlockGenerator(const BlockManifest &manifest,
                                            const std::uint64_t seed,
                                            std::string originBlock)
     : manifest_(&manifest), seed_(seed) {
+  const auto hasSide = [](const BlockDefinition &block, const BlockSide side) {
+    return std::any_of(block.ports.begin(), block.ports.end(),
+                       [side](const BlockPort &candidate) {
+                         return candidate.side == side;
+                       });
+  };
   for (std::size_t index = 0; index < manifest.blocks.size(); ++index) {
     const BlockDefinition &block = manifest.blocks[index];
     if (block.id == originBlock) originIndex_ = index;
     if (block.termination) continue;
     const bool small = std::abs(block.dimensionsCm.x - 2000.0) < 0.01 &&
                        std::abs(block.dimensionsCm.y - 2000.0) < 0.01;
-    const bool large = std::abs(block.dimensionsCm.x - 4000.0) < 0.01 &&
-                       std::abs(block.dimensionsCm.y - 4000.0) < 0.01;
-    const bool house = std::abs(block.dimensionsCm.x - 12000.0) < 0.01 &&
-                       std::abs(block.dimensionsCm.y - 8000.0) < 0.01;
-    if (small) smallIndices_.push_back(index);
-    else if (large) largeIndices_.push_back(index);
-    else if (house) houseIndices_.push_back(index);
-    if ((small || large) &&
+    const bool fullSmall = small &&
+        hasSide(block, BlockSide::North) &&
+        hasSide(block, BlockSide::South) &&
+        hasSide(block, BlockSide::East) &&
+        hasSide(block, BlockSide::West);
+    const bool horizontalFeature =
+        std::abs(block.dimensionsCm.x - 4000.0) < 0.01 &&
+        (std::abs(block.dimensionsCm.y - 2000.0) < 0.01 ||
+         std::abs(block.dimensionsCm.y - 6000.0) < 0.01) &&
+        hasSide(block, BlockSide::East) && hasSide(block, BlockSide::West);
+    if (fullSmall) smallIndices_.push_back(index);
+    else if (horizontalFeature) horizontalFeatureIndices_.push_back(index);
+    if (fullSmall &&
         std::find(styles_.begin(), styles_.end(), block.style) == styles_.end())
       styles_.push_back(block.style);
   }
-  if (smallIndices_.empty() || largeIndices_.empty() || houseIndices_.empty() ||
-      styles_.empty())
+  if (smallIndices_.empty() || styles_.empty())
     throw std::runtime_error(
-        "block manifest needs 20m, 40m and 120x80m occupancy blocks");
+        "block manifest needs a four-port 20 metre occupancy block");
   if (originBlock.empty()) originIndex_ = smallIndices_.front();
   const auto origin = std::find(smallIndices_.begin(), smallIndices_.end(), originIndex_);
   if (origin == smallIndices_.end())
@@ -355,29 +365,42 @@ BlockPlacement SeededBlockGenerator::placementForCell(const BlockCell cell) cons
          (static_cast<double>(anchor.z) + (depth - 1) * 0.5) * standardCellCm}};
   };
 
-  // Keep the origin macro subdivided so the configured origin model is rooted
-  // exactly at logical (0,0). Other macros may be occupied by a whole house.
+  // Every macro has a permanent cross-shaped navigation backbone. The vertical
+  // corridor is local X=2 and the horizontal corridor is local Z=1, so crosses
+  // join at every macro boundary and the spawn component cannot become a
+  // finite island. Four-port 20 m blocks fill the remaining cells as well.
   const bool originMacro = macroX == 0 && macroZ == 0;
-  const bool useHouse = !originMacro &&
-      coordinateHash(seed_, macroX, macroZ, occupancySalt) % 11U == 0U;
-  if (useHouse) {
-    const BlockDefinition *definition = select(
-        houseIndices_, "HOUSE70", macroX, macroZ, variantSalt);
-    return placement({macroMinX, macroMinZ}, definition, 6, 4);
-  }
+  const std::int64_t localX = cell.x - macroMinX;
+  const std::int64_t localZ = cell.z - macroMinZ;
 
-  const std::int64_t slotX = floorDiv(cell.x - macroMinX, 2);
-  const std::int64_t slotZ = floorDiv(cell.z - macroMinZ, 2);
-  const BlockCell slotAnchor{macroMinX + slotX * 2,
-                             macroMinZ + slotZ * 2};
-  const std::string_view biome = biomeFor(slotAnchor);
-  const bool useLarge = !originMacro &&
-      coordinateHash(seed_, slotAnchor.x, slotAnchor.z, occupancySalt ^ 0x40ULL) %
-          100U < 48U;
-  if (useLarge) {
-    const BlockDefinition *definition = select(
-        largeIndices_, biome, slotAnchor.x, slotAnchor.z, variantSalt ^ 0x40ULL);
-    return placement(slotAnchor, definition, 2, 2);
+  // In roughly one macro out of eight, replace either the left or right part
+  // of the east/west backbone with one compatible 40 m-wide feature. Its
+  // complete footprint is selected as a unit and its E/W sockets remain mated
+  // to the surrounding 20 m corridor. 40x40 and house blocks deliberately do
+  // not participate until an authored half-cell socket adapter exists.
+  if (!originMacro && !horizontalFeatureIndices_.empty() &&
+      coordinateHash(seed_, macroX, macroZ, occupancySalt) % 8U == 0U) {
+    const bool right =
+        (coordinateHash(seed_, macroX, macroZ,
+                        occupancySalt ^ 0x5249474854ULL) & 1U) != 0;
+    const std::int64_t featureX = right ? 4 : 0;
+    const BlockCell featureProbe{macroMinX + featureX, macroMinZ + 1};
+    const std::string_view biome = biomeFor(featureProbe);
+    std::vector<std::size_t> compatible;
+    for (const std::size_t index : horizontalFeatureIndices_)
+      if (manifest_->blocks[index].style == biome) compatible.push_back(index);
+    if (compatible.empty()) compatible = horizontalFeatureIndices_;
+    const BlockDefinition *definition = &manifest_->blocks[compatible[
+        coordinateHash(seed_, macroX, macroZ, variantSalt ^ 0x484f52495aULL) %
+        compatible.size()]];
+    const unsigned depth = static_cast<unsigned>(
+        std::llround(definition->dimensionsCm.y / standardCellCm));
+    const std::int64_t featureZ = depth == 1 ? 1 : 0;
+    const BlockCell featureAnchor{macroMinX + featureX, macroMinZ + featureZ};
+    if (localX >= featureX && localX < featureX + 2 &&
+        localZ >= featureZ &&
+        localZ < featureZ + static_cast<std::int64_t>(depth))
+      return placement(featureAnchor, definition, 2, depth);
   }
 
   const BlockDefinition *definition =
@@ -848,15 +871,23 @@ public:
     plan.centre = centre;
     const std::int64_t radius = static_cast<std::int64_t>(
         std::ceil(options_.horizontalLoadRadiusCm / standardCellCm));
+    // Plan beyond the rendered disc. The halo is as deep as the largest
+    // supported corridor feature, so an edge socket is not capped merely
+    // because its mate has not entered the visible stream yet.
+    constexpr std::int64_t planningHalo = 3;
     const std::int64_t maximumCell =
         (options_.logicalExtentCm / 2) / static_cast<std::int64_t>(standardCellCm);
-    for (std::int64_t x = centre.x - radius; x <= centre.x + radius; ++x) {
-      for (std::int64_t z = centre.z - radius; z <= centre.z + radius; ++z) {
+    std::unordered_map<BlockCell, BlockPlacement, CellHash> planned;
+    const double planningRadius =
+        options_.horizontalLoadRadiusCm + planningHalo * standardCellCm;
+    for (std::int64_t x = centre.x - radius - planningHalo;
+         x <= centre.x + radius + planningHalo; ++x) {
+      for (std::int64_t z = centre.z - radius - planningHalo;
+           z <= centre.z + radius + planningHalo; ++z) {
         if (std::abs(x) > maximumCell || std::abs(z) > maximumCell) continue;
         const double dx = static_cast<double>(x - centre.x) * standardCellCm;
         const double dz = static_cast<double>(z - centre.z) * standardCellCm;
-        if (dx * dx + dz * dz <=
-            options_.horizontalLoadRadiusCm * options_.horizontalLoadRadiusCm) {
+        if (dx * dx + dz * dz <= planningRadius * planningRadius) {
           const BlockPlacement placement = generator_.placementForCell({x, z});
           const std::int64_t maximumX = placement.anchor.x +
               static_cast<std::int64_t>(placement.widthCells) - 1;
@@ -866,14 +897,23 @@ public:
               std::abs(placement.anchor.z) <= maximumCell &&
               std::abs(maximumX) <= maximumCell &&
               std::abs(maximumZ) <= maximumCell)
-            plan.blocks.emplace(placement.anchor, placement);
+            planned.emplace(placement.anchor, placement);
         }
       }
+    }
+    for (const auto &[anchor, placement] : planned) {
+      const double dx = placement.rootCm.x - centre.x * standardCellCm;
+      const double dz = placement.rootCm.z - centre.z * standardCellCm;
+      const double footprintRadius = standardCellCm * 0.5 *
+          std::hypot(placement.widthCells, placement.depthCells);
+      if (std::hypot(dx, dz) <=
+          options_.horizontalLoadRadiusCm + footprintRadius)
+        plan.blocks.emplace(anchor, placement);
     }
     if (!options_.terminators) return plan;
     using Socket = std::tuple<std::int64_t, std::int64_t, std::int64_t, int>;
     std::set<Socket> sockets;
-    for (const auto &[cell, placement] : plan.blocks) {
+    for (const auto &[cell, placement] : planned) {
       static_cast<void>(cell);
       for (const BlockPort &socket : placement.definition->ports) {
         const physics::Vec3 offset = authoredToOgre(socket.positionCm);

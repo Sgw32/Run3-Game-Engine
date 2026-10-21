@@ -26,6 +26,9 @@ public:
   virtual void beginInventory() = 0;
   virtual void endInventory() noexcept = 0;
   virtual void setDisplayMaterial(std::string material) = 0;
+  // RTT mode renders these Ogre overlays only during the computer-texture
+  // pass, keeping them off the player's main viewport.
+  virtual void setRenderPassVisible(bool visible) = 0;
   // RTT computers may still run original scripts which construct full-screen
   // buttonGUI controls. The owner uses this to route input to that legacy
   // compatibility layer only after such controls actually exist.

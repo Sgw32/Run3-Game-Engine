@@ -146,6 +146,11 @@ public:
     }
   }
 
+  void setRenderPassVisible(const bool visible) override {
+    if (manager_ != nullptr && renderToTexture_)
+      manager_->setOverlayVisibility(visible);
+  }
+
   bool hasContent() const noexcept override { return hasContent_; }
 
   void activate(const int layoutMode) override { layoutMode_ = layoutMode; }
@@ -172,6 +177,7 @@ public:
     buttonGUI::button *created = manager_->createButton(
         name, material, position, extent(rect.width), extent(rect.height), 0,
         true, !dummy, Ogre::String{});
+    if (renderToTexture_) manager_->setOverlayVisibility(false);
     hasContent_ = true;
     if (callback && !dummy) callbacks_[name] = std::move(callback);
     return *created->getName();
@@ -197,6 +203,7 @@ public:
     created->setMovable(true);
     buttonGUI::buttonMesh *createdMesh = created->addButtonMesh(
         name + "_mesh", mesh, 0, 0, pixel(rect.width), pixel(rect.height));
+    if (renderToTexture_) manager_->setOverlayVisibility(false);
     createdMesh->setZoom(zoom);
     if (!rotation.empty())
       createdMesh->setRotation(Ogre::StringConverter::parseQuaternion(rotation));
@@ -248,6 +255,7 @@ private:
     manager_ = std::make_unique<buttonGUI::buttonManager>(
         "darkInput", text, sceneManager_, cameraName_, window_);
     manager_->setCursor("cursorMat1", 32, 32, 3, 3, cursorVisible_);
+    if (renderToTexture_) manager_->setOverlayVisibility(false);
   }
 
   void shutdown() noexcept {

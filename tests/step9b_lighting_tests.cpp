@@ -157,7 +157,7 @@ TEST_CASE("Luniverse manifest and seeded biome tiles are deterministic") {
   const auto root=std::filesystem::path(RUN3_TEST_SOURCE_DIR)/
       "derived-content/luniverse/run3/bblocks/block_manifest.json";
   const auto manifest=gameplay::loadBlockManifest(root);
-  REQUIRE(manifest.blocks.size()==11);
+  REQUIRE(manifest.blocks.size()>=11);
   const gameplay::SeededBlockGenerator first(manifest,0x123456789abcdef0ULL,
                                               "01_BACKROOMS_20");
   const gameplay::SeededBlockGenerator second(manifest,0x123456789abcdef0ULL,
@@ -166,9 +166,9 @@ TEST_CASE("Luniverse manifest and seeded biome tiles are deterministic") {
   CHECK(first.blockFor({137,-91}).id==second.blockFor({137,-91}).id);
   // These fixed vectors are also consumed by tools/luniverse_map_viewer.py's
   // uint64 generator and prevent the editor and runtime algorithms drifting.
-  CHECK(first.blockFor({-1,0}).id=="03_POOLROOMS_20_Drained_NS");
-  CHECK(first.blockFor({12,12}).id=="04_POOLROOMS_40_OpenIsland_EW");
-  CHECK(first.blockFor({137,-91}).id=="02_BACKROOMS_40_Atrium_EW");
+  CHECK(first.blockFor({-1,0}).id=="15_WOODROOMS_20x20x5");
+  CHECK(first.blockFor({12,12}).id=="03_POOLROOMS_20");
+  CHECK(first.blockFor({137,-91}).id=="09_OFFICE_20x20x5");
   CHECK(first.biomeFor({1,1})==first.biomeFor({2,2}));
   const auto &tile=first.blockFor({0,0});
   CHECK(tile.dimensionsCm.x==2000);
@@ -201,6 +201,7 @@ TEST_CASE("Luniverse manifest and seeded biome tiles are deterministic") {
   CHECK(standardOrigin.z==Catch::Approx(-5000));
 
   std::set<std::string> generatedMeshes;
+  bool foundCompatibleLargeFeature=false;
   for(std::int64_t z=-40;z<=40;++z) {
     for(std::int64_t x=-40;x<=40;++x) {
       const auto placement=first.placementForCell({x,z});
@@ -213,10 +214,73 @@ TEST_CASE("Luniverse manifest and seeded biome tiles are deterministic") {
       CHECK(repeated.definition->id==placement.definition->id);
       CHECK(repeated.widthCells==placement.widthCells);
       CHECK(repeated.depthCells==placement.depthCells);
+      if(placement.widthCells==1 && placement.depthCells==1)
+        CHECK(placement.definition->ports.size()==4);
+      if(placement.widthCells==2 &&
+         (placement.depthCells==1 || placement.depthCells==3))
+        foundCompatibleLargeFeature=true;
+      CHECK_FALSE((placement.widthCells==2 && placement.depthCells==2));
+      CHECK_FALSE((placement.widthCells==6 && placement.depthCells==4));
       generatedMeshes.insert(placement.definition->mesh);
     }
   }
-  CHECK(generatedMeshes.size()==10);
+  CHECK(foundCompatibleLargeFeature);
+  CHECK(generatedMeshes.size()>=5);
+
+  const auto findPort=[](const gameplay::BlockPlacement &placement,
+                         gameplay::BlockSide side) {
+    return std::find_if(placement.definition->ports.begin(),
+                        placement.definition->ports.end(),
+                        [side](const auto &candidate) {
+                          return candidate.side==side;
+                        });
+  };
+  const auto socketWorld=[](const gameplay::BlockPlacement &placement,
+                            const gameplay::BlockPort &port) {
+    return physics::Vec3{
+        placement.rootCm.x+port.positionCm.x,
+        placement.rootCm.y+port.positionCm.z,
+        placement.rootCm.z-port.positionCm.y};
+  };
+  // Every macro's horizontal backbone must cross both boundaries, including
+  // where a 40x20 or 40x60 feature replaces multiple 20 m cells.
+  for(std::int64_t macroZ=-8;macroZ<=8;++macroZ) {
+    const std::int64_t z=macroZ*4+1;
+    std::int64_t x=-48;
+    while(x<48) {
+      const auto left=first.placementForCell({x,z});
+      const std::int64_t nextX=left.anchor.x+left.widthCells;
+      const auto right=first.placementForCell({nextX,z});
+      const auto east=findPort(left,gameplay::BlockSide::East);
+      const auto west=findPort(right,gameplay::BlockSide::West);
+      REQUIRE(east!=left.definition->ports.end());
+      REQUIRE(west!=right.definition->ports.end());
+      const auto a=socketWorld(left,*east);
+      const auto b=socketWorld(right,*west);
+      CHECK(a.x==Catch::Approx(b.x));
+      CHECK(a.y==Catch::Approx(b.y));
+      CHECK(a.z==Catch::Approx(b.z));
+      x=nextX;
+    }
+  }
+  // X=2 inside every six-cell macro column is reserved as an uninterrupted
+  // north/south route and never intersects a large feature footprint.
+  for(std::int64_t macroX=-8;macroX<=8;++macroX) {
+    const std::int64_t x=macroX*6+2;
+    for(std::int64_t z=-32;z<32;++z) {
+      const auto near=first.placementForCell({x,z});
+      const auto far=first.placementForCell({x,z+1});
+      const auto south=findPort(near,gameplay::BlockSide::South);
+      const auto north=findPort(far,gameplay::BlockSide::North);
+      REQUIRE(south!=near.definition->ports.end());
+      REQUIRE(north!=far.definition->ports.end());
+      const auto a=socketWorld(near,*south);
+      const auto b=socketWorld(far,*north);
+      CHECK(a.x==Catch::Approx(b.x));
+      CHECK(a.y==Catch::Approx(b.y));
+      CHECK(a.z==Catch::Approx(b.z));
+    }
+  }
 }
 TEST_CASE("Lighting material roles preserve unlit alpha and exclude volume noise") {
   gameplay::LegacyMaterialCatalog catalog;

@@ -1703,11 +1703,23 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
         impl_->services->submit(RuntimeLog{
             "warning: dMaterialSet ignored outside computer focus"});
       } else {
-        impl_->activeComputer->displayMaterial = requireName();
-        impl_->services->submit(SetComputerPresentation{
-            impl_->activeComputer->publicState.handle,
-            impl_->activeComputer->displayMaterial, true,
-            impl_->activeComputer->allowVirtualDisplay});
+        // dMaterialSet changes the content drawn by the legacy Display, not
+        // the monitor submesh selected by the computer's dispMat attribute.
+        // Rebinding the latter here detached the RTT from the physical screen
+        // as soon as a computer startup script selected its background.
+        impl_->services->submit(UpdateComputerDisplay{call.name,
+                                                       call.arguments});
+      }
+    } else if (call.name == "dClear" || call.name == "dCompPrint" ||
+               call.name == "dPrefix" || call.name == "dSetDimensions" ||
+               call.name == "dSetFont" || call.name == "dSetFontSize" ||
+               call.name == "dSetMaxLines") {
+      if (impl_->activeComputer == nullptr) {
+        impl_->services->submit(RuntimeLog{
+            "warning: " + call.name + " ignored outside computer focus"});
+      } else {
+        impl_->services->submit(UpdateComputerDisplay{call.name,
+                                                       call.arguments});
       }
     } else if (call.name == "exitAllComputers") {
       static_cast<void>(exitComputer());

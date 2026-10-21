@@ -30,6 +30,7 @@
 #include <OgreSubMesh.h>
 #include <OgreTechnique.h>
 #include <OgreTextureUnitState.h>
+#include <OgreTextureManager.h>
 #include <OgreKeyFrame.h>
 #include <OgreMesh.h>
 #include <OgreParticleSystem.h>
@@ -937,8 +938,8 @@ public:
     options.file = paths.contentPath(command.path);
     if (command.owner.id.value == 0 && mapAudio != nullptr) {
       if (!mapAudio->playMusic(options.file, command.loop)) {
-        throw std::runtime_error("cannot play music '" + command.path.string() +
-                                 "': " + audio->lastError());
+        log("warning: cannot play music '" + command.path.string() +
+            "': " + audio->lastError());
       }
       return;
     }
@@ -953,6 +954,11 @@ public:
     options.gain = command.gain;
     audio::SoundHandle sound = audio->play(options);
     if (!sound.valid()) {
+      if (command.owner.id.value == 0) {
+        log("warning: cannot play music '" + command.path.string() +
+            "': " + audio->lastError());
+        return;
+      }
       throw std::runtime_error("audio failed for '" + command.path.string() +
                                "': " + audio->lastError());
     }
@@ -1016,10 +1022,40 @@ public:
     }
     Ogre::Pass *pass = material->createTechnique()->createPass();
     pass->setLightingEnabled(false);
+    pass->setMaxSimultaneousLights(0);
     pass->setDepthCheckEnabled(true);
     pass->setDepthWriteEnabled(true);
     pass->setCullingMode(Ogre::CULL_NONE);
-    pass->createTextureUnitState(textureName);
+    material->setReceiveShadows(false);
+    Ogre::TextureUnitState *surface = pass->createTextureUnitState(textureName);
+    Ogre::TexturePtr surfaceTexture =
+        Ogre::TextureManager::getSingleton().getByName(
+            textureName,
+            Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
+    if (!surfaceTexture) {
+      log("warning: computer display texture '" + textureName +
+          "' is not registered with Ogre");
+    } else {
+      // MyGUI owns this manually-created render texture. Bind its exact Ogre
+      // resource instead of resolving the name again in the computer material;
+      // name lookup can otherwise create/sample an unrelated blank resource
+      // when UI and map resource groups differ.
+      surface->setTexture(surfaceTexture);
+    }
+    surface->setTextureAddressingMode(Ogre::TextureUnitState::TAM_CLAMP);
+    surface->setTextureFiltering(Ogre::TFO_BILINEAR);
+    // D3D11 has no fixed-function fallback. This material is created after
+    // the map's compatibility materials have already been registered with
+    // RTSS, so it must receive its shader technique explicitly. Without it,
+    // the subentity keeps appearing as the flat grey authored monitor even
+    // though the computer RTT is populated correctly.
+    if (auto *generator = Ogre::RTShader::ShaderGenerator::getSingletonPtr()) {
+      if (!generator->createShaderBasedTechnique(material->getTechnique(0),
+                                                  Ogre::MSN_SHADERGEN)) {
+        log("warning: cannot generate computer display shader for '" +
+            entry.spec.name + "'");
+      }
+    }
     material->load();
 
     ComputerMaterialBinding binding;
@@ -1029,7 +1065,8 @@ public:
       for (unsigned index = 0; index < entity->getNumSubEntities(); ++index) {
         Ogre::SubEntity *sub = entity->getSubEntity(index);
         if (authoredMaterial.empty() ||
-            sub->getMaterialName() == authoredMaterial) {
+            staticMap->materialMatchesSource(sub->getMaterialName(),
+                                             authoredMaterial)) {
           binding.items.push_back({sub, sub->getMaterialName()});
           sub->setMaterial(material);
         }
@@ -2098,6 +2135,9 @@ void OgreSequenceServices::submit(const GameCommand &command) {
           },
           [this](const SendComputerInput &value) {
             sendComputerInput(value);
+          },
+          [this](const UpdateComputerDisplay &value) {
+            impl_->ui->updateComputerDisplay(value.command, value.arguments);
           },
           [this](const SetRuntimeDarkness &value) {
             const float factor = static_cast<float>(std::clamp(value.factor, 0.0, 4.0));

@@ -168,6 +168,7 @@ void PlayerController::fixedUpdate(double seconds) {
   if (seconds <= 0.0) {
     return;
   }
+  if (frozen_) return;
   if (noclip_) {
     // Noclip is an explicit developer override.  Keep the scripted binding
     // alive, but do not let train deltas prevent free inspection.
@@ -285,6 +286,16 @@ void PlayerController::setNoclip(bool enabled) {
 
 void PlayerController::toggleNoclip() { setNoclip(!noclip_); }
 void PlayerController::setOnLadder(bool enabled) noexcept { onLadder_ = enabled; }
+
+void PlayerController::setFrozen(const bool enabled) {
+  if (!body_.valid() || frozen_ == enabled) return;
+  frozen_ = enabled;
+  world_->setFrozen(body_, enabled);
+  if (enabled) {
+    command_ = {};
+    jumpWasDown_ = false;
+  }
+}
 
 void PlayerController::teleport(physics::Vec3 position) {
   if (!body_.valid()) {

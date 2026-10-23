@@ -5,20 +5,18 @@
 
 #include <MyGUI.h>
 #include <MyGUI_OgrePlatform.h>
-#include <MyGUI_OgreRenderManager.h>
-#include <MyGUI_OgreTexture.h>
 
 #include <OgreRenderWindow.h>
 #include <OgreCamera.h>
 #include <OgreHardwarePixelBuffer.h>
-#include <OgreMaterialManager.h>
-#include <OgrePass.h>
+#include <OgreOverlay.h>
+#include <OgreOverlayManager.h>
+#include <OgrePixelFormat.h>
 #include <OgreRenderTarget.h>
 #include <OgreRenderTexture.h>
 #include <OgreSceneManager.h>
-#include <OgreTechnique.h>
 #include <OgreTexture.h>
-#include <OgreTextureUnitState.h>
+#include <OgreTextureManager.h>
 #include <OgreViewport.h>
 
 #include <algorithm>
@@ -306,29 +304,24 @@ public:
     resize(window.getWidth(), window.getHeight(), dpiScale_);
     buildMainMenu();
     buildHud();
-    computerTexture_ = MyGUI::RenderManager::getInstance().createTexture(
-        "Run3ComputerSurfaceTexture");
-    computerTexture_->createManual(1024, 768, MyGUI::TextureUsage::RenderTarget,
-                                   MyGUI::PixelFormat::R8G8B8A8);
-    if (computerTexture_->getRenderTarget() == nullptr)
-      throw std::runtime_error("MyGUI Ogre backend did not create an RTT surface");
-    auto *ogreTexture = dynamic_cast<MyGUI::OgreTexture *>(computerTexture_);
-    if (ogreTexture == nullptr || !ogreTexture->getOgreTexture())
-      throw std::runtime_error("MyGUI computer surface has no Ogre texture");
-    computerOgreTarget_ =
-        ogreTexture->getOgreTexture()->getBuffer()->getRenderTarget();
+    computerTexture_ = Ogre::TextureManager::getSingleton().createManual(
+        "Run3ComputerSurfaceTexture",
+        Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME,
+        Ogre::TEX_TYPE_2D, 1024, 768, 0, Ogre::PF_A8B8G8R8,
+        Ogre::TU_RENDERTARGET);
+    computerOgreTarget_ = computerTexture_->getBuffer()->getRenderTarget();
+    if (computerOgreTarget_ == nullptr)
+      throw std::runtime_error("Ogre did not create the computer RTT surface");
     computerOgreTarget_->setAutoUpdated(false);
-    // MyGUI lazily reserves viewport order 0 for its direct RTT drawing.
-    computerViewport_ = computerOgreTarget_->addViewport(camera_, 1);
-    computerViewport_->setClearEveryFrame(false);
+    computerViewport_ = computerOgreTarget_->addViewport(camera_);
+    computerViewport_->setClearEveryFrame(true, Ogre::FBT_COLOUR);
+    computerViewport_->setBackgroundColour(Ogre::ColourValue::Black);
     computerViewport_->setOverlaysEnabled(true);
     computerViewport_->setSkiesEnabled(false);
     computerViewport_->setVisibilityMask(0);
   }
 
   ~MyGuiUiSystem() override {
-    destroyComputerDirectSurface();
-    releaseComputerBackgroundTexture();
     buttonGui_.reset();
     clearScriptCallbacks();
     entries_.clear();
@@ -338,9 +331,9 @@ public:
       computerViewport_ = nullptr;
       computerOgreTarget_ = nullptr;
     }
-    if (computerTexture_ != nullptr) {
-      MyGUI::RenderManager::getInstance().destroyTexture(computerTexture_);
-      computerTexture_ = nullptr;
+    if (computerTexture_) {
+      Ogre::TextureManager::getSingleton().remove(computerTexture_->getHandle());
+      computerTexture_.reset();
     }
     if (gui_) { gui_->shutdown(); gui_.reset(); }
     if (platform_) { platform_->shutdown(); platform_.reset(); }
@@ -424,10 +417,6 @@ public:
     for (auto &[id, entry] : entries_) {
       static_cast<void>(id);
       applyCoordinates(entry);
-    }
-    if (computerDirectSurface_ != nullptr) {
-      computerDirectSurface_->setCoord(
-          0, 0, static_cast<int>(width), static_cast<int>(height));
     }
     buttonGui_->resize();
   }
@@ -640,63 +629,19 @@ public:
     }
     closeInventory();
     computerOwner_ = std::move(ownerKey);
-    // Both presentation modes are composed into one surface. Physical
-    // computers sample it through dispMat; legacy direct computers display
-    // the same texture full-screen. This avoids ordering differences between
-    // MyGUI text/background widgets and the legacy Ogre button overlay.
-    computerRenderToTexture_ = true;
-    buttonGui_->beginComputer(true);
+    computerRenderToTexture_ = renderToTexture;
+    buttonGui_->beginComputer(renderToTexture);
     registry_.beginContext(Context::Computer, computerOwner_);
-    WidgetSpec background{Context::Computer, {}, WidgetType::Panel,
-                          "computer.root", {0, 0, 1024, 768}, {}};
-    const WidgetHandle root = createWidget(background);
-    widget(root).changeWidgetSkin("PanelSkin");
-    widget(root).setColour(MyGUI::Colour{0.025F, 0.035F, 0.03F, 1.0F});
-    computerBackground_ = widget(root).createWidget<MyGUI::ImageBox>(
-        "ImageBox", MyGUI::IntCoord{0, 0, 1024, 768},
-        MyGUI::Align::Stretch, "computer.background");
-    computerBackground_->setNeedMouseFocus(false);
-    const WidgetHandle display = createWidget(
-        {Context::Computer, root, WidgetType::Text, "computer.display",
-         {18, 18, 988, 732}, {}});
-    widget(display).setProperty("TextAlign", "Left Top");
-    widget(display).setProperty("FontHeight", "19");
-    computerLines_.clear();
-    computerPrefix_.clear();
-    computerMaxLines_ = 32;
-    // The source widgets are exposed only while rendering the computer RTT.
-    // A direct-display computer presents that texture using a separate root
-    // image, rather than drawing the source widgets into the player viewport.
-    setVisible(root, false);
-    if (!renderToTexture) {
-      computerDirectSurface_ =
-          MyGUI::Gui::getInstance().createWidget<MyGUI::ImageBox>(
-              "ImageBox",
-              MyGUI::IntCoord{0, 0, static_cast<int>(window_->getWidth()),
-                              static_cast<int>(window_->getHeight())},
-              MyGUI::Align::Stretch, "Main", "computer.direct.surface");
-      computerDirectSurface_->setImageTexture(computerTexture_->getName());
-      computerDirectSurface_->setNeedMouseFocus(false);
-    }
     MyGUI::PointerManager::getInstance().setVisible(false);
     return computerTexture_->getName();
   }
 
   void deactivateComputer(const std::string_view ownerKey) noexcept override {
     if (!computerActive() || ownerKey != computerOwner_) return;
-    destroyComputerDirectSurface();
-    try {
-      if (const auto root = registry_.find(Context::Computer, "computer.root"))
-        destroyWidget(*root);
-    } catch (...) {}
-    computerBackground_ = nullptr;
-    releaseComputerBackgroundTexture();
     buttonGui_->endComputer();
     registry_.clearContext(Context::Computer);
     computerOwner_.clear();
     computerRenderToTexture_ = false;
-    computerLines_.clear();
-    computerPrefix_.clear();
     MyGUI::PointerManager::getInstance().setVisible(menuVisible_);
     MyGUI::InputManager::getInstance().resetMouseCaptureWidget();
     MyGUI::InputManager::getInstance().resetKeyFocusWidget();
@@ -715,127 +660,30 @@ public:
       const std::string_view command,
       const std::vector<std::string> &arguments) override {
     if (!computerActive()) return;
-    const auto display = findWidget(Context::Computer, "computer.display");
-    if (!display) return;
-    if (command == "dMaterialSet" && !arguments.empty()) {
-      try {
-        Ogre::MaterialPtr material =
-            Ogre::MaterialManager::getSingleton().getByName(
-                arguments.front(),
-                Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
-        if (material) {
-          material->load();
-          Ogre::Technique *technique = material->getBestTechnique();
-          if (technique == nullptr && material->getNumTechniques() != 0)
-            technique = material->getTechnique(0);
-          if (technique != nullptr && technique->getNumPasses() != 0) {
-            Ogre::Pass *pass = technique->getPass(0);
-            if (pass->getNumTextureUnitStates() != 0 &&
-                computerBackground_ != nullptr) {
-              Ogre::TextureUnitState *texture = pass->getTextureUnitState(0);
-              Ogre::TexturePtr sourceTexture = texture->_getTexturePtr();
-              if (sourceTexture) {
-                sourceTexture->load();
-                computerBackground_->setImageTexture({});
-                releaseComputerBackgroundTexture();
-                constexpr std::string_view alias =
-                    "Run3ComputerDisplayBackground";
-                MyGUI::ITexture *wrapper =
-                    MyGUI::OgreRenderManager::getInstance().createTexture(
-                        std::string(alias));
-                auto *ogreWrapper = dynamic_cast<MyGUI::OgreTexture *>(wrapper);
-                if (ogreWrapper == nullptr) {
-                  MyGUI::OgreRenderManager::getInstance().destroyTexture(wrapper);
-                } else {
-                  ogreWrapper->setOgreTexture(sourceTexture);
-                  computerBackgroundTexture_ = wrapper;
-                  computerBackground_->setImageTexture(alias);
-                  computerBackground_->setVisible(true);
-                }
-              }
-            }
-          }
-        }
-      } catch (...) {
-        // A bad legacy display material must not abort computer activation.
-      }
-    } else if (command == "dClear") {
-      computerLines_.clear();
-    } else if (command == "dCompPrint") {
-      computerLines_.push_back(computerPrefix_ +
-          (arguments.empty() ? std::string{} : arguments.front()));
-    } else if (command == "dPrefix") {
-      computerPrefix_ = arguments.empty() ? std::string{} : arguments.front();
-    } else if (command == "dSetMaxLines" && !arguments.empty()) {
-      try {
-        computerMaxLines_ = std::clamp<std::size_t>(
-            static_cast<std::size_t>(std::stoul(arguments.front())), 1, 256);
-      } catch (...) {}
-    } else if (command == "dSetFontSize" && !arguments.empty()) {
-      try {
-        float size = std::stof(arguments.front());
-        if (size <= 1.0F) size *= 768.0F;
-        widget(*display).setProperty(
-            "FontHeight", std::to_string(std::clamp(
-                              static_cast<int>(std::lround(size)), 8, 96)));
-      } catch (...) {}
-    } else if (command == "dSetDimensions" && arguments.size() >= 4) {
-      try {
-        const float left = std::stof(arguments[0]);
-        const float top = std::stof(arguments[1]);
-        const float right = std::stof(arguments[2]);
-        const float bottom = std::stof(arguments[3]);
-        widget(*display).setCoord(
-            static_cast<int>(std::lround(left * 1024.0F)),
-            static_cast<int>(std::lround(top * 768.0F)),
-            std::max(1, static_cast<int>(std::lround((right-left)*1024.0F))),
-            std::max(1, static_cast<int>(std::lround((bottom-top)*768.0F))));
-      } catch (...) {}
-    }
-    while (computerLines_.size() > computerMaxLines_)
-      computerLines_.erase(computerLines_.begin());
-    std::string text;
-    for (const std::string &line : computerLines_) {
-      if (!text.empty()) text.push_back('\n');
-      text += line;
-    }
-    setText(*display, std::move(text));
+    buttonGui_->updateComputerDisplay(command, arguments);
   }
 
   void renderComputerSurface() override {
     if (!computerActive() || !computerRenderToTexture_) return;
-    MyGUI::IRenderTarget *target = computerTexture_->getRenderTarget();
-    const auto roots = rootWidgets();
-    VisibilityGuard guard(roots, Context::Computer, reverse_);
-    PointerVisibilityGuard pointer(false);
-    const bool directVisible = computerDirectSurface_ != nullptr &&
-                               computerDirectSurface_->getVisible();
-    if (computerDirectSurface_ != nullptr)
-      computerDirectSurface_->setVisible(false);
-    target->begin();
+    std::vector<std::pair<Ogre::Overlay *, bool>> visibility;
+    auto iterator = Ogre::OverlayManager::getSingleton().getOverlayIterator();
+    while (iterator.hasMoreElements()) {
+      Ogre::Overlay *overlay = iterator.getNext();
+      visibility.emplace_back(overlay, overlay->isVisible());
+      overlay->hide();
+    }
+    buttonGui_->setRenderPassVisible(true);
     try {
-      MyGUI::LayerManager::getInstance().renderToTarget(target, true);
-      target->end();
+      computerOgreTarget_->update();
     } catch (...) {
-      target->end();
-      if (computerDirectSurface_ != nullptr)
-        computerDirectSurface_->setVisible(directVisible);
+      buttonGui_->setRenderPassVisible(false);
+      for (const auto &[overlay, visible] : visibility)
+        if (visible) overlay->show();
       throw;
     }
-    if (buttonGui_->hasContent() && computerViewport_ != nullptr) {
-      buttonGui_->setRenderPassVisible(true);
-      try {
-        computerViewport_->update();
-        buttonGui_->setRenderPassVisible(false);
-      } catch (...) {
-        buttonGui_->setRenderPassVisible(false);
-        if (computerDirectSurface_ != nullptr)
-          computerDirectSurface_->setVisible(directVisible);
-        throw;
-      }
-    }
-    if (computerDirectSurface_ != nullptr)
-      computerDirectSurface_->setVisible(directVisible);
+    buttonGui_->setRenderPassVisible(false);
+    for (const auto &[overlay, visible] : visibility)
+      if (visible) overlay->show();
   }
 
   void resetMapState() noexcept override {
@@ -848,23 +696,6 @@ public:
   }
 
 private:
-  void destroyComputerDirectSurface() noexcept {
-    if (computerDirectSurface_ == nullptr) return;
-    try {
-      MyGUI::Gui::getInstance().destroyWidget(computerDirectSurface_);
-    } catch (...) {}
-    computerDirectSurface_ = nullptr;
-  }
-
-  void releaseComputerBackgroundTexture() noexcept {
-    if (computerBackgroundTexture_ == nullptr) return;
-    try {
-      MyGUI::OgreRenderManager::getInstance().destroyTexture(
-          computerBackgroundTexture_);
-    } catch (...) {}
-    computerBackgroundTexture_ = nullptr;
-  }
-
   MyGUI::Widget &widget(const WidgetHandle handle) const {
     static_cast<void>(registry_.require(handle));
     const auto found = entries_.find(handle.id);
@@ -1176,7 +1007,7 @@ private:
   std::unique_ptr<MyGUI::OgrePlatform> platform_;
   std::unique_ptr<MyGUI::Gui> gui_;
   std::unique_ptr<IButtonGuiSystem> buttonGui_;
-  MyGUI::ITexture *computerTexture_{};
+  Ogre::TexturePtr computerTexture_;
   Ogre::RenderTexture *computerOgreTarget_{};
   Ogre::Viewport *computerViewport_{};
   std::unordered_map<std::uint64_t, Entry> entries_;
@@ -1186,12 +1017,6 @@ private:
   OptionsMenuSettings settings_;
   std::optional<InputAction> pendingBinding_;
   std::string computerOwner_;
-  MyGUI::ImageBox *computerBackground_{};
-  MyGUI::ImageBox *computerDirectSurface_{};
-  MyGUI::ITexture *computerBackgroundTexture_{};
-  std::vector<std::string> computerLines_;
-  std::string computerPrefix_;
-  std::size_t computerMaxLines_{32};
   std::string consoleText_;
   UiCallback consoleCommand_;
   int mouseX_{};

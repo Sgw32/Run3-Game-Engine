@@ -114,6 +114,21 @@ TEST_CASE("static triangle fixture supports and raycasts the player") {
   REQUIRE(floorBody.valid());
 }
 
+TEST_CASE("modal freeze pins the physical player capsule") {
+  PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
+  PlayerController player(world);
+  player.spawn({0, 300, 0});
+  player.setFrozen(true);
+  for (int step = 0; step < 120; ++step)
+    static_cast<void>(player.simulateFixedStep());
+  CHECK(player.state().position.y == Catch::Approx(300.0));
+
+  player.setFrozen(false);
+  for (int step = 0; step < 30; ++step)
+    static_cast<void>(player.simulateFixedStep());
+  CHECK(player.state().position.y < 300.0);
+}
+
 TEST_CASE("use ray reaches sequence buttons and doors behind trigger volumes") {
   PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
   PlayerController player(world);

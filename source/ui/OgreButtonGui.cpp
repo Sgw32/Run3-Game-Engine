@@ -5,14 +5,19 @@
 #include <OgreOverlay.h>
 #include <OgreOverlayManager.h>
 #include <OgrePanelOverlayElement.h>
+#include <OgreFontManager.h>
+#include <OgreMaterialManager.h>
 #include <OgreRenderWindow.h>
+#include <OgreResourceGroupManager.h>
 #include <OgreSceneManager.h>
 #include <OgreStringConverter.h>
+#include <OgreTextAreaOverlayElement.h>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <sstream>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -93,8 +98,11 @@ public:
   void resize() override {
     if (manager_) manager_->resetScreenResolution();
     if (backgroundPanel_) {
-      backgroundPanel_->setDimensions(static_cast<Ogre::Real>(window_->getWidth()),
-                                      static_cast<Ogre::Real>(window_->getHeight()));
+      const Ogre::Real width = renderToTexture_ ? 1024.0F
+                                                : window_->getWidth();
+      const Ogre::Real height = renderToTexture_ ? 768.0F
+                                                 : window_->getHeight();
+      backgroundPanel_->setDimensions(width, height);
     }
   }
 
@@ -104,11 +112,6 @@ public:
     renderToTexture_ = renderToTexture;
     createManager();
 
-    // The typed MyGUI surface owns the texture for RTT computers. Legacy Lua
-    // can nevertheless create buttonGUI controls; those remain a full-screen
-    // compatibility layer and therefore need a live manager in both modes.
-    if (renderToTexture_) return;
-
     Ogre::OverlayManager &overlays = Ogre::OverlayManager::getSingleton();
     backgroundOverlay_ = overlays.create("Run3ComputerButtonGuiBackground");
     backgroundOverlay_->setZOrder(1);
@@ -116,10 +119,37 @@ public:
         overlays.createOverlayElement("Panel", "Run3ComputerButtonGuiBackgroundPanel"));
     backgroundPanel_->setMetricsMode(Ogre::GMM_PIXELS);
     backgroundPanel_->setPosition(0, 0);
-    backgroundPanel_->setDimensions(static_cast<Ogre::Real>(window_->getWidth()),
-                                    static_cast<Ogre::Real>(window_->getHeight()));
+    backgroundPanel_->setDimensions(renderToTexture_ ? 1024.0F : window_->getWidth(),
+                                    renderToTexture_ ? 768.0F : window_->getHeight());
+    backgroundPanel_->setMaterialName(
+        "Run3/BlackMat",
+        Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
+    displayText_ = static_cast<Ogre::TextAreaOverlayElement *>(
+        overlays.createOverlayElement("TextArea", "Run3ComputerDisplayText"));
+    displayText_->setMetricsMode(Ogre::GMM_PIXELS);
+    displayText_->setPosition(18, 18);
+    displayText_->setDimensions(988, 732);
+    Ogre::FontPtr displayFont = Ogre::FontManager::getSingleton().getByName(
+        "Run3ComputerDisplayFont",
+        Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
+    if (!displayFont) {
+      displayFont = Ogre::FontManager::getSingleton().create(
+          "Run3ComputerDisplayFont",
+          Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
+      displayFont->setType(Ogre::FT_TRUETYPE);
+      displayFont->setSource("console.ttf");
+      displayFont->setTrueTypeSize(24.0F);
+      displayFont->setTrueTypeResolution(96);
+      displayFont->load();
+    }
+    displayText_->setFontName(
+        displayFont->getName(), displayFont->getGroup());
+    displayText_->setCharHeight(19);
+    displayText_->setColour(Ogre::ColourValue(1.0F, 0.72F, 0.42F, 1.0F));
+    backgroundPanel_->addChild(displayText_);
     backgroundOverlay_->add2D(backgroundPanel_);
-    backgroundOverlay_->show();
+    if (renderToTexture_) backgroundOverlay_->hide();
+    else backgroundOverlay_->show();
   }
 
   void endComputer() noexcept override {
@@ -140,15 +170,81 @@ public:
 
   void setDisplayMaterial(std::string material) override {
     if (backgroundPanel_ && !material.empty()) {
-      backgroundPanel_->setTransparent(false);
-      backgroundPanel_->setMaterialName(
-          material, Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
+      try {
+        if (!Ogre::MaterialManager::getSingleton().getByName(
+                material,
+                Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME))
+          return;
+        backgroundPanel_->setTransparent(false);
+        backgroundPanel_->setMaterialName(
+            material,
+            Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
+      } catch (...) {
+        // Legacy computer scripts treat unavailable display assets as a
+        // recoverable no-op; the rest of the interface must remain usable.
+      }
     }
   }
 
+  void updateComputerDisplay(
+      const std::string_view command,
+      const std::vector<std::string> &arguments) override {
+    if (mode_ != Mode::Computer || displayText_ == nullptr) return;
+    if (command == "dMaterialSet" && !arguments.empty()) {
+      setDisplayMaterial(arguments.front());
+    } else if (command == "dClear") {
+      computerLines_.clear();
+    } else if (command == "dCompPrint") {
+      computerLines_.push_back(computerPrefix_ +
+          (arguments.empty() ? std::string{} : arguments.front()));
+    } else if (command == "dPrefix") {
+      computerPrefix_ = arguments.empty() ? std::string{} : arguments.front();
+    } else if (command == "dSetMaxLines" && !arguments.empty()) {
+      try {
+        computerMaxLines_ = std::clamp<std::size_t>(
+            static_cast<std::size_t>(std::stoul(arguments.front())), 1, 256);
+      } catch (...) {}
+    } else if (command == "dSetFontSize" && !arguments.empty()) {
+      try {
+        float size = std::stof(arguments.front());
+        if (size <= 1.0F) size *= 768.0F;
+        displayText_->setCharHeight(std::clamp(size, 1.0F, 96.0F));
+      } catch (...) {}
+    } else if (command == "dSetFont" && !arguments.empty()) {
+      try {
+        Ogre::FontPtr font = Ogre::FontManager::getSingleton().getByName(
+            arguments.front(),
+            Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
+        if (font) displayText_->setFontName(font->getName(), font->getGroup());
+      } catch (...) {}
+    } else if (command == "dSetDimensions" && arguments.size() >= 4) {
+      try {
+        const float left = std::stof(arguments[0]);
+        const float top = std::stof(arguments[1]);
+        const float right = std::stof(arguments[2]);
+        const float bottom = std::stof(arguments[3]);
+        displayText_->setPosition(left * 1024.0F, top * 768.0F);
+        displayText_->setDimensions(std::max(1.0F, (right - left) * 1024.0F),
+                                    std::max(1.0F, (bottom - top) * 768.0F));
+      } catch (...) {}
+    }
+    while (computerLines_.size() > computerMaxLines_)
+      computerLines_.erase(computerLines_.begin());
+    std::ostringstream caption;
+    for (std::size_t index = 0; index < computerLines_.size(); ++index) {
+      if (index != 0) caption << '\n';
+      caption << computerLines_[index];
+    }
+    displayText_->setCaption(caption.str());
+  }
+
   void setRenderPassVisible(const bool visible) override {
-    if (manager_ != nullptr && renderToTexture_)
-      manager_->setOverlayVisibility(visible);
+    if (!renderToTexture_) return;
+    if (backgroundOverlay_ != nullptr) {
+      if (visible) backgroundOverlay_->show();
+      else backgroundOverlay_->hide();
+    }
+    if (manager_ != nullptr) manager_->setOverlayVisibility(visible);
   }
 
   bool hasContent() const noexcept override { return hasContent_; }
@@ -264,14 +360,21 @@ private:
     try {
       Ogre::OverlayManager &overlays = Ogre::OverlayManager::getSingleton();
       if (backgroundOverlay_) {
+        if (backgroundPanel_ && displayText_)
+          backgroundPanel_->removeChild(displayText_->getName());
         backgroundOverlay_->remove2D(backgroundPanel_);
         overlays.destroy(backgroundOverlay_->getName());
       }
+      if (displayText_) overlays.destroyOverlayElement(displayText_);
       if (backgroundPanel_)
         overlays.destroyOverlayElement(backgroundPanel_);
     } catch (...) {}
     backgroundOverlay_ = nullptr;
     backgroundPanel_ = nullptr;
+    displayText_ = nullptr;
+    computerLines_.clear();
+    computerPrefix_.clear();
+    computerMaxLines_ = 32;
     renderToTexture_ = false;
     hasContent_ = false;
     layoutMode_ = 0;
@@ -309,6 +412,7 @@ private:
   std::unique_ptr<buttonGUI::buttonManager> manager_;
   Ogre::Overlay *backgroundOverlay_{};
   Ogre::PanelOverlayElement *backgroundPanel_{};
+  Ogre::TextAreaOverlayElement *displayText_{};
   std::unordered_map<std::string, UiCallback> callbacks_;
   int layoutMode_{};
   int mouseX_{};
@@ -316,6 +420,9 @@ private:
   bool cursorVisible_{true};
   bool renderToTexture_{};
   bool hasContent_{};
+  std::vector<std::string> computerLines_;
+  std::string computerPrefix_;
+  std::size_t computerMaxLines_{32};
   Mode mode_{Mode::None};
 };
 

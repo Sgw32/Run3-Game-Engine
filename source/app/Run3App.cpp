@@ -540,6 +540,7 @@ int Run3App::run() {
                                        ui_->consoleVisible());
         const bool frozen = uiBlocked || (sequenceRuntime_ &&
                             sequenceRuntime_->presentation().playerFrozen);
+        player_->setFrozen(frozen);
         command.forward = frozen ? 0.0
             : (options_.inputBindings.down(state, InputAction::MoveForward) ? 1.0 : 0.0) -
               (options_.inputBindings.down(state, InputAction::MoveBackward) ? 1.0 : 0.0);
@@ -733,16 +734,14 @@ int Run3App::run() {
       }
       updatePhysicsDebugDraw();
       if (lighting_) lighting_->update(static_cast<double>(renderedFrames_) / 60.0);
+      // Native Ogre computer overlays are rendered into their isolated RTT
+      // before the world samples it. The pass restores all main-view overlay
+      // visibility before renderOneFrame().
+      if (ui_) ui_->renderComputerSurface();
       if (!getRoot()->renderOneFrame(
               static_cast<Ogre::Real>(frame.elapsed.count()))) {
         break;
       }
-      // Update virtual computer displays only after Ogre has established the
-      // main viewport for this frame. MyGUI's RTT backend restores that
-      // viewport in end(); rendering earlier leaves it null on first-frame
-      // computer activation and also updates a texture while the scene is
-      // about to sample it.
-      if (ui_) ui_->renderComputerSurface();
       ++renderedFrames_;
       if (options_.frameLimit != 0 && renderedFrames_ >= options_.frameLimit) {
         requestQuit();

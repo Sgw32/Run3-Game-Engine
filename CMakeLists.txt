@@ -440,6 +440,19 @@ if(RUN3_BUILD_TOOLS)
     target_compile_features(run3_entity_inventory PRIVATE cxx_std_17)
     target_link_libraries(run3_entity_inventory
                           PRIVATE run3::warnings run3::entities)
+
+    # Isolated Ogre proof for the legacy computer-display architecture. This
+    # target deliberately links no Run3 engine, gameplay, Lua, or MyGUI code.
+    add_executable(run3_ogre_overlay_rtt_demo
+                   samples/OgreOverlayRtt/main.cpp)
+    target_compile_features(run3_ogre_overlay_rtt_demo PRIVATE cxx_std_17)
+    target_compile_definitions(
+        run3_ogre_overlay_rtt_demo
+        PRIVATE RUN3_RTT_DEMO_SOURCE_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(
+        run3_ogre_overlay_rtt_demo
+        PRIVATE run3::warnings OgreMain OgreBites OgreOverlay
+                OgreRTShaderSystem)
 endif()
 
 # Keep CMake's conventional BUILD_TESTING cache entry synchronized with the
@@ -794,7 +807,6 @@ endif()
 install(TARGETS run3_shell run3_asset_check
         RUNTIME_DEPENDENCY_SET run3_runtime_dependencies
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-
 set(_run3_plugin_targets
     RenderSystem_GL3Plus
     Plugin_ParticleFX

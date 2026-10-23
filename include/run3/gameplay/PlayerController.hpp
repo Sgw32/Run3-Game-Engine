@@ -58,6 +58,7 @@ public:
   void setNoclip(bool enabled);
   void toggleNoclip();
   void setOnLadder(bool enabled) noexcept;
+  void setFrozen(bool enabled);
   void teleport(physics::Vec3 centrePosition);
   void applyOriginShift(physics::Vec3 offset) noexcept;
   void applyParentMotion(physics::Vec3 translationPerStep) noexcept;
@@ -94,6 +95,7 @@ private:
   bool noclip_{};
   bool onLadder_{};
   bool parented_{};
+  bool frozen_{};
   bool jumpWasDown_{};
 };
 

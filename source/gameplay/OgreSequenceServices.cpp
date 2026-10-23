@@ -19,6 +19,7 @@
 #include <OgreEntity.h>
 #include <OgreHardwareIndexBuffer.h>
 #include <OgreHardwareVertexBuffer.h>
+#include <OgreHighLevelGpuProgramManager.h>
 #include <OgreLight.h>
 #include <OgreLogManager.h>
 #include <OgreMaterialManager.h>
@@ -36,6 +37,7 @@
 #include <OgreParticleSystem.h>
 #include <OgrePose.h>
 #include <OgreResourceGroupManager.h>
+#include <OgreRoot.h>
 #include <OgreSceneManager.h>
 #include <OgreSceneNode.h>
 #include <OgreScriptCompiler.h>
@@ -112,6 +114,31 @@ void ensureComputerResourceGroup() {
   auto &groups = Ogre::ResourceGroupManager::getSingleton();
   if (!groups.resourceGroupExists(computerResourceGroup))
     groups.createResourceGroup(computerResourceGroup);
+}
+
+Ogre::HighLevelGpuProgramPtr computerSurfaceProgram(
+    const std::string &name, const std::string &source,
+    const Ogre::GpuProgramType type) {
+  auto &programs = Ogre::HighLevelGpuProgramManager::getSingleton();
+  Ogre::HighLevelGpuProgramPtr program = programs.getByName(name);
+  if (program) return program;
+  const Ogre::RenderSystem *renderSystem =
+      Ogre::Root::getSingleton().getRenderSystem();
+  const bool hlsl = renderSystem != nullptr &&
+                    renderSystem->getName().find("Direct3D") !=
+                        std::string::npos;
+  program = programs.createProgram(name, computerResourceGroup,
+                                   hlsl ? "hlsl" : "glsl", type);
+  program->setSourceFile(source);
+  if (hlsl) {
+    program->setParameter(
+        "target", type == Ogre::GPT_VERTEX_PROGRAM ? "vs_4_0" : "ps_4_0");
+    program->setParameter("entry_point", "main");
+  }
+  program->load();
+  if (program->hasCompileError() || !program->isSupported())
+    throw std::runtime_error("computer display shader failed: " + name);
+  return program;
 }
 
 Ogre::Vector3 toOgre(physics::Vec3 value) {
@@ -1020,14 +1047,7 @@ public:
         generator->removeAllShaderBasedTechniques(*material);
       material->removeAllTechniques();
     }
-    Ogre::Pass *pass = material->createTechnique()->createPass();
-    pass->setLightingEnabled(false);
-    pass->setMaxSimultaneousLights(0);
-    pass->setDepthCheckEnabled(true);
-    pass->setDepthWriteEnabled(true);
-    pass->setCullingMode(Ogre::CULL_NONE);
     material->setReceiveShadows(false);
-    Ogre::TextureUnitState *surface = pass->createTextureUnitState(textureName);
     Ogre::TexturePtr surfaceTexture =
         Ogre::TextureManager::getSingleton().getByName(
             textureName,
@@ -1035,27 +1055,41 @@ public:
     if (!surfaceTexture) {
       log("warning: computer display texture '" + textureName +
           "' is not registered with Ogre");
-    } else {
-      // MyGUI owns this manually-created render texture. Bind its exact Ogre
-      // resource instead of resolving the name again in the computer material;
-      // name lookup can otherwise create/sample an unrelated blank resource
-      // when UI and map resource groups differ.
-      surface->setTexture(surfaceTexture);
     }
-    surface->setTextureAddressingMode(Ogre::TextureUnitState::TAM_CLAMP);
-    surface->setTextureFiltering(Ogre::TFO_BILINEAR);
-    // D3D11 has no fixed-function fallback. This material is created after
-    // the map's compatibility materials have already been registered with
-    // RTSS, so it must receive its shader technique explicitly. Without it,
-    // the subentity keeps appearing as the flat grey authored monitor even
-    // though the computer RTT is populated correctly.
-    if (auto *generator = Ogre::RTShader::ShaderGenerator::getSingletonPtr()) {
-      if (!generator->createShaderBasedTechnique(material->getTechnique(0),
-                                                  Ogre::MSN_SHADERGEN)) {
-        log("warning: cannot generate computer display shader for '" +
-            entry.spec.name + "'");
-      }
-    }
+    // Keep the world-wide computer RTT independent from the map lighting
+    // pipeline. The main viewport selects MSN_SHADERGEN, so supplying the
+    // explicit pass only in the default scheme lets RTSS replace it with a
+    // generated, textureless grey pass. Install the same authored copy shader
+    // in both schemes; RTSS then has nothing to synthesize or alter.
+    const auto vertex = computerSurfaceProgram(
+        "Run3/ComputerSurface/Vertex", "computer_surface.vert",
+        Ogre::GPT_VERTEX_PROGRAM);
+    const auto fragment = computerSurfaceProgram(
+        "Run3/ComputerSurface/Fragment", "computer_surface.frag",
+        Ogre::GPT_FRAGMENT_PROGRAM);
+    const auto addTechnique = [&](const Ogre::String &scheme) {
+      Ogre::Technique *technique = material->createTechnique();
+      technique->setSchemeName(scheme);
+      Ogre::Pass *pass = technique->createPass();
+      pass->setLightingEnabled(false);
+      pass->setMaxSimultaneousLights(0);
+      pass->setDepthCheckEnabled(true);
+      pass->setDepthWriteEnabled(true);
+      pass->setCullingMode(Ogre::CULL_NONE);
+      Ogre::TextureUnitState *surface = pass->createTextureUnitState(textureName);
+      if (surfaceTexture) surface->setTexture(surfaceTexture);
+      surface->setTextureAddressingMode(Ogre::TextureUnitState::TAM_CLAMP);
+      surface->setTextureFiltering(Ogre::TFO_BILINEAR);
+      pass->setVertexProgram(vertex->getName());
+      pass->setFragmentProgram(fragment->getName());
+      pass->getVertexProgramParameters()->setNamedAutoConstant(
+          "worldViewProj", Ogre::GpuProgramParameters::ACT_WORLDVIEWPROJ_MATRIX);
+      if (fragment->getLanguage() == "glsl")
+        pass->getFragmentProgramParameters()->setNamedConstant(
+            "computerSurface", 0);
+    };
+    addTechnique(Ogre::MaterialManager::DEFAULT_SCHEME_NAME);
+    addTechnique(Ogre::MSN_SHADERGEN);
     material->load();
 
     ComputerMaterialBinding binding;

@@ -272,6 +272,11 @@ void PlayerController::setNoclip(bool enabled) {
   if (enabled) {
     noclipPosition_ = world_->transform(body_).position;
     world_->setLinearVelocity(body_, {});
+    // Bullet's frozen representation is kinematic. Restore the body's normal
+    // dynamic properties before removing it from the world; otherwise a
+    // console noclip toggle made while a modal UI was open could later add a
+    // kinematic player capsule back as if it were dynamic.
+    if (frozen_) world_->setFrozen(body_, false);
     world_->setEnabled(body_, false);
   } else {
     world_->setEnabled(body_, true);
@@ -279,6 +284,7 @@ void PlayerController::setNoclip(bool enabled) {
     transform.position = noclipPosition_;
     world_->setTransform(body_, transform);
     world_->setLinearVelocity(body_, {});
+    if (frozen_) world_->setFrozen(body_, true);
   }
   noclip_ = enabled;
   grounded_ = false;
@@ -290,7 +296,9 @@ void PlayerController::setOnLadder(bool enabled) noexcept { onLadder_ = enabled;
 void PlayerController::setFrozen(const bool enabled) {
   if (!body_.valid() || frozen_ == enabled) return;
   frozen_ = enabled;
-  world_->setFrozen(body_, enabled);
+  // A noclip capsule is removed from Bullet. Remember the requested state and
+  // apply it when collision is restored instead of mutating a disabled body.
+  if (!noclip_) world_->setFrozen(body_, enabled);
   if (enabled) {
     command_ = {};
     jumpWasDown_ = false;

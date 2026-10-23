@@ -1980,18 +1980,22 @@ void buttonManager::update(void) {
 void buttonManager::setOverlayVisibility(const bool visible) {
   for (button *item : buttons) {
     if (item == nullptr || item->overlay == nullptr) continue;
-    if (visible && item->getVisibility()) item->overlay->show();
+    // An RTT pass temporarily hides Ogre overlays, but that must not become
+    // the button's authored visibility. `suppressed` is the persistent
+    // buttonGUI state; Overlay::isVisible() only describes the current render
+    // pass and caused every control to remain hidden after the first pass.
+    if (visible && !item->suppressed) item->overlay->show();
     else item->overlay->hide();
   }
   for (buttonMesh *item : buttonMeshes) {
     if (item == nullptr || item->overlay == nullptr) continue;
-    if (visible && item->parent != nullptr && item->parent->getVisibility())
+    if (visible && item->parent != nullptr && !item->parent->suppressed)
       item->overlay->show();
     else
       item->overlay->hide();
   }
   if (cursorButton != nullptr && cursorButton->overlay != nullptr) {
-    if (visible && cursorButton->getVisibility()) cursorButton->overlay->show();
+    if (visible && !cursorButton->suppressed) cursorButton->overlay->show();
     else cursorButton->overlay->hide();
   }
 }

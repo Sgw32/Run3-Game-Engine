@@ -189,6 +189,10 @@ TEST_CASE("Step 8D constructs typed neutral and enemy NPCs", "[step8d][npc]") {
   CHECK(spec.visualRotationAxis.y == Catch::Approx(1.0));
   CHECK(spec.visualRotationDegrees == Catch::Approx(15.0));
   CHECK(spec.castShadows);
+  CHECK(spec.strangeLook);
+  CHECK(spec.headBone == "GuideHead");
+  CHECK(spec.headAxis.x == Catch::Approx(1.0));
+  CHECK(spec.headAxis.y == Catch::Approx(0.0));
   const auto raiderSpawned = std::find_if(
       fixture.services.commands.begin(), fixture.services.commands.end(),
       [](const gameplay::GameCommand &command) {

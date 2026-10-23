@@ -49,31 +49,41 @@ public:
 
   bool handleInput(const InputEvent &event) override {
     if (!manager_) return false;
-    switch (event.type) {
+    InputEvent mapped = event;
+    if (renderToTexture_ && window_->getWidth() != 0 &&
+        window_->getHeight() != 0) {
+      mapped.x = static_cast<int>(std::lround(
+          static_cast<double>(event.x) * 1024.0 /
+          static_cast<double>(window_->getWidth())));
+      mapped.y = static_cast<int>(std::lround(
+          static_cast<double>(event.y) * 768.0 /
+          static_cast<double>(window_->getHeight())));
+    }
+    switch (mapped.type) {
     case InputEventType::MouseMoved:
-      mouseX_ = event.x;
-      mouseY_ = event.y;
-      return manager_->injectMouseMove(event.x, event.y);
+      mouseX_ = mapped.x;
+      mouseY_ = mapped.y;
+      return manager_->injectMouseMove(mapped.x, mapped.y);
     case InputEventType::MouseWheel:
-      if (event.x != mouseX_ || event.y != mouseY_)
-        static_cast<void>(manager_->injectMouseMove(event.x, event.y));
-      mouseX_ = event.x;
-      mouseY_ = event.y;
-      return manager_->injectMouseWheel(pixel(static_cast<float>(event.wheelY)));
+      if (mapped.x != mouseX_ || mapped.y != mouseY_)
+        static_cast<void>(manager_->injectMouseMove(mapped.x, mapped.y));
+      mouseX_ = mapped.x;
+      mouseY_ = mapped.y;
+      return manager_->injectMouseWheel(pixel(static_cast<float>(mapped.wheelY)));
     case InputEventType::MousePressed: {
-      static_cast<void>(manager_->injectMouseMove(event.x, event.y));
-      auto button = event.mouseButton;
+      static_cast<void>(manager_->injectMouseMove(mapped.x, mapped.y));
+      auto button = mapped.mouseButton;
       return manager_->injectMouseDown(button);
     }
     case InputEventType::MouseReleased: {
-      static_cast<void>(manager_->injectMouseMove(event.x, event.y));
-      auto button = event.mouseButton;
+      static_cast<void>(manager_->injectMouseMove(mapped.x, mapped.y));
+      auto button = mapped.mouseButton;
       return manager_->injectMouseUp(button);
     }
     case InputEventType::KeyPressed:
-      return manager_->injectKeyPressed(event);
+      return manager_->injectKeyPressed(mapped);
     case InputEventType::KeyReleased:
-      return manager_->injectKeyReleased(event);
+      return manager_->injectKeyReleased(mapped);
     default:
       return false;
     }
@@ -110,6 +120,10 @@ public:
     shutdown();
     mode_ = Mode::Computer;
     renderToTexture_ = renderToTexture;
+    // Legacy computer scripts author their complete interface against a
+    // 640x480 canvas. Use that convention by default even when an old script
+    // omits buttonGUI_activateTopLeft640().
+    layoutMode_ = 2;
     createManager();
 
     Ogre::OverlayManager &overlays = Ogre::OverlayManager::getSingleton();
@@ -249,7 +263,10 @@ public:
 
   bool hasContent() const noexcept override { return hasContent_; }
 
-  void activate(const int layoutMode) override { layoutMode_ = layoutMode; }
+  void activate(const int layoutMode) override {
+    layoutMode_ = layoutMode;
+    configureCursor();
+  }
   void deactivate() noexcept override { layoutMode_ = 0; }
 
   void clear() noexcept override {
@@ -325,7 +342,13 @@ public:
     short x{};
     short y{};
     if (!target->getPosition(x, y)) return {};
-    return {static_cast<float>(x), static_cast<float>(y)};
+    float resultX = static_cast<float>(x);
+    float resultY = static_cast<float>(y);
+    if (usesScaled640Canvas()) {
+      resultX /= canvasWidth() / 640.0F;
+      resultY /= canvasHeight() / 480.0F;
+    }
+    return {resultX, resultY};
   }
 
   void setCursorVisible(const bool visible) override {
@@ -350,7 +373,10 @@ private:
     buttonGUI::textScheme text("neuropol", 22, 1.0F, 1.0F, 1.0F, 1.0F);
     manager_ = std::make_unique<buttonGUI::buttonManager>(
         "darkInput", text, sceneManager_, cameraName_, window_);
-    manager_->setCursor("cursorMat1", 32, 32, 3, 3, cursorVisible_);
+    configureCursor();
+    mouseX_ = renderToTexture_ ? 512 : static_cast<int>(window_->getWidth() / 2);
+    mouseY_ = renderToTexture_ ? 384 : static_cast<int>(window_->getHeight() / 2);
+    static_cast<void>(manager_->injectMouseMove(mouseX_, mouseY_));
     if (renderToTexture_) manager_->setOverlayVisibility(false);
   }
 
@@ -381,12 +407,12 @@ private:
     mode_ = Mode::None;
   }
   void transformPosition(Rect &rect) const {
-    const float width = static_cast<float>(window_->getWidth());
-    const float height = static_cast<float>(window_->getHeight());
+    const float width = canvasWidth();
+    const float height = canvasHeight();
     if (layoutMode_ == 1) {
       rect.left += width * 0.5F - 320.0F;
       rect.top += height * 0.5F - 240.0F;
-    } else if (layoutMode_ == 2) {
+    } else if (usesScaled640Canvas()) {
       rect.left *= width / 640.0F;
       rect.top *= height / 480.0F;
     } else if (layoutMode_ == 3) {
@@ -397,13 +423,43 @@ private:
 
   void transform(Rect &rect) const {
     transformPosition(rect);
-    if (layoutMode_ == 2) {
-      rect.width *= static_cast<float>(window_->getWidth()) / 640.0F;
-      rect.height *= static_cast<float>(window_->getHeight()) / 480.0F;
+    if (usesScaled640Canvas()) {
+      rect.width *= canvasWidth() / 640.0F;
+      rect.height *= canvasHeight() / 480.0F;
     } else if (layoutMode_ == 3) {
       rect.width *= 512.0F / 640.0F;
       rect.height *= 512.0F / 480.0F;
     }
+  }
+
+  [[nodiscard]] float canvasWidth() const noexcept {
+    return renderToTexture_ ? 1024.0F
+                            : static_cast<float>(window_->getWidth());
+  }
+
+  [[nodiscard]] float canvasHeight() const noexcept {
+    return renderToTexture_ ? 768.0F
+                            : static_cast<float>(window_->getHeight());
+  }
+
+  [[nodiscard]] bool usesScaled640Canvas() const noexcept {
+    // Comp640 historically targeted a separate 512x512 surface. The modern
+    // in-world computer is a 4:3 1024x768 RTT, so both TopLeft variants share
+    // the same reference-space scaling there.
+    return layoutMode_ == 2 || (renderToTexture_ && layoutMode_ == 3);
+  }
+
+  void configureCursor() {
+    if (!manager_) return;
+    float xScale = 1.0F;
+    float yScale = 1.0F;
+    if (usesScaled640Canvas()) {
+      xScale = canvasWidth() / 640.0F;
+      yScale = canvasHeight() / 480.0F;
+    }
+    manager_->setCursor("cursorMat1", extent(32.0F * xScale),
+                        extent(32.0F * yScale), extent(3.0F * xScale),
+                        extent(3.0F * yScale), cursorVisible_);
   }
 
   Ogre::RenderWindow *window_{};

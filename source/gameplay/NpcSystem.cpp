@@ -116,7 +116,8 @@ struct NpcSystem::Impl {
     NpcSnapshot publicState;
     content::SourceLocation source;
     std::string mesh, material, parent, nearScript, useScript, goalScript, deathScript;
-    std::string handBone{"Hand"};
+    std::string handBone{"Hand"}, headBone{"BMan0002-Head"};
+    physics::Vec3 headAxis{0.0, 1.0, 0.0};
     physics::Vec3 parentOffset;
     physics::Quaternion parentRotation;
     physics::Vec3 visualOffset{};
@@ -131,6 +132,7 @@ struct NpcSystem::Impl {
     bool autoPosition{};
     bool headshotEnabled{}, suspended{}, nearFired{};
     bool facialPaused{};
+    bool strangeLook{};
     bool flashlight{};
     bool gravityEnabled{true};
     bool castShadows{true};
@@ -157,6 +159,9 @@ struct NpcSystem::Impl {
       npc.mesh = attribute(*element, "meshFile", "ninja.mesh");
       npc.material = attribute(*element, "materialFile");
       npc.handBone = attribute(*element, "handBone", "Hand");
+      npc.headBone = attribute(*element, "headBone", "BMan0002-Head");
+      npc.headAxis = parseVector(attribute(*element, "headAxis", "0 1 0"));
+      npc.strangeLook = boolean(*element, "strange_look", false);
       npc.nearScript = attribute(*element, "cNearScript");
       npc.goalScript = attribute(*element, "scriptOnReach");
       npc.deathScript = attribute(*element, "scriptOnDeath");
@@ -326,6 +331,9 @@ void NpcSystem::start() {
     spec.renderDistance = npc.renderDistance;
     spec.castShadows = npc.castShadows;
     spec.handBone = npc.handBone;
+    spec.strangeLook = npc.strangeLook;
+    spec.headBone = npc.headBone;
+    spec.headAxis = npc.headAxis;
     // Ogre derives either the automatic walking-pose fit or the legacy mesh
     // AABB * scale * physSize. This is only a no-mesh fallback.
     spec.halfExtents = {20, 90, 20};

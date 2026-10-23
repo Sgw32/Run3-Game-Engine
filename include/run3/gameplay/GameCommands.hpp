@@ -66,6 +66,9 @@ struct RuntimeEntitySpec {
   double visualYawDegrees{};
   double renderDistance{10000.0};
   std::string handBone{"Hand"};
+  bool strangeLook{};
+  std::string headBone{"BMan0002-Head"};
+  physics::Vec3 headAxis{0.0, 1.0, 0.0};
   bool visible{true};
   bool collision{true};
   bool castShadows{true};

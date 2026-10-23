@@ -15,6 +15,7 @@
 #include <OgreAnimationState.h>
 #include <OgreAnimationTrack.h>
 #include <OgreAxisAlignedBox.h>
+#include <OgreBone.h>
 #include <OgreCamera.h>
 #include <OgreEntity.h>
 #include <OgreHardwareIndexBuffer.h>
@@ -66,6 +67,7 @@ constexpr std::size_t npcShadowCasterBudget = 4;
 constexpr Ogre::Real npcShadowDistance = 2000.0F;
 constexpr Ogre::Real npcFullRateAnimationDistance = 1000.0F;
 constexpr Ogre::Real npcHalfRateAnimationDistance = 2500.0F;
+constexpr Ogre::Real npcStrangeLookDistance = 500.0F;
 
 struct FlashlightConfig {
   Ogre::Real innerDegrees{60.0F};
@@ -410,6 +412,9 @@ public:
     std::optional<PhysicsEntityId> physicsEntity;
     std::vector<Part> parts;
     double pendingAnimationSeconds{};
+    Ogre::Bone *headBone{};
+    Ogre::Quaternion headBaseOrientation{Ogre::Quaternion::IDENTITY};
+    Ogre::Real headYawDegrees{};
   };
   struct ParticlePresentation {
     std::string name;
@@ -820,6 +825,25 @@ public:
       (presentation.visualNode != nullptr ? presentation.visualNode
                                           : presentation.node)
           ->attachObject(presentation.entity);
+      if (spec.kind == RuntimeEntityKind::Npc && spec.strangeLook) {
+        try {
+          Ogre::SkeletonInstance *skeleton = presentation.entity->getSkeleton();
+          if (skeleton == nullptr || !skeleton->hasBone(spec.headBone)) {
+            log("warning: NPC '" + spec.name + "' strange_look head bone '" +
+                spec.headBone + "' was not found");
+          } else {
+            presentation.headBone = skeleton->getBone(spec.headBone);
+            presentation.headBaseOrientation =
+                presentation.headBone->getOrientation();
+            presentation.headBone->setManuallyControlled(true);
+            log("NPC '" + spec.name + "' strange_look enabled on bone '" +
+                spec.headBone + "'");
+          }
+        } catch (const Ogre::Exception &error) {
+          log("warning: NPC '" + spec.name +
+              "' cannot enable strange_look: " + error.getDescription());
+        }
+      }
       const Ogre::AxisAlignedBox meshBounds =
           presentation.entity->getBoundingBox();
       const Ogre::Vector3 meshHalf = meshBounds.getHalfSize();
@@ -939,6 +963,43 @@ public:
         }
       }
     }
+  }
+
+  void updateStrangeLook(Presentation &presentation, const float seconds) {
+    if (presentation.headBone == nullptr || presentation.node == nullptr ||
+        presentation.entity == nullptr)
+      return;
+    Ogre::SceneNode *visual = presentation.visualNode != nullptr
+                                  ? presentation.visualNode
+                                  : presentation.node;
+    visual->_update(true, true);
+    presentation.headBone->_update(true, false);
+    const Ogre::Vector3 headWorld = visual->_getFullTransform() *
+        presentation.headBone->_getDerivedPosition();
+    const Ogre::Vector3 playerEye = toOgre(player->eyePosition());
+    const Ogre::Vector3 worldDelta = playerEye - headWorld;
+    Ogre::Real targetYaw{};
+    if (presentation.entity->getVisible() &&
+        worldDelta.squaredLength() <=
+            npcStrangeLookDistance * npcStrangeLookDistance) {
+      const Ogre::Vector3 localDelta =
+          visual->_getDerivedOrientation().Inverse() * worldDelta;
+      if (localDelta.x != 0.0F || localDelta.z != 0.0F) {
+        targetYaw = -Ogre::Radian(std::atan2(localDelta.x, -localDelta.z))
+                        .valueDegrees();
+        targetYaw = std::clamp(targetYaw, -45.0F, 45.0F);
+      }
+    }
+    const Ogre::Real blend = 1.0F - std::exp(
+        -5.0F * std::clamp<Ogre::Real>(seconds, 0.0F, 0.25F));
+    presentation.headYawDegrees +=
+        (targetYaw - presentation.headYawDegrees) * blend;
+    Ogre::Vector3 axis = toOgre(presentation.spec.headAxis);
+    if (axis.isZeroLength()) axis = Ogre::Vector3::UNIT_Y;
+    presentation.headBone->setOrientation(
+        presentation.headBaseOrientation *
+        Ogre::Quaternion(Ogre::Degree(presentation.headYawDegrees),
+                         axis.normalisedCopy()));
   }
 
   void syncPresentationBody(Presentation &presentation) {
@@ -1889,6 +1950,7 @@ void OgreSequenceServices::updateAudio(float seconds) {
         presentation.entity->getAllAnimationStates();
     if (animationStates == nullptr) {
       ++impl_->npcStats.pausedAnimations;
+      impl_->updateStrangeLook(presentation, seconds);
       continue;
     }
     presentation.pendingAnimationSeconds += seconds;
@@ -1911,6 +1973,9 @@ void OgreSequenceServices::updateAudio(float seconds) {
       }
       presentation.pendingAnimationSeconds = 0.0F;
     }
+    // Apply the manually controlled head after animation sampling so the
+    // walking/idle state cannot overwrite the legacy strange_look pose.
+    impl_->updateStrangeLook(presentation, seconds);
   }
   std::sort(shadowCandidates.begin(), shadowCandidates.end(),
             [](const ShadowCandidate &left, const ShadowCandidate &right) {

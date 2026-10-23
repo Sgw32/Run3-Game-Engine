@@ -538,29 +538,34 @@ int Run3App::run() {
                                        ui_->computerActive() ||
                                        ui_->inventoryVisible() ||
                                        ui_->consoleVisible());
-        const bool frozen = uiBlocked || (sequenceRuntime_ &&
-                            sequenceRuntime_->presentation().playerFrozen);
-        player_->setFrozen(frozen);
-        command.forward = frozen ? 0.0
+        // Menus consume controls, but they do not stop the physical world. In
+        // particular, a player riding a train must continue to follow it while
+        // Escape is open. Only an authored sequence freeze changes the Bullet
+        // body into a frozen collider.
+        const bool physicallyFrozen = sequenceRuntime_ &&
+            sequenceRuntime_->presentation().playerFrozen;
+        const bool controlsBlocked = uiBlocked || physicallyFrozen;
+        player_->setFrozen(physicallyFrozen);
+        command.forward = controlsBlocked ? 0.0
             : (options_.inputBindings.down(state, InputAction::MoveForward) ? 1.0 : 0.0) -
               (options_.inputBindings.down(state, InputAction::MoveBackward) ? 1.0 : 0.0);
-        command.strafe = frozen ? 0.0
+        command.strafe = controlsBlocked ? 0.0
             : (options_.inputBindings.down(state, InputAction::MoveRight) ? 1.0 : 0.0) -
               (options_.inputBindings.down(state, InputAction::MoveLeft) ? 1.0 : 0.0);
-        command.run = !frozen &&
+        command.run = !controlsBlocked &&
             options_.inputBindings.down(state, InputAction::Run);
-        command.jump = !frozen &&
+        command.jump = !controlsBlocked &&
             options_.inputBindings.down(state, InputAction::Jump);
-        command.crouch = !frozen &&
+        command.crouch = !controlsBlocked &&
             options_.inputBindings.down(state, InputAction::Crouch);
-        if (player_->state().noclip && !frozen) {
+        if (player_->state().noclip && !controlsBlocked) {
           command.vertical =
               (options_.inputBindings.down(state, InputAction::Jump) ? 1.0 : 0.0) -
                              (command.crouch ? 1.0 : 0.0);
           command.jump = false;
           command.crouch = false;
         }
-        if (legacyNoclip_ && !frozen) {
+        if (legacyNoclip_ && !controlsBlocked) {
           const double horizontal = std::cos(pitchRadians_);
           const physics::Vec3 forward{-std::sin(yawRadians_) * horizontal,
                                       std::sin(pitchRadians_),

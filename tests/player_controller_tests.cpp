@@ -129,6 +129,23 @@ TEST_CASE("modal freeze pins the physical player capsule") {
   CHECK(player.state().position.y < 300.0);
 }
 
+TEST_CASE("noclip can be toggled safely while a modal freeze is requested") {
+  PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
+  PlayerController player(world);
+  player.spawn({0, 300, 0});
+  player.setFrozen(true);
+  player.setNoclip(true);
+  CHECK(player.state().noclip);
+  player.setFrozen(false);
+  player.setCommand({0, 1, 0, false, false, false});
+  player.fixedUpdate(0.25);
+  CHECK(player.state().position.z < 0.0);
+  player.setNoclip(false);
+  static_cast<void>(player.simulateFixedStep());
+  CHECK_FALSE(player.state().noclip);
+  CHECK(std::isfinite(player.state().position.y));
+}
+
 TEST_CASE("use ray reaches sequence buttons and doors behind trigger volumes") {
   PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
   PlayerController player(world);

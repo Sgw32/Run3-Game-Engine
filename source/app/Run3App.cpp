@@ -36,6 +36,7 @@
 #include <OgreSceneManager.h>
 #include <OgreSceneNode.h>
 #include <OgreTechnique.h>
+#include <OgreTextureManager.h>
 #include <OgreTextureUnitState.h>
 #include <OgreViewport.h>
 #include <OgreWindowEventUtilities.h>
@@ -1184,6 +1185,15 @@ bool Run3App::oneTimeConfig() {
 }
 
 void Run3App::locateResources() {
+  // Preserve the texture policy used by the original Run3 runtime. Ogre 14
+  // defaults to MIP_UNLIMITED, which makes it consume every embedded mip from
+  // legacy DDS files. Some of those old authored chains (for example
+  // box_wood_2.dds) become progressively darker in their smallest levels.
+  // The original engine requested five mipmaps, and Ogre clamps custom image
+  // mip chains to the requested count while still generating up to five for
+  // images that do not contain their own levels.
+  Ogre::TextureManager::getSingleton().setDefaultNumMipmaps(0);
+
   Ogre::ResourceGroupManager &resources =
       Ogre::ResourceGroupManager::getSingleton();
   const fs::path media =

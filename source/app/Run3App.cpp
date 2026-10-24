@@ -23,7 +23,10 @@
 #include <OgreLogManager.h>
 #include <OgreManualObject.h>
 #include <OgreMaterialManager.h>
+#include <OgreOverlay.h>
+#include <OgreOverlayManager.h>
 #include <OgreOverlaySystem.h>
+#include <OgrePanelOverlayElement.h>
 #include <OgrePass.h>
 #include <OgreRenderSystem.h>
 #include <OgreRenderQueue.h>
@@ -33,7 +36,9 @@
 #include <OgreSceneManager.h>
 #include <OgreSceneNode.h>
 #include <OgreTechnique.h>
+#include <OgreTextureUnitState.h>
 #include <OgreViewport.h>
+#include <OgreWindowEventUtilities.h>
 
 #include <SDL.h>
 
@@ -42,11 +47,13 @@
 #endif
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <cctype>
 #include <chrono>
 #include <ctime>
 #include <filesystem>
+#include <fstream>
 #include <exception>
 #include <iomanip>
 #include <iostream>
@@ -89,6 +96,292 @@ const content::ConfigEntry *mapConfig(const content::MapDefinition &definition,
       [key](const content::ConfigEntry &entry) { return entry.key == key; });
   return found == definition.config.end() ? nullptr : &*found;
 }
+
+std::string trimCopy(std::string value) {
+  const auto first = value.find_first_not_of(" \t\r\n");
+  if (first == std::string::npos) return {};
+  return value.substr(first, value.find_last_not_of(" \t\r\n") - first + 1);
+}
+
+struct LoadingScreenSettings {
+  std::string material;
+  std::array<float, 3> barColour{0.12F, 0.0F, 0.0F};
+};
+
+std::array<float, 3> parseLoadingColour(std::string value) {
+  value = trimCopy(std::move(value));
+  if (value.size() == 7 && value.front() == '#') {
+    const auto channel = [&value](const std::size_t offset) {
+      std::size_t consumed{};
+      const int parsed = std::stoi(value.substr(offset, 2), &consumed, 16);
+      if (consumed != 2) throw std::invalid_argument("invalid hex channel");
+      return static_cast<float>(parsed) / 255.0F;
+    };
+    return {channel(1), channel(3), channel(5)};
+  }
+  std::replace(value.begin(), value.end(), ',', ' ');
+  std::istringstream stream(value);
+  std::array<float, 3> result{};
+  if (!(stream >> result[0] >> result[1] >> result[2]))
+    throw std::invalid_argument("expected R G B or #RRGGBB");
+  std::string trailing;
+  if (stream >> trailing)
+    throw std::invalid_argument("unexpected value after blue channel");
+  const float maximum = std::max({result[0], result[1], result[2]});
+  if (maximum > 1.0F) {
+    for (float &channel : result) channel /= 255.0F;
+  }
+  if (std::any_of(result.begin(), result.end(), [](const float channel) {
+        return !std::isfinite(channel) || channel < 0.0F || channel > 1.0F;
+      }))
+    throw std::invalid_argument("colour channels must be 0..1 or 0..255");
+  return result;
+}
+
+LoadingScreenSettings readLoadingScreenSettings(
+    const AppPaths &paths, const std::string &mapName,
+    const std::string &quality) {
+  LoadingScreenSettings result;
+  const fs::path configPath = paths.contentPath(
+      fs::path("run3") / "maps" / quality / mapName / "scene.cfg");
+  std::ifstream stream(configPath, std::ios::binary);
+  if (!stream) return result;
+  std::string line;
+  while (std::getline(stream, line)) {
+    line = trimCopy(std::move(line));
+    if (line.empty() || line.front() == '#' || line.front() == ';') continue;
+    const std::size_t equals = line.find('=');
+    if (equals == std::string::npos) continue;
+    const std::string key = trimCopy(line.substr(0, equals));
+    const std::string value = trimCopy(line.substr(equals + 1));
+    if (key == "LoadingMat") result.material = value;
+    if (key == "LoadingBarColor" || key == "LoadingBarColour") {
+      try {
+        result.barColour = parseLoadingColour(value);
+      } catch (const std::exception &error) {
+        Ogre::LogManager::getSingleton().logMessage(
+            "Loading screen: invalid " + key + " in " +
+            configPath.generic_string() + ": " + error.what() +
+            "; using dark red");
+      }
+    }
+  }
+  return result;
+}
+
+std::optional<std::string> loadingTextureForMaterial(
+    const fs::path &loadingRoot, const std::string_view materialName) {
+  if (materialName.empty() || !fs::is_directory(loadingRoot)) return std::nullopt;
+  std::error_code iteratorError;
+  for (fs::recursive_directory_iterator iterator(
+           loadingRoot, fs::directory_options::skip_permission_denied,
+           iteratorError), end;
+       iterator != end; iterator.increment(iteratorError)) {
+    if (iteratorError) {
+      iteratorError.clear();
+      continue;
+    }
+    if (!iterator->is_regular_file() ||
+        lower(iterator->path().extension().string()) != ".material")
+      continue;
+
+    std::ifstream stream(iterator->path(), std::ios::binary);
+    if (!stream) continue;
+    bool selected = false;
+    bool opened = false;
+    int depth = 0;
+    std::string line;
+    while (std::getline(stream, line)) {
+      if (const std::size_t comment = line.find("//");
+          comment != std::string::npos)
+        line.erase(comment);
+      const std::string trimmed = trimCopy(line);
+      if (!selected) {
+        std::istringstream tokens(trimmed);
+        std::string keyword;
+        std::string candidate;
+        if (tokens >> keyword >> candidate;
+            keyword == "material" && candidate == materialName)
+          selected = true;
+      }
+      if (!selected) continue;
+
+      depth += static_cast<int>(std::count(line.begin(), line.end(), '{'));
+      if (depth > 0) opened = true;
+      depth -= static_cast<int>(std::count(line.begin(), line.end(), '}'));
+
+      std::istringstream tokens(trimmed);
+      std::string keyword;
+      std::string texture;
+      if (tokens >> keyword >> texture; keyword == "texture") {
+        if (!texture.empty() && texture.front() == '"' &&
+            texture.back() == '"' && texture.size() >= 2)
+          texture = texture.substr(1, texture.size() - 2);
+        return texture;
+      }
+      if (opened && depth <= 0) break;
+    }
+  }
+  return std::nullopt;
+}
+
+class LoadingScreen final {
+public:
+  LoadingScreen(Ogre::Root &root, Ogre::RenderWindow &window,
+                const AppPaths &paths)
+      : root_(&root), window_(&window), paths_(&paths) {}
+  ~LoadingScreen() { dismiss(); }
+
+  void show(const LoadingScreenSettings &settings) noexcept {
+    dismiss();
+    try {
+      auto &resources = Ogre::ResourceGroupManager::getSingleton();
+      if (resources.resourceGroupExists(resourceGroup))
+        resources.destroyResourceGroup(resourceGroup);
+      resources.createResourceGroup(resourceGroup);
+      const fs::path loadingRoot =
+          paths_->contentPath("run3/game/loadingscrs");
+      if (fs::is_directory(loadingRoot)) {
+        resources.addResourceLocation(loadingRoot.string(), "FileSystem",
+                                      resourceGroup, false, true);
+      }
+
+      auto &materials = Ogre::MaterialManager::getSingleton();
+      Ogre::MaterialPtr backgroundMaterial = materials.create(
+          backgroundMaterialName, resourceGroup);
+      Ogre::Pass *backgroundPass =
+          backgroundMaterial->getTechnique(0)->getPass(0);
+      backgroundPass->setLightingEnabled(false);
+      backgroundPass->setDepthCheckEnabled(false);
+      backgroundPass->setDepthWriteEnabled(false);
+      backgroundPass->setDiffuse(0.015F, 0.015F, 0.015F, 1.0F);
+      backgroundPass->setSelfIllumination(0.015F, 0.015F, 0.015F);
+      const std::optional<std::string> loadingTexture =
+          loadingTextureForMaterial(loadingRoot, settings.material);
+      if (loadingTexture) {
+        Ogre::TextureUnitState *textureUnit =
+            backgroundPass->createTextureUnitState(*loadingTexture);
+        textureUnit->setTextureAddressingMode(Ogre::TextureUnitState::TAM_CLAMP);
+      } else if (!settings.material.empty()) {
+        Ogre::LogManager::getSingleton().logMessage(
+            "Loading screen: material '" + settings.material +
+            "' has no resolvable texture; using a dark fallback");
+      }
+      Ogre::MaterialPtr barMaterial = materials.create(barMaterialName,
+                                                       resourceGroup);
+      Ogre::Pass *barPass = barMaterial->getTechnique(0)->getPass(0);
+      barPass->setLightingEnabled(false);
+      barPass->setDepthCheckEnabled(false);
+      barPass->setDepthWriteEnabled(false);
+      const auto &colour = settings.barColour;
+      barPass->setDiffuse(colour[0], colour[1], colour[2], 1.0F);
+      barPass->setSelfIllumination(colour[0], colour[1], colour[2]);
+
+      Ogre::OverlayManager &manager = Ogre::OverlayManager::getSingleton();
+      overlay_ = manager.create(overlayName);
+      overlay_->setZOrder(650);
+      background_ = static_cast<Ogre::PanelOverlayElement *>(
+          manager.createOverlayElement("Panel", backgroundElementName));
+      background_->setMetricsMode(Ogre::GMM_RELATIVE);
+      background_->setPosition(0.0F, 0.0F);
+      background_->setDimensions(1.0F, 1.0F);
+      background_->setMaterialName(backgroundMaterial->getName(),
+                                   resourceGroup);
+      bar_ = static_cast<Ogre::PanelOverlayElement *>(
+          manager.createOverlayElement("Panel", barElementName));
+      bar_->setMetricsMode(Ogre::GMM_RELATIVE);
+      bar_->setPosition(0.0F, 0.85F);
+      bar_->setDimensions(0.001F, 0.05F);
+      bar_->setMaterialName(barMaterialName, resourceGroup);
+      background_->addChild(bar_);
+      overlay_->add2D(background_);
+      overlay_->show();
+      if (window_->getNumViewports() != 0) {
+        viewport_ = window_->getViewport(0);
+        previousVisibilityMask_ = viewport_->getVisibilityMask();
+        viewport_->setVisibilityMask(0);
+      }
+      visible_ = true;
+      Ogre::LogManager::getSingleton().logMessage(
+          "Loading screen: material=" +
+          (settings.material.empty() ? std::string("<fallback>") :
+                                       settings.material) +
+          " texture=" +
+          (loadingTexture ? *loadingTexture : std::string("<fallback>")));
+      update(0.01F, true);
+    } catch (const std::exception &error) {
+      Ogre::LogManager::getSingleton().logMessage(
+          "Loading screen disabled: " + std::string(error.what()));
+      dismiss();
+    }
+  }
+
+  void update(float progress, const bool force = false) noexcept {
+    if (!visible_ || bar_ == nullptr) return;
+    progress = std::clamp(progress, 0.0F, 1.0F);
+    if (!force && progress < lastRenderedProgress_ + 0.015F) return;
+    try {
+      bar_->setWidth(std::max(0.001F, progress));
+      Ogre::WindowEventUtilities::messagePump();
+      root_->renderOneFrame(0.0F);
+      lastRenderedProgress_ = progress;
+    } catch (const Ogre::Exception &error) {
+      Ogre::LogManager::getSingleton().logMessage(
+          "Loading screen update failed: " + error.getDescription());
+      dismiss();
+    } catch (...) {
+      dismiss();
+    }
+  }
+
+  void dismiss() noexcept {
+    if (viewport_ != nullptr) {
+      try { viewport_->setVisibilityMask(previousVisibilityMask_); } catch (...) {}
+      viewport_ = nullptr;
+    }
+    try {
+      Ogre::OverlayManager &manager = Ogre::OverlayManager::getSingleton();
+      if (overlay_ != nullptr) {
+        overlay_->hide();
+        if (background_ != nullptr) overlay_->remove2D(background_);
+        manager.destroy(overlay_);
+      }
+      overlay_ = nullptr;
+      if (background_ != nullptr && bar_ != nullptr)
+        background_->removeChild(bar_->getName());
+      if (bar_ != nullptr) manager.destroyOverlayElement(bar_);
+      bar_ = nullptr;
+      if (background_ != nullptr) manager.destroyOverlayElement(background_);
+      background_ = nullptr;
+      auto &resources = Ogre::ResourceGroupManager::getSingleton();
+      if (resources.resourceGroupExists(resourceGroup))
+        resources.destroyResourceGroup(resourceGroup);
+    } catch (...) {}
+    visible_ = false;
+    lastRenderedProgress_ = -1.0F;
+  }
+
+private:
+  inline static const Ogre::String resourceGroup{"Run3LoadingScreen"};
+  inline static const Ogre::String overlayName{"Run3/LoadingScreen"};
+  inline static const Ogre::String backgroundElementName{
+      "Run3/LoadingScreen/Background"};
+  inline static const Ogre::String barElementName{"Run3/LoadingScreen/Bar"};
+  inline static const Ogre::String backgroundMaterialName{
+      "Run3/LoadingScreen/Fallback"};
+  inline static const Ogre::String barMaterialName{
+      "Run3/LoadingScreen/BarMaterial"};
+  Ogre::Root *root_{};
+  Ogre::RenderWindow *window_{};
+  const AppPaths *paths_{};
+  Ogre::Viewport *viewport_{};
+  std::uint32_t previousVisibilityMask_{0xffffffffU};
+  Ogre::Overlay *overlay_{};
+  Ogre::PanelOverlayElement *background_{};
+  Ogre::PanelOverlayElement *bar_{};
+  float lastRenderedProgress_{-1.0F};
+  bool visible_{};
+};
 
 std::optional<fs::path> configuredRoot(const Configuration &configuration,
                                        std::string_view key,
@@ -1050,6 +1343,11 @@ void Run3App::setup() {
 }
 
 void Run3App::loadMap(const std::string &mapName) {
+    const LoadingScreenSettings loadingSettings = readLoadingScreenSettings(
+        options_.paths, mapName, options_.mapQuality);
+    LoadingScreen loadingScreen(*getRoot(), *getRenderWindow(), options_.paths);
+    loadingScreen.show(loadingSettings);
+    loadingScreen.update(0.03F, true);
     if (sceneManager_->hasLight("Run3ShellLight")) {
       Ogre::Light *shellLight = sceneManager_->getLight("Run3ShellLight");
       Ogre::SceneNode *node = shellLight->getParentSceneNode();
@@ -1072,12 +1370,17 @@ void Run3App::loadMap(const std::string &mapName) {
     const gameplay::StaticMapStats mapStats = staticMap_->load(
         {&options_.paths, options_.mapName, options_.mapQuality,
          options_.resourceProfile, options_.textureQuality,
-         meshLodBias(options_.modelQuality), options_.lighting});
+         meshLodBias(options_.modelQuality), options_.lighting,
+         [&loadingScreen](const float progress) {
+           loadingScreen.update(0.05F + progress * 0.63F);
+         }});
     static_cast<void>(mapStats);
+    loadingScreen.update(0.70F, true);
     player_ = std::make_unique<gameplay::PlayerController>(*physicsWorld_,
                                                            options_.player);
     player_->spawn(staticMap_->spawnPosition());
     player_->setNoclip(options_.startNoclip);
+    loadingScreen.update(0.74F);
     if (const content::ConfigEntry *seedEntry =
             mapConfig(staticMap_->definition(), "WorldSeed")) {
       gameplay::SemiInfiniteWorldOptions worldOptions;
@@ -1129,6 +1432,7 @@ void Run3App::loadMap(const std::string &mapName) {
           *sceneManager_, *physicsWorld_, std::move(worldOptions));
       semiInfiniteWorld_->update(player_->state().position);
     }
+    loadingScreen.update(0.78F);
     physicsDebug_ = options_.physicsDebug;
     staticMap_->setDebugDraw(physicsDebug_);
     if (semiInfiniteWorld_) semiInfiniteWorld_->setDebugDraw(physicsDebug_);
@@ -1142,6 +1446,7 @@ void Run3App::loadMap(const std::string &mapName) {
     camera_->setFOVy(Ogre::Degree(static_cast<Ogre::Real>(
         options_.verticalFovDegrees)));
     lighting_->configureMapShadows();
+    loadingScreen.update(0.81F);
 
     try {
       audio::MapAudioLoadResult loaded = audio::loadLegacyMapAudio(
@@ -1169,6 +1474,7 @@ void Run3App::loadMap(const std::string &mapName) {
       Ogre::LogManager::getSingleton().logMessage(
           "Map audio disabled: " + std::string(error.what()));
     }
+    loadingScreen.update(0.86F);
 
     sequenceServices_ = std::make_unique<gameplay::OgreSequenceServices>(
         options_.paths, *sceneManager_, *camera_, *physicsWorld_, *staticMap_,
@@ -1179,6 +1485,7 @@ void Run3App::loadMap(const std::string &mapName) {
     if (mapAudio_) {
       sequenceServices_->attachMapAudio(*mapAudio_);
     }
+    loadingScreen.update(0.90F);
     sequenceRuntime_ = std::make_unique<gameplay::SequenceRuntime>(
         staticMap_->definition(), staticMap_->registry(), *sequenceServices_);
     sequenceServices_->attach(*sequenceRuntime_);
@@ -1188,6 +1495,12 @@ void Run3App::loadMap(const std::string &mapName) {
         *sequenceServices_);
     sequenceServices_->attachNpcSystem(*npcSystem_);
     npcSystem_->start();
+    // This must be the final loading-only render. Authored startup scripts can
+    // enable viewport compositors (Bloom, ColorCorrection, Glow, ...), whose
+    // scene passes must never run while the loading screen has temporarily
+    // hidden the gameplay visibility mask. The first compositor render is the
+    // normal gameplay frame after dismiss() restores that mask.
+    loadingScreen.update(1.0F, true);
     sequenceRuntime_->start();
     // renderedFrames_ counts completed frames. At +2, the next call to
     // renderOneFrame is the third frame belonging to this newly loaded map.
@@ -1195,6 +1508,7 @@ void Run3App::loadMap(const std::string &mapName) {
     // A map load is the gameplay-state boundary. Never carry the menu layer
     // or its pointer through a chapter transition or cutscene restoration.
     if (ui_) ui_->showMenu(false);
+    loadingScreen.dismiss();
 }
 
 void Run3App::unloadMap(const bool runOnExit) {

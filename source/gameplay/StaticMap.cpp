@@ -293,6 +293,8 @@ public:
 
   StaticMapStats load(const StaticMapOptions &options) {
     unload();
+    progress_ = options.progress;
+    reportProgress(0.01F);
     lightingSettings_ = options.lighting;
     OgreConsoleSilencer silenceBulkLoad;
     if (options.paths == nullptr) {
@@ -300,6 +302,7 @@ public:
     }
     definition_ = content::loadMapDefinition(*options.paths, options.mapName,
                                              options.quality);
+    reportProgress(0.10F);
     for (const content::AuthoredElement *element :
          activeMapRenderables(*definition_)) {
       activeRenderables_.insert(element);
@@ -307,6 +310,7 @@ public:
     const std::string &map = definition_->mapName;
     const RegistryPopulationResult population =
         populateEntityRegistry(*definition_, registry_, false);
+    reportProgress(0.16F);
     for (const content::DefinitionIssue &issue : definition_->issues) {
       Ogre::LogManager::getSingleton().logMessage(
           issue.source.file.generic_string() + ":" +
@@ -319,6 +323,7 @@ public:
     }
 
     registerResources(*options.paths, options.resourceProfile);
+    reportProgress(0.24F);
     meshLodBias_ = options.meshLodBias;
     const std::string materialDirectory =
         options.textureQuality == "medium" ? "med" : options.textureQuality;
@@ -327,6 +332,7 @@ public:
                               materialDirectory,
                           options.paths->contentOverlay().empty() ? fs::path{} :
                               options.paths->contentOverlay() / "run3/core");
+    reportProgress(0.34F);
     // Dynamic sequence meshes are deserialized after the static-map listener
     // is gone. Publish each resolvable legacy material name as an Ogre alias
     // now, so MeshSerializer can resolve it without noisy/fatal missing-
@@ -343,10 +349,12 @@ public:
         alias->changeGroupOwnership(resourceGroup_);
       }
     }
+    reportProgress(0.52F);
     // Particle templates bind their material names while being parsed, so
     // load them only after the compatibility aliases above are published.
     loadParticleTemplates(*options.paths, options.textureQuality);
     configureEnvironment(definition_->scene);
+    reportProgress(0.60F);
     class CompatibilityListener final : public Ogre::MeshSerializerListener {
     public:
       explicit CompatibilityListener(Impl &owner) : owner_(&owner) {}
@@ -401,8 +409,19 @@ public:
         number(attributes(definition_->scene), "multiplier", 1.0);
     bool firstPlayer = true;
     sequence_ = 0;
+    progressElementsDone_ = 0;
+    const auto countElements = [](const auto &self,
+                                  const content::AuthoredElement &element)
+        -> std::size_t {
+      std::size_t result = 1;
+      for (const content::AuthoredElement &child : element.children)
+        result += self(self, child);
+      return result;
+    };
+    progressElementsTotal_ = countElements(countElements, definition_->scene);
     processSceneElement(definition_->scene, rootNode_, "Run3Step6BMapRoot",
                         sceneMultiplier, firstPlayer);
+    reportProgress(0.96F);
     if (lightingSettings_.shadows != rendering::ShadowQuality::Off) {
       const auto budget = rendering::shadowBudget(lightingSettings_.shadows,
                                                    lightingSettings_.pipeline);
@@ -440,7 +459,13 @@ public:
         std::to_string(compatibleMaterials_.size()) +
         " unresolved-materials=" +
         std::to_string(unresolvedMaterials_.size()));
+    reportProgress(1.0F);
+    progress_ = {};
     return stats_;
+  }
+
+  void reportProgress(const float value) {
+    if (progress_) progress_(std::clamp(value, 0.0F, 1.0F));
   }
 
   std::optional<EntityHandle>
@@ -463,6 +488,12 @@ public:
                            Ogre::SceneNode *parent,
                            const std::string &parentName,
                            const double sceneMultiplier, bool &firstPlayer) {
+    ++progressElementsDone_;
+    if (progressElementsTotal_ != 0) {
+      reportProgress(0.60F + 0.35F *
+          static_cast<float>(progressElementsDone_) /
+          static_cast<float>(progressElementsTotal_));
+    }
     if (element.tag == "integratedSequence" || element.tag == "nodev") {
       return;
     }
@@ -1306,6 +1337,9 @@ public:
   std::uint64_t particleMaterialSequence_{};
   physics::Vec3 spawn_{};
   StaticMapStats stats_;
+  std::function<void(float)> progress_;
+  std::size_t progressElementsDone_{};
+  std::size_t progressElementsTotal_{};
   const Ogre::String resourceGroup_{"Run3Step6BContent"};
 };
 

@@ -7,6 +7,7 @@
 #include <run3/rendering/Lighting.hpp>
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -37,6 +38,9 @@ struct StaticMapOptions {
   std::string textureQuality{"low"};
   double meshLodBias{1.0};
   rendering::LightingSettings lighting;
+  // Receives normalized progress while the synchronous legacy map is parsed,
+  // materialized and attached. Callbacks run on the render thread.
+  std::function<void(float)> progress;
 };
 
 struct StaticMapStats {

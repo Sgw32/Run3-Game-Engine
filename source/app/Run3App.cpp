@@ -903,6 +903,8 @@ int Run3App::run() {
             sequenceRuntime_->fixedUpdate();
           }
           if (npcSystem_) npcSystem_->fixedUpdate();
+          player_->updatePickedBody(pitchRadians_,
+                                    physics::PhysicsWorld::fixedStepSeconds);
           static_cast<void>(player_->simulateFixedStep());
           ++simulatedSteps_;
         }
@@ -1528,6 +1530,7 @@ void Run3App::loadMap(const std::string &mapName) {
 void Run3App::unloadMap(const bool runOnExit) {
   mapMusicStartFrame_.reset();
   legacyNoclip_ = false;
+  if (player_) player_->releasePickedBody();
   std::exception_ptr failure;
   if (sequenceRuntime_) {
     try { sequenceRuntime_->unload(runOnExit); }
@@ -1850,14 +1853,24 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
                event.key == options_.inputBindings.key(InputAction::Use)) {
       const auto hit = player_->useRaycast(pitchRadians_);
       bool handled = false;
+      gameplay::ObjectPickResult pickResult =
+          gameplay::ObjectPickResult::Ignored;
       if (hit && sequenceServices_ && sequenceRuntime_) {
         const auto handle = sequenceServices_->handleForPhysicsEntity(
             hit->metadata.entityId);
         handled = handle && (sequenceRuntime_->interact(*handle) ||
                              (npcSystem_ && npcSystem_->use(*handle)));
       }
+      if (hit && !handled) {
+        pickResult = player_->togglePickedBody(*hit);
+        handled = pickResult != gameplay::ObjectPickResult::Ignored;
+      }
       Ogre::LogManager::getSingleton().logMessage(
-          handled ? "Use activated sequence entity"
+          pickResult == gameplay::ObjectPickResult::Picked
+              ? "Use picked physical object " + std::to_string(hit->body)
+          : pickResult == gameplay::ObjectPickResult::Released
+              ? "Use released physical object " + std::to_string(hit->body)
+          : handled ? "Use activated sequence entity"
           : hit ? "Use ray hit body " + std::to_string(hit->body)
                 : "Use ray missed");
     } else if (player_ && event.type == InputEventType::MousePressed &&

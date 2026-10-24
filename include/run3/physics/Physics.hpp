@@ -295,8 +295,10 @@ public:
 
   [[nodiscard]] std::size_t bodyCount() const noexcept;
   [[nodiscard]] std::size_t constraintCount() const noexcept;
+  [[nodiscard]] bool hasBody(BodyId body) const noexcept;
   [[nodiscard]] StepResult advance(double frameSeconds);
   [[nodiscard]] Transform transform(const BodyHandle &body) const;
+  [[nodiscard]] Transform transform(BodyId body) const;
   [[nodiscard]] Transform
   interpolatedTransform(const BodyHandle &body) const;
   void setTransform(const BodyHandle &body, const Transform &transform);
@@ -306,6 +308,7 @@ public:
   void shiftOrigin(Vec3 offsetGameUnits);
   [[nodiscard]] Vec3 linearVelocity(const BodyHandle &body) const;
   void setLinearVelocity(const BodyHandle &body, Vec3 velocityGameUnits);
+  void setLinearVelocity(BodyId body, Vec3 velocityGameUnits);
   void setGravityEnabled(const BodyHandle &body, bool enabled);
   void setFrozen(const BodyHandle &body, bool frozen);
   void applyCentralForce(const BodyHandle &body, Vec3 forceGameUnits);
@@ -314,6 +317,7 @@ public:
   void setSleepingAllowed(const BodyHandle &body, bool allowed);
   void sleepBody(const BodyHandle &body);
   void wakeBody(const BodyHandle &body);
+  void wakeBody(BodyId body);
   [[nodiscard]] bool isSleeping(const BodyHandle &body) const;
   void setEnabled(const BodyHandle &body, bool enabled);
   [[nodiscard]] bool isEnabled(const BodyHandle &body) const;
@@ -328,6 +332,7 @@ public:
 private:
   explicit PhysicsWorld(std::shared_ptr<detail::PhysicsBackend> backend);
   [[nodiscard]] BodyId checkedBody(const BodyHandle &body) const;
+  [[nodiscard]] BodyId checkedBody(BodyId body) const;
 
   std::shared_ptr<detail::PhysicsBackend> backend_;
 

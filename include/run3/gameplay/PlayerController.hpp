@@ -45,6 +45,8 @@ struct PlayerState {
   bool parented{};
 };
 
+enum class ObjectPickResult { Ignored, Picked, Released };
+
 class PlayerController final {
 public:
   PlayerController(physics::PhysicsWorld &world, PlayerConfig config = {});
@@ -72,6 +74,13 @@ public:
   useRaycast(double pitchRadians = 0.0) const;
   [[nodiscard]] std::optional<physics::RaycastHit>
   weaponRaycast(double pitchRadians = 0.0) const;
+  [[nodiscard]] ObjectPickResult
+  togglePickedBody(const physics::RaycastHit &hit);
+  void updatePickedBody(
+      double pitchRadians = 0.0,
+      double seconds = physics::PhysicsWorld::fixedStepSeconds);
+  void releasePickedBody();
+  [[nodiscard]] physics::BodyId pickedBodyId() const noexcept;
   [[nodiscard]] physics::BodyId bodyId() const noexcept;
 
 private:
@@ -97,6 +106,8 @@ private:
   bool parented_{};
   bool frozen_{};
   bool jumpWasDown_{};
+  physics::BodyId pickedBody_{};
+  physics::Vec3 pickedLocalPivot_{};
 };
 
 struct ReplayFrame {

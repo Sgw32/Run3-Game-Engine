@@ -28,6 +28,47 @@ physics::Vec3 multiply(physics::Vec3 value, double scalar) {
   return {value.x * scalar, value.y * scalar, value.z * scalar};
 }
 
+physics::Vec3 cross(physics::Vec3 first, physics::Vec3 second) {
+  return {first.y * second.z - first.z * second.y,
+          first.z * second.x - first.x * second.z,
+          first.x * second.y - first.y * second.x};
+}
+
+physics::Vec3 rotateInverse(physics::Quaternion rotation,
+                            physics::Vec3 value) {
+  const double length = std::sqrt(
+      rotation.w * rotation.w + rotation.x * rotation.x +
+      rotation.y * rotation.y + rotation.z * rotation.z);
+  if (length <= 1e-12) return value;
+  rotation.w /= length;
+  rotation.x = -rotation.x / length;
+  rotation.y = -rotation.y / length;
+  rotation.z = -rotation.z / length;
+  const physics::Vec3 vector{rotation.x, rotation.y, rotation.z};
+  const physics::Vec3 firstCross = cross(vector, value);
+  return add(value,
+             multiply(add(multiply(firstCross, rotation.w),
+                          cross(vector, firstCross)),
+                      2.0));
+}
+
+physics::Vec3 rotate(physics::Quaternion rotation, physics::Vec3 value) {
+  const double length = std::sqrt(
+      rotation.w * rotation.w + rotation.x * rotation.x +
+      rotation.y * rotation.y + rotation.z * rotation.z);
+  if (length <= 1e-12) return value;
+  rotation.w /= length;
+  rotation.x /= length;
+  rotation.y /= length;
+  rotation.z /= length;
+  const physics::Vec3 vector{rotation.x, rotation.y, rotation.z};
+  const physics::Vec3 firstCross = cross(vector, value);
+  return add(value,
+             multiply(add(multiply(firstCross, rotation.w),
+                          cross(vector, firstCross)),
+                      2.0));
+}
+
 } // namespace
 
 PlayerController::PlayerController(physics::PhysicsWorld &world,
@@ -391,6 +432,75 @@ PlayerController::useRaycast(double pitch) const {
 std::optional<physics::RaycastHit>
 PlayerController::weaponRaycast(double pitch) const {
   return castForward(config_.weaponDistance, pitch);
+}
+
+ObjectPickResult PlayerController::togglePickedBody(
+    const physics::RaycastHit &hit) {
+  const bool pickable =
+      hit.metadata.type == physics::BodyType::PhysicalObject ||
+      hit.metadata.type == physics::BodyType::Breakable;
+  if (!pickable || !world_->hasBody(hit.body)) {
+    return ObjectPickResult::Ignored;
+  }
+  if (pickedBody_ == hit.body) {
+    releasePickedBody();
+    return ObjectPickResult::Released;
+  }
+  releasePickedBody();
+  pickedBody_ = hit.body;
+  const physics::Transform objectTransform = world_->transform(pickedBody_);
+  const physics::Vec3 worldPivot{
+      hit.point.x - objectTransform.position.x,
+      hit.point.y - objectTransform.position.y,
+      hit.point.z - objectTransform.position.z};
+  pickedLocalPivot_ = rotateInverse(objectTransform.rotation, worldPivot);
+  return ObjectPickResult::Picked;
+}
+
+void PlayerController::updatePickedBody(const double pitch,
+                                        const double seconds) {
+  if (pickedBody_ == 0) return;
+  if (!world_->hasBody(pickedBody_)) {
+    pickedBody_ = 0;
+    pickedLocalPivot_ = {};
+    return;
+  }
+  if (!std::isfinite(seconds) || seconds <= 0.0) return;
+  constexpr double holdDistance = 200.0;
+  constexpr double responsePerSecond = 8.0;
+  constexpr double maximumSpeed = 300.0;
+  const physics::Vec3 direction = viewDirection(pitch);
+  const physics::Transform objectTransform = world_->transform(pickedBody_);
+  const physics::Vec3 heldPoint =
+      add(objectTransform.position,
+          rotate(objectTransform.rotation, pickedLocalPivot_));
+  const physics::Vec3 target =
+      add(eyePosition(), multiply(direction, holdDistance));
+  const physics::Vec3 error{target.x - heldPoint.x, target.y - heldPoint.y,
+                            target.z - heldPoint.z};
+  const double response = (1.0 - std::exp(-responsePerSecond * seconds)) /
+                          seconds;
+  physics::Vec3 velocity =
+      add(state().velocity, multiply(error, response));
+  const double speed = std::sqrt(velocity.x * velocity.x +
+                                 velocity.y * velocity.y +
+                                 velocity.z * velocity.z);
+  if (speed > maximumSpeed) {
+    velocity = multiply(velocity, maximumSpeed / speed);
+  }
+  // Only velocity is controlled. The body remains dynamic, so Bullet's
+  // contact solver can stop and slide it along surrounding geometry.
+  world_->setLinearVelocity(pickedBody_, velocity);
+  world_->wakeBody(pickedBody_);
+}
+
+void PlayerController::releasePickedBody() {
+  pickedBody_ = 0;
+  pickedLocalPivot_ = {};
+}
+
+physics::BodyId PlayerController::pickedBodyId() const noexcept {
+  return pickedBody_;
 }
 
 physics::BodyId PlayerController::bodyId() const noexcept { return body_.id(); }

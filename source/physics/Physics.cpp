@@ -249,6 +249,13 @@ BodyId PhysicsWorld::checkedBody(const BodyHandle &body) const {
   return body.id_;
 }
 
+BodyId PhysicsWorld::checkedBody(const BodyId body) const {
+  if (!backend_ || body == 0 || !backend_->hasBody(body)) {
+    throw std::invalid_argument("body id does not belong to this world");
+  }
+  return body;
+}
+
 BodyHandle PhysicsWorld::createBody(const BodyDesc &description) {
   if (!backend_) {
     throw std::logic_error("physics world is not initialized");
@@ -297,6 +304,10 @@ std::size_t PhysicsWorld::constraintCount() const noexcept {
   return backend_ ? backend_->constraintCount() : 0;
 }
 
+bool PhysicsWorld::hasBody(const BodyId body) const noexcept {
+  return backend_ && body != 0 && backend_->hasBody(body);
+}
+
 StepResult PhysicsWorld::advance(double frameSeconds) {
   if (!backend_) {
     throw std::logic_error("physics world is not initialized");
@@ -305,6 +316,10 @@ StepResult PhysicsWorld::advance(double frameSeconds) {
 }
 
 Transform PhysicsWorld::transform(const BodyHandle &body) const {
+  return backend_->transform(checkedBody(body));
+}
+
+Transform PhysicsWorld::transform(const BodyId body) const {
   return backend_->transform(checkedBody(body));
 }
 
@@ -326,6 +341,10 @@ Vec3 PhysicsWorld::linearVelocity(const BodyHandle &body) const {
 }
 
 void PhysicsWorld::setLinearVelocity(const BodyHandle &body, Vec3 velocity) {
+  backend_->setLinearVelocity(checkedBody(body), velocity);
+}
+
+void PhysicsWorld::setLinearVelocity(const BodyId body, Vec3 velocity) {
   backend_->setLinearVelocity(checkedBody(body), velocity);
 }
 
@@ -358,6 +377,10 @@ void PhysicsWorld::sleepBody(const BodyHandle &body) {
 }
 
 void PhysicsWorld::wakeBody(const BodyHandle &body) {
+  backend_->wakeBody(checkedBody(body));
+}
+
+void PhysicsWorld::wakeBody(const BodyId body) {
   backend_->wakeBody(checkedBody(body));
 }
 

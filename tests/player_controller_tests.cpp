@@ -116,6 +116,7 @@ TEST_CASE("static triangle fixture supports and raycasts the player") {
 
 TEST_CASE("modal freeze pins the physical player capsule") {
   PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
+  const auto floor = addFloor(world);
   PlayerController player(world);
   player.spawn({0, 300, 0});
   player.setFrozen(true);
@@ -180,6 +181,49 @@ TEST_CASE("use ray reaches sequence buttons and doors behind trigger volumes") {
   CHECK(player.useRaycast()->metadata.entityId == 322);
   CHECK(triggerHandle.valid());
   CHECK(doorHandle.valid());
+}
+
+TEST_CASE("use toggles a physical object held in front of the player") {
+  PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
+  const auto floor = addFloor(world);
+  PlayerController player(world);
+  player.spawn({0, 100, 0});
+
+  BodyDesc object(Shape::box({20, 20, 20}));
+  object.motion = BodyMotion::Dynamic;
+  object.massKg = 10.0;
+  object.transform.position = {0, 150, -100};
+  object.group = CollisionGroup::Dynamic;
+  object.metadata = {77, run3::physics::BodyType::PhysicalObject, 0};
+  auto objectBody = world.createBody(object);
+  const auto wall = addBox(world, {0, 150, -150}, {100, 1000, 5});
+
+  const auto hit = player.useRaycast();
+  REQUIRE(hit.has_value());
+  CHECK(player.togglePickedBody(*hit) ==
+        run3::gameplay::ObjectPickResult::Picked);
+  CHECK(player.pickedBodyId() == objectBody.id());
+  for (unsigned step = 0; step < 120; ++step) {
+    player.updatePickedBody();
+    static_cast<void>(world.advance(PhysicsWorld::fixedStepSeconds));
+  }
+  const auto held = world.transform(objectBody);
+  INFO("held position=" << held.position.x << "," << held.position.y << ","
+                         << held.position.z);
+  CHECK(held.position.z < -105.0);
+  // The desired grab point is behind the wall at z=-150. A teleport-style
+  // hold would put this 40-unit-wide box through it; the physical hold must
+  // leave the box on the player's side of the contact plane.
+  CHECK(held.position.z > -131.0);
+  CHECK(floor.valid());
+  CHECK(wall.valid());
+
+  CHECK(player.togglePickedBody(*hit) ==
+        run3::gameplay::ObjectPickResult::Released);
+  CHECK(player.pickedBodyId() == 0);
+  const double releasedHeight = world.transform(objectBody).position.y;
+  static_cast<void>(world.advance(PhysicsWorld::fixedStepSeconds));
+  CHECK(world.transform(objectBody).position.y < releasedHeight);
 }
 
 TEST_CASE("player walks runs jumps and remains upright") {

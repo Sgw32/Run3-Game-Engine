@@ -1603,7 +1603,8 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
       Impl::Record *computer = impl_->findKind(name, RuntimeEntityKind::Computer);
       if (computer == nullptr) warnMissing("computer", name);
       else impl_->enterComputer(*computer);
-    } else if (call.name == "logoffComputer" || call.name == "logoff") {
+    } else if (call.name == "logoffComputer" || call.name == "logoff" ||
+               call.name == "shutdown") {
       static_cast<void>(exitComputer());
     } else if (call.name == "setCameraParent") {
       const std::string &name = requireName();

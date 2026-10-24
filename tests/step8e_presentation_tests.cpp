@@ -165,6 +165,46 @@ TEST_CASE("Step 8E computer captures backend-neutral input and exits safely",
   CHECK(fixture.services.count<gameplay::RunRuntimeScript>() == 3);
 }
 
+TEST_CASE("Step 8E Lua shutdown exits the active computer",
+          "[step8e][computer][lua]") {
+  ReadyFixture fixture;
+  fixture.runtime->start();
+  const auto terminal = fixture.registry.findFirst("terminal");
+  REQUIRE(terminal.has_value());
+  REQUIRE(fixture.runtime->interact(*terminal));
+  REQUIRE(fixture.runtime->presentation().computerFocused);
+  REQUIRE(fixture.runtime->presentation().playerFrozen);
+  REQUIRE_FALSE(fixture.runtime->presentation().hudVisible);
+
+  const std::size_t presentationsBefore =
+      fixture.services.count<gameplay::SetComputerPresentation>();
+  scripting::ScriptEngine scripts(
+      {fixture.paths.contentRoot(), fixture.paths.userRoot(), 10000},
+      [&fixture](const scripting::ScriptCall &call) {
+        return fixture.runtime->dispatchScriptCall(call);
+      });
+  REQUIRE_NOTHROW(scripts.executeText("shutdown()", "shutdown-test.lua"));
+
+  CHECK_FALSE(fixture.runtime->presentation().computerFocused);
+  CHECK_FALSE(fixture.runtime->presentation().playerFrozen);
+  CHECK(fixture.runtime->presentation().hudVisible);
+  CHECK(fixture.services.count<gameplay::SetComputerPresentation>() ==
+        presentationsBefore + 1);
+  const auto presentation = std::find_if(
+      fixture.services.commands.rbegin(), fixture.services.commands.rend(),
+      [](const auto &command) {
+        return std::holds_alternative<gameplay::SetComputerPresentation>(
+            command);
+      });
+  REQUIRE(presentation != fixture.services.commands.rend());
+  CHECK_FALSE(
+      std::get<gameplay::SetComputerPresentation>(*presentation).focused);
+
+  // Legacy scripts occasionally call shutdown during cleanup.  Once the
+  // computer is gone, that is an intentional no-op rather than an error.
+  REQUIRE_NOTHROW(scripts.executeText("shutdown()", "shutdown-cleanup.lua"));
+}
+
 TEST_CASE("Step 8E content-proven NPC scheduler control is typed",
           "[step8e][npc]") {
   ReadyFixture fixture;

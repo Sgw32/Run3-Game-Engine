@@ -1116,7 +1116,7 @@ void Run3App::loadMap(const std::string &mapName) {
       worldOptions.horizontalLoadRadiusCm =
           std::stod(value("WorldLoadRadius", "20000"));
       worldOptions.verticalLoadRadiusCm =
-          std::stod(value("WorldVerticalRadius", "3000"));
+          std::stod(value("WorldVerticalRadius", "500"));
       worldOptions.rebaseThresholdCm =
           std::stod(value("WorldRebaseThreshold", "50000"));
       worldOptions.logicalExtentCm =

@@ -65,10 +65,11 @@ loadBlockManifest(const std::filesystem::path &path);
 
 struct BlockCell {
   std::int64_t x{};
+  std::int64_t y{};
   std::int64_t z{};
 
   friend bool operator==(const BlockCell &left, const BlockCell &right) {
-    return left.x == right.x && left.z == right.z;
+    return left.x == right.x && left.y == right.y && left.z == right.z;
   }
 };
 
@@ -76,6 +77,7 @@ struct BlockPlacement {
   BlockCell anchor;
   const BlockDefinition *definition{};
   unsigned widthCells{1};
+  unsigned heightCells{1};
   unsigned depthCells{1};
   // Logical Ogre-space root in centimetres, before floating-origin rebasing.
   physics::Vec3 rootCm;
@@ -100,8 +102,11 @@ private:
   std::size_t originIndex_{};
   std::vector<std::string> styles_;
   std::vector<std::size_t> smallIndices_;
-  std::vector<std::size_t> largeIndices_;
+  // Wider blocks whose east/west sockets remain on the 20 m navigation
+  // lattice. They may replace a complete horizontal corridor segment.
+  std::vector<std::size_t> horizontalFeatureIndices_;
   std::vector<std::size_t> houseIndices_;
+  unsigned maximumHeightCells_{1};
 };
 
 struct SemiInfiniteWorldOptions {
@@ -109,7 +114,9 @@ struct SemiInfiniteWorldOptions {
   std::uint64_t seed{};
   std::string originBlock;
   double horizontalLoadRadiusCm{20000.0};
-  double verticalLoadRadiusCm{3000.0};
+  // Vertical streaming is expressed in the manifest stacking grid. The
+  // default 500 cm loads the current level and one level above and below.
+  double verticalLoadRadiusCm{500.0};
   double rebaseThresholdCm{50000.0};
   // A 100,000,000 cm side is exactly 1,000 km. Logical coordinates are int64,
   // so this can be raised without changing renderer or physics precision.

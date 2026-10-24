@@ -1,4 +1,4 @@
-"""Interactive 2-D inspector for Run3 semi-infinite block worlds.
+"""Interactive layer inspector for Run3 semi-infinite 3-D block worlds.
 
 The generator in this file intentionally mirrors SeededBlockGenerator in
 source/gameplay/SemiInfiniteWorld.cpp. The canvas is virtual: only visible
@@ -51,6 +51,14 @@ def coordinate_hash(seed: int, x: int, z: int, salt: int = 0) -> int:
     return mix64(value)
 
 
+def coordinate_hash3(seed: int, x: int, y: int, z: int, salt: int = 0) -> int:
+    value = coordinate_hash(seed, x, z, salt)
+    if y == 0:
+        return value
+    value ^= mix64(u64(y) + 0xD6E8FEB86659FD93)
+    return mix64(value ^ 0xA5A3564E27F8862B)
+
+
 @dataclass(frozen=True)
 class Port:
     side: str
@@ -78,9 +86,10 @@ class Block:
 
 @dataclass(frozen=True)
 class Placement:
-    anchor: tuple[int, int]
+    anchor: tuple[int, int, int]
     block: Block
     width_cells: int
+    height_cells: int
     depth_cells: int
     root_cm: tuple[float, float, float]
 
@@ -183,7 +192,7 @@ class WorldConfig:
             path.resolve(), seed, manifest.resolve(),
             values.get("WorldOriginBlock", ""),
             float(values.get("WorldLoadRadius", "20000")),
-            float(values.get("WorldVerticalRadius", "3000")),
+            float(values.get("WorldVerticalRadius", "500")),
             int(values.get("WorldExtent", "100000000")),
             int(values.get("WorldLightBudget", "3")),
             config_bool(values.get("WorldTerminators", "true"),
@@ -208,6 +217,9 @@ class SeededWorld:
             if block.dimensions_cm[0] == 4000.0
             and block.dimensions_cm[1] in (2000.0, 6000.0)
             and sides(block) >= {"E", "W"})
+        self.houses = tuple(
+            block for block in live
+            if block.dimensions_cm[:2] == (12000.0, 8000.0))
         if not self.small:
             raise ValueError("manifest needs a four-port 20 metre occupancy block")
         self.tiles = live
@@ -220,57 +232,79 @@ class SeededWorld:
             self.origin = matches[0]
         # C++ std::llround for this positive value is floor(v + 0.5).
         self.biome_span = max(1, math.floor(manifest.biome_scale_cm / STANDARD_CELL_CM + 0.5))
+        self.vertical_biome_span = max(
+            1, math.floor(manifest.biome_scale_cm / manifest.grid_cm + 0.5))
+        self.maximum_height_cells = max(
+            1, *(math.ceil(block.dimensions_cm[2] / manifest.grid_cm)
+                 for block in live))
 
-    def biome(self, x: int, z: int) -> str:
+    def biome(self, x: int, z: int, level: int = 0) -> str:
         coarse_x = x // self.biome_span
+        coarse_y = level // self.vertical_biome_span
         coarse_z = z // self.biome_span
-        index = coordinate_hash(self.seed, coarse_x, coarse_z, BIOME_SALT) % len(self.styles)
+        index = coordinate_hash3(
+            self.seed, coarse_x, coarse_y, coarse_z, BIOME_SALT) % len(self.styles)
         return self.styles[index]
 
-    def block(self, x: int, z: int) -> Block:
-        return self.placement(x, z).block
+    def block(self, x: int, z: int, level: int = 0) -> Block:
+        return self.placement(x, z, level).block
 
-    def _select(self, source: tuple[Block, ...], style: str, x: int, z: int,
+    def _select(self, source: tuple[Block, ...], style: str, x: int, y: int, z: int,
                 salt: int) -> Block:
         choices = tuple(block for block in source if block.style == style) or source
-        return choices[coordinate_hash(self.seed, x, z, salt) % len(choices)]
+        return choices[coordinate_hash3(self.seed, x, y, z, salt) % len(choices)]
 
-    def placement(self, x: int, z: int) -> Placement:
+    def placement(self, x: int, z: int, level: int = 0) -> Placement:
         macro_x, macro_z = x // 6, z // 4
         minimum_x, minimum_z = macro_x * 6, macro_z * 4
-        origin_macro = macro_x == 0 and macro_z == 0
-        use_feature = (not origin_macro and self.horizontal_features and
-                       coordinate_hash(self.seed, macro_x, macro_z,
-                                       OCCUPANCY_SALT) % 8 == 0)
+        house_root_y = ((level + 1) // self.maximum_height_cells *
+                        self.maximum_height_cells - 1)
+        origin_macro = macro_x == 0 and macro_z == 0 and house_root_y == -1
+        use_house = (not origin_macro and self.houses and
+                     coordinate_hash3(self.seed, macro_x, house_root_y, macro_z,
+                                      OCCUPANCY_SALT) % 11 == 0)
+        if use_house:
+            block = self._select(self.houses, "HOUSE70", macro_x, house_root_y,
+                                 macro_z, VARIANT_SALT)
+            house = self._make_placement(
+                minimum_x, house_root_y, minimum_z, block, 6, 4)
+            if level < house_root_y + house.height_cells:
+                return house
+        use_feature = (self.horizontal_features and
+                       coordinate_hash3(self.seed, macro_x, level, macro_z,
+                                        OCCUPANCY_SALT) % 8 == 0)
         if use_feature:
-            right = (coordinate_hash(self.seed, macro_x, macro_z,
-                                     OCCUPANCY_SALT ^ 0x5249474854) & 1) != 0
+            right = (coordinate_hash3(self.seed, macro_x, level, macro_z,
+                                      OCCUPANCY_SALT ^ 0x5249474854) & 1) != 0
             feature_x = 4 if right else 0
             probe_x, probe_z = minimum_x + feature_x, minimum_z + 1
             candidates = tuple(
                 block for block in self.horizontal_features
-                if block.style == self.biome(probe_x, probe_z)
+                if block.style == self.biome(probe_x, probe_z, level)
             ) or self.horizontal_features
             block = candidates[
-                coordinate_hash(self.seed, macro_x, macro_z,
-                                VARIANT_SALT ^ 0x484F52495A) % len(candidates)]
+                coordinate_hash3(self.seed, macro_x, level, macro_z,
+                                 VARIANT_SALT ^ 0x484F52495A) % len(candidates)]
             depth = round(block.dimensions_cm[1] / STANDARD_CELL_CM)
             feature_z = 1 if depth == 1 else 0
             if (feature_x <= x - minimum_x < feature_x + 2 and
                     feature_z <= z - minimum_z < feature_z + depth):
                 return self._make_placement(minimum_x + feature_x,
+                                            level,
                                             minimum_z + feature_z,
                                             block, 2, depth)
-        block = (self.origin if (x, z) == (0, 0) else
-                 self._select(self.small, self.biome(x, z), x, z, VARIANT_SALT))
-        return self._make_placement(x, z, block, 1, 1)
+        block = (self.origin if (x, level, z) == (0, 0, 0) else
+                 self._select(self.small, self.biome(x, z, level),
+                              x, level, z, VARIANT_SALT))
+        return self._make_placement(x, level, z, block, 1, 1)
 
-    @staticmethod
-    def _make_placement(x: int, z: int, block: Block,
+    def _make_placement(self, x: int, y: int, z: int, block: Block,
                         width: int, depth: int) -> Placement:
-        root = ((x + (width - 1) * 0.5) * STANDARD_CELL_CM, 0.0,
+        height = max(1, math.ceil(block.dimensions_cm[2] / self.manifest.grid_cm))
+        root = ((x + (width - 1) * 0.5) * STANDARD_CELL_CM,
+                y * self.manifest.grid_cm,
                 (z + (depth - 1) * 0.5) * STANDARD_CELL_CM)
-        return Placement((x, z), block, width, depth, root)
+        return Placement((x, y, z), block, width, height, depth, root)
 
     @staticmethod
     def _socket(placement: Placement, port: Port) -> tuple[int, int, int, str]:
@@ -283,12 +317,14 @@ class SeededWorld:
         x, y, z, side = self._socket(placement, port)
         opposite = {"N": "S", "S": "N", "E": "W", "W": "E"}[side]
         centre_x = round(x / STANDARD_CELL_CM)
+        centre_y = round(y / self.manifest.grid_cm)
         centre_z = round(z / STANDARD_CELL_CM)
-        candidates: dict[tuple[int, int], Placement] = {}
-        for cell_z in range(centre_z - 4, centre_z + 5):
-            for cell_x in range(centre_x - 4, centre_x + 5):
-                candidate = self.placement(cell_x, cell_z)
-                candidates[candidate.anchor] = candidate
+        candidates: dict[tuple[int, int, int], Placement] = {}
+        for cell_y in range(centre_y - 1, centre_y + 2):
+            for cell_z in range(centre_z - 4, centre_z + 5):
+                for cell_x in range(centre_x - 4, centre_x + 5):
+                    candidate = self.placement(cell_x, cell_z, cell_y)
+                    candidates[candidate.anchor] = candidate
         return any(
             candidate.anchor != placement.anchor and
             any(self._socket(candidate, other) == (x, y, z, opposite)
@@ -296,16 +332,19 @@ class SeededWorld:
             for candidate in candidates.values()
         )
 
-    def inspect(self, x: int, z: int) -> dict[str, object]:
-        placement = self.placement(x, z)
+    def inspect(self, x: int, z: int, level: int = 0) -> dict[str, object]:
+        placement = self.placement(x, z, level)
         block = placement.block
         return {
-            "cell": [x, z],
-            "world_cm": [x * STANDARD_CELL_CM, z * STANDARD_CELL_CM],
-            "world_m": [x * 20, z * 20],
-            "biome": self.biome(x, z),
+            "cell": [x, level, z],
+            "world_cm": [x * STANDARD_CELL_CM,
+                         level * self.manifest.grid_cm,
+                         z * STANDARD_CELL_CM],
+            "world_m": [x * 20, level * self.manifest.grid_cm / 100, z * 20],
+            "biome": self.biome(x, z, level),
             "placement_anchor": list(placement.anchor),
-            "footprint_cells": [placement.width_cells, placement.depth_cells],
+            "volume_cells": [placement.width_cells, placement.height_cells,
+                             placement.depth_cells],
             "root_cm": list(placement.root_cm),
             "block": block.identifier,
             "mesh": block.mesh,
@@ -329,10 +368,12 @@ def create_world(scene: Path, content_root: Path | None = None) -> tuple[WorldCo
     return config, SeededWorld(manifest, config.seed, config.origin_block)
 
 
-def dump_region(world: SeededWorld, centre_x: int, centre_z: int, radius: int) -> None:
+def dump_region(world: SeededWorld, centre_x: int, centre_z: int, radius: int,
+                level: int = 0) -> None:
     result = []
     for z in range(centre_z - radius, centre_z + radius + 1):
-        result.append([world.inspect(x, z) for x in range(centre_x - radius, centre_x + radius + 1)])
+        result.append([world.inspect(x, z, level)
+                       for x in range(centre_x - radius, centre_x + radius + 1)])
     print(json.dumps(result, indent=2))
 
 
@@ -344,26 +385,28 @@ def verify_runtime_vectors(manifest: Manifest) -> None:
         (12, 12): "03_POOLROOMS_20",
         (137, -91): "09_OFFICE_20x20x5",
     }
-    actual = {cell: world.block(*cell).identifier for cell in expected}
+    actual = {cell: world.block(*cell, 0).identifier for cell in expected}
     if actual != expected:
         raise RuntimeError(f"runtime parity vectors failed: {actual!r}")
 
     generated_meshes: set[str] = set()
     for z in range(-40, 41):
         for x in range(-40, 41):
-            placement = world.placement(x, z)
-            anchor_x, anchor_z = placement.anchor
+            placement = world.placement(x, z, 0)
+            anchor_x, anchor_y, anchor_z = placement.anchor
             if not (anchor_x <= x < anchor_x + placement.width_cells and
+                    anchor_y <= 0 < anchor_y + placement.height_cells and
                     anchor_z <= z < anchor_z + placement.depth_cells):
                 raise RuntimeError(
                     f"cell {(x, z)} is outside planned footprint {placement!r}")
-            repeated = world.placement(anchor_x, anchor_z)
+            repeated = world.placement(anchor_x, anchor_z, anchor_y)
             if repeated != placement:
                 raise RuntimeError(
                     f"placement is not stable at anchor {placement.anchor}")
             generated_meshes.add(placement.block.mesh)
     eligible_meshes = {
-        block.mesh for block in world.small + world.horizontal_features
+        block.mesh
+        for block in world.small + world.horizontal_features + world.houses
     }
     if not generated_meshes <= eligible_meshes:
         unexpected = sorted(generated_meshes - eligible_meshes)
@@ -371,6 +414,20 @@ def verify_runtime_vectors(manifest: Manifest) -> None:
     if world.horizontal_features and not (
             generated_meshes & {block.mesh for block in world.horizontal_features}):
         raise RuntimeError("compatible large features are never selected")
+    found_tall = False
+    for z in range(-100, 101):
+        for x in range(-100, 101):
+            placement = world.placement(x, z, -1)
+            if placement.height_cells > 1:
+                bottom = world.placement(x, z, placement.anchor[1])
+                if bottom.anchor != placement.anchor or bottom.block != placement.block:
+                    raise RuntimeError("tall placement does not reserve its volume")
+                found_tall = True
+                break
+        if found_tall:
+            break
+    if world.houses and not found_tall:
+        raise RuntimeError("tall landmarks are never selected")
 
 
 def run_gui(config: WorldConfig, initial_world: SeededWorld,
@@ -403,6 +460,7 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
             self.drag_at: QPoint | None = None
             self.drag_centre = QPointF()
             self.selected = (0, 0)
+            self.level = 0
             self.on_selection = lambda _info: None
             self.setFocusPolicy(Qt.StrongFocus)
             self.setMouseTracking(True)
@@ -411,8 +469,9 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
         def set_world(self, world: SeededWorld, cfg: WorldConfig) -> None:
             self.world, self.config = world, cfg
             self.selected = (0, 0)
+            self.level = 0
             self.centre = QPointF(0.0, 0.0)
-            self.on_selection(world.inspect(0, 0))
+            self.on_selection(world.inspect(0, 0, self.level))
             self.update()
 
         def screen_for_cell(self, x: float, z: float) -> QPointF:
@@ -446,7 +505,7 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
             maximum_cell = (self.config.extent_cm // 2) // int(STANDARD_CELL_CM)
             grid_pen = QPen(QColor(20, 23, 28, 145), 1)
             label_font = QFont("Consolas", 8)
-            placements: dict[tuple[int, int], Placement] = {}
+            placements: dict[tuple[int, int, int], Placement] = {}
             for z in range(minimum_z, maximum_z + 1):
                 for x in range(minimum_x, maximum_x + 1):
                     top_left = self.screen_for_cell(x - 0.5, z - 0.5)
@@ -454,14 +513,14 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
                     if abs(x) > maximum_cell or abs(z) > maximum_cell:
                         painter.fillRect(rect, QColor("#090a0c"))
                         continue
-                    placement = self.world.placement(x, z)
+                    placement = self.world.placement(x, z, self.level)
                     placements[placement.anchor] = placement
                     painter.setPen(grid_pen)
                     painter.drawRect(rect)
             for placement in placements.values():
                 block = placement.block
                 top_left = self.screen_for_cell(placement.anchor[0] - 0.5,
-                                                placement.anchor[1] - 0.5)
+                                                placement.anchor[2] - 0.5)
                 rect = QRectF(top_left.x(), top_left.y(),
                               self.pixels_per_cell * placement.width_cells,
                               self.pixels_per_cell * placement.depth_cells)
@@ -502,9 +561,9 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
             radius = self.config.load_radius_cm / STANDARD_CELL_CM * self.pixels_per_cell
             painter.setPen(QPen(QColor(255, 255, 255, 150), 2, Qt.DashLine))
             painter.drawEllipse(selected, radius, radius)
-            chosen = self.world.placement(*self.selected)
+            chosen = self.world.placement(*self.selected, self.level)
             chosen_top_left = self.screen_for_cell(chosen.anchor[0] - 0.5,
-                                                   chosen.anchor[1] - 0.5)
+                                                   chosen.anchor[2] - 0.5)
             painter.setPen(QPen(QColor("#ffffff"), 3))
             painter.drawRect(QRectF(chosen_top_left.x(), chosen_top_left.y(),
                                     chosen.width_cells * self.pixels_per_cell,
@@ -518,7 +577,7 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
             elif event.button() == Qt.LeftButton:
                 cell = self.cell_for_screen(event.localPos())
                 self.selected = (math.floor(cell.x() + 0.5), math.floor(cell.y() + 0.5))
-                self.on_selection(self.world.inspect(*self.selected))
+                self.on_selection(self.world.inspect(*self.selected, self.level))
                 self.update()
 
         def mouseMoveEvent(self, event) -> None:
@@ -555,10 +614,17 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
                 return
             self.update()
 
-        def jump(self, x: int, z: int) -> None:
+        def jump(self, x: int, z: int, level: int | None = None) -> None:
+            if level is not None:
+                self.level = level
             self.centre = QPointF(float(x), float(z))
             self.selected = (x, z)
-            self.on_selection(self.world.inspect(x, z))
+            self.on_selection(self.world.inspect(x, z, self.level))
+            self.update()
+
+        def set_level(self, level: int) -> None:
+            self.level = level
+            self.on_selection(self.world.inspect(*self.selected, self.level))
             self.update()
 
     class Window(QMainWindow):
@@ -575,15 +641,20 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
             controls = QWidget()
             form = QFormLayout(controls)
             self.seed_edit = QLineEdit(str(cfg.seed))
-            self.x_edit, self.z_edit = QSpinBox(), QSpinBox()
+            self.x_edit, self.y_edit, self.z_edit = QSpinBox(), QSpinBox(), QSpinBox()
             maximum_cell = (cfg.extent_cm // 2) // int(STANDARD_CELL_CM)
             for spin in (self.x_edit, self.z_edit): spin.setRange(-maximum_cell, maximum_cell)
+            maximum_level = (cfg.extent_cm // 2) // world.manifest.grid_cm
+            self.y_edit.setRange(-int(maximum_level), int(maximum_level))
+            self.y_edit.valueChanged.connect(self.canvas.set_level)
             apply_seed = QPushButton("Apply seed")
             apply_seed.clicked.connect(self.apply_seed)
             jump = QPushButton("Jump to cell")
-            jump.clicked.connect(lambda: self.canvas.jump(self.x_edit.value(), self.z_edit.value()))
+            jump.clicked.connect(lambda: self.canvas.jump(
+                self.x_edit.value(), self.z_edit.value(), self.y_edit.value()))
             form.addRow("Seed (uint64)", self.seed_edit)
             form.addRow("Cell X", self.x_edit)
+            form.addRow("Block level Y", self.y_edit)
             form.addRow("Cell Z", self.z_edit)
             form.addRow(apply_seed)
             form.addRow(jump)
@@ -609,10 +680,10 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
             export_action = QAction("Export PNG", self)
             export_action.triggered.connect(self.export_png)
             origin_action = QAction("Go to origin", self)
-            origin_action.triggered.connect(lambda: self.canvas.jump(0, 0))
+            origin_action.triggered.connect(lambda: self.canvas.jump(0, 0, 0))
             toolbar.addActions((open_action, export_action, origin_action))
             self.setStatusBar(QStatusBar())
-            self.show_selection(world.inspect(0, 0))
+            self.show_selection(world.inspect(0, 0, 0))
             self.update_status()
 
         def update_status(self) -> None:
@@ -623,13 +694,18 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
             self.statusBar().showMessage(
                 f"{self.config.path} | {len(self.world.tiles)} runtime tiles | "
                 f"biome span {self.world.biome_span * 20} m | "
-                f"world {self.config.extent_cm / 100000:.0f} km square | "
+                f"level {self.canvas.level} "
+                f"({self.canvas.level * self.world.manifest.grid_cm / 100:g} m) | "
+                f"world {self.config.extent_cm / 100000:.0f} km cube | "
                 f"terminators {'on' if self.config.terminators else 'off'}"
             )
 
         def show_selection(self, info: dict[str, object]) -> None:
             self.x_edit.setValue(info["cell"][0])
-            self.z_edit.setValue(info["cell"][1])
+            self.y_edit.blockSignals(True)
+            self.y_edit.setValue(info["cell"][1])
+            self.y_edit.blockSignals(False)
+            self.z_edit.setValue(info["cell"][2])
             self.details.setPlainText(json.dumps(info, indent=2))
 
         def apply_seed(self) -> None:
@@ -658,6 +734,8 @@ def run_gui(config: WorldConfig, initial_world: SeededWorld,
                 self.seed_edit.setText(str(cfg.seed))
                 maximum = (cfg.extent_cm // 2) // int(STANDARD_CELL_CM)
                 for spin in (self.x_edit, self.z_edit): spin.setRange(-maximum, maximum)
+                maximum_level = (cfg.extent_cm // 2) // world.manifest.grid_cm
+                self.y_edit.setRange(-maximum_level, maximum_level)
                 self.canvas.set_world(world, cfg)
                 self.update_status()
             except Exception as error:
@@ -692,6 +770,8 @@ def arguments(argv: Iterable[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--seed", type=int, help="temporarily override WorldSeed")
     parser.add_argument("--dump", nargs=3, type=int, metavar=("X", "Z", "RADIUS"),
                         help="print a JSON cell region instead of opening Qt")
+    parser.add_argument("--level", type=int, default=0,
+                        help="vertical block level used by --dump")
     parser.add_argument("--self-test", action="store_true",
                         help="verify generator parity, occupancy, and all manifest meshes")
     parser.add_argument("--gui-smoke", action="store_true", help=argparse.SUPPRESS)
@@ -716,7 +796,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             x, z, radius = options.dump
             if radius < 0 or radius > 100:
                 raise ValueError("dump radius must be between 0 and 100")
-            dump_region(world, x, z, radius)
+            dump_region(world, x, z, radius, options.level)
             return 0
         return run_gui(config, world, 250 if options.gui_smoke else 0)
     except Exception as error:

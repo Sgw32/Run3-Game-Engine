@@ -58,6 +58,17 @@ std::uint64_t coordinateHash(const std::uint64_t seed, const std::int64_t x,
   return mix64(value);
 }
 
+std::uint64_t coordinateHash3(const std::uint64_t seed, const std::int64_t x,
+                              const std::int64_t y, const std::int64_t z,
+                              const std::uint64_t salt = 0) noexcept {
+  // Preserve the original level-zero vectors while giving every other level
+  // an independent, deterministic layout.
+  std::uint64_t value = coordinateHash(seed, x, z, salt);
+  if (y == 0) return value;
+  value ^= mix64(static_cast<std::uint64_t>(y) + 0xd6e8feb86659fd93ULL);
+  return mix64(value ^ 0xa5a3564e27f8862bULL);
+}
+
 std::int64_t floorDiv(const std::int64_t value,
                       const std::int64_t divisor) noexcept {
   const std::int64_t quotient = value / divisor;
@@ -95,7 +106,8 @@ physics::Vec3 authoredToOgre(const physics::Vec3 value) {
 
 struct CellHash {
   std::size_t operator()(const BlockCell cell) const noexcept {
-    return static_cast<std::size_t>(coordinateHash(0, cell.x, cell.z));
+    return static_cast<std::size_t>(
+        coordinateHash3(0, cell.x, cell.y, cell.z));
   }
 };
 
@@ -281,27 +293,42 @@ SeededBlockGenerator::SeededBlockGenerator(const BlockManifest &manifest,
                                            const std::uint64_t seed,
                                            std::string originBlock)
     : manifest_(&manifest), seed_(seed) {
+  const auto hasSide = [](const BlockDefinition &block, const BlockSide side) {
+    return std::any_of(block.ports.begin(), block.ports.end(),
+                       [side](const BlockPort &candidate) {
+                         return candidate.side == side;
+                       });
+  };
   for (std::size_t index = 0; index < manifest.blocks.size(); ++index) {
     const BlockDefinition &block = manifest.blocks[index];
     if (block.id == originBlock) originIndex_ = index;
     if (block.termination) continue;
+    maximumHeightCells_ = std::max(
+        maximumHeightCells_, static_cast<unsigned>(std::ceil(
+                                 block.dimensionsCm.z / manifest.gridCm)));
     const bool small = std::abs(block.dimensionsCm.x - 2000.0) < 0.01 &&
                        std::abs(block.dimensionsCm.y - 2000.0) < 0.01;
-    const bool large = std::abs(block.dimensionsCm.x - 4000.0) < 0.01 &&
-                       std::abs(block.dimensionsCm.y - 4000.0) < 0.01;
+    const bool fullSmall = small && hasSide(block, BlockSide::North) &&
+                           hasSide(block, BlockSide::South) &&
+                           hasSide(block, BlockSide::East) &&
+                           hasSide(block, BlockSide::West);
+    const bool horizontalFeature =
+        std::abs(block.dimensionsCm.x - 4000.0) < 0.01 &&
+        (std::abs(block.dimensionsCm.y - 2000.0) < 0.01 ||
+         std::abs(block.dimensionsCm.y - 6000.0) < 0.01) &&
+        hasSide(block, BlockSide::East) && hasSide(block, BlockSide::West);
     const bool house = std::abs(block.dimensionsCm.x - 12000.0) < 0.01 &&
                        std::abs(block.dimensionsCm.y - 8000.0) < 0.01;
-    if (small) smallIndices_.push_back(index);
-    else if (large) largeIndices_.push_back(index);
+    if (fullSmall) smallIndices_.push_back(index);
+    else if (horizontalFeature) horizontalFeatureIndices_.push_back(index);
     else if (house) houseIndices_.push_back(index);
-    if ((small || large) &&
+    if (fullSmall &&
         std::find(styles_.begin(), styles_.end(), block.style) == styles_.end())
       styles_.push_back(block.style);
   }
-  if (smallIndices_.empty() || largeIndices_.empty() || houseIndices_.empty() ||
-      styles_.empty())
+  if (smallIndices_.empty() || styles_.empty())
     throw std::runtime_error(
-        "block manifest needs 20m, 40m and 120x80m occupancy blocks");
+        "block manifest needs a four-port 20 metre occupancy block");
   if (originBlock.empty()) originIndex_ = smallIndices_.front();
   const auto origin = std::find(smallIndices_.begin(), smallIndices_.end(), originIndex_);
   if (origin == smallIndices_.end())
@@ -309,13 +336,17 @@ SeededBlockGenerator::SeededBlockGenerator(const BlockManifest &manifest,
 }
 
 std::string_view SeededBlockGenerator::biomeFor(const BlockCell cell) const {
-  const std::int64_t span = std::max<std::int64_t>(
+  const std::int64_t horizontalSpan = std::max<std::int64_t>(
       1, static_cast<std::int64_t>(std::llround(
              manifest_->biomeScaleCm / standardCellCm)));
-  const std::int64_t coarseX = floorDiv(cell.x, span);
-  const std::int64_t coarseZ = floorDiv(cell.z, span);
-  const auto index = coordinateHash(seed_, coarseX, coarseZ, 0x42494f4d45ULL) %
-                     styles_.size();
+  const std::int64_t verticalSpan = std::max<std::int64_t>(
+      1, static_cast<std::int64_t>(std::llround(
+             manifest_->biomeScaleCm / manifest_->gridCm)));
+  const std::int64_t coarseX = floorDiv(cell.x, horizontalSpan);
+  const std::int64_t coarseY = floorDiv(cell.y, verticalSpan);
+  const std::int64_t coarseZ = floorDiv(cell.z, horizontalSpan);
+  const auto index = coordinateHash3(seed_, coarseX, coarseY, coarseZ,
+                                     0x42494f4d45ULL) % styles_.size();
   return styles_[static_cast<std::size_t>(index)];
 }
 
@@ -332,58 +363,88 @@ BlockPlacement SeededBlockGenerator::placementForCell(const BlockCell cell) cons
   const std::int64_t macroZ = floorDiv(cell.z, macroDepth);
   const std::int64_t macroMinX = macroX * macroWidth;
   const std::int64_t macroMinZ = macroZ * macroDepth;
+  // Shift the vertical bands down by one stacking level. For the current
+  // 4000 cm house on a 500 cm grid this gives roots ...,-9,-1,7,... . The
+  // root at -1 puts the basement on level -1 and its ground exits on level 0.
+  const std::int64_t houseRootY =
+      floorDiv(cell.y + 1, static_cast<std::int64_t>(maximumHeightCells_)) *
+          static_cast<std::int64_t>(maximumHeightCells_) -
+      1;
 
   const auto select = [this](const std::vector<std::size_t> &source,
                              const std::string_view style,
-                             const std::int64_t x, const std::int64_t z,
+                             const std::int64_t x, const std::int64_t y,
+                             const std::int64_t z,
                              const std::uint64_t salt) -> const BlockDefinition * {
     std::vector<std::size_t> choices;
     for (const std::size_t index : source)
       if (manifest_->blocks[index].style == style) choices.push_back(index);
     if (choices.empty()) choices = source;
     const std::size_t selected = static_cast<std::size_t>(
-        coordinateHash(seed_, x, z, salt) % choices.size());
+        coordinateHash3(seed_, x, y, z, salt) % choices.size());
     return &manifest_->blocks[choices[selected]];
   };
-  const auto placement = [](const BlockCell anchor,
-                            const BlockDefinition *definition,
-                            const unsigned width, const unsigned depth) {
+  const auto placement = [this](const BlockCell anchor,
+                                const BlockDefinition *definition,
+                                const unsigned width, const unsigned depth) {
+    const unsigned height = std::max(
+        1U, static_cast<unsigned>(std::ceil(
+                definition->dimensionsCm.z / manifest_->gridCm)));
     return BlockPlacement{
-        anchor, definition, width, depth,
+        anchor, definition, width, height, depth,
         {(static_cast<double>(anchor.x) + (width - 1) * 0.5) * standardCellCm,
-         0.0,
+         static_cast<double>(anchor.y) * manifest_->gridCm,
          (static_cast<double>(anchor.z) + (depth - 1) * 0.5) * standardCellCm}};
   };
 
-  // Keep the origin macro subdivided so the configured origin model is rooted
-  // exactly at logical (0,0). Other macros may be occupied by a whole house.
-  const bool originMacro = macroX == 0 && macroZ == 0;
-  const bool useHouse = !originMacro &&
-      coordinateHash(seed_, macroX, macroZ, occupancySalt) % 11U == 0U;
+  // Tall landmarks are selected only at a shared vertical-band root. Their
+  // complete X/Y/Z volume maps back to one placement, so no independently
+  // generated floor can appear inside a house.
+  const bool originMacro = macroX == 0 && macroZ == 0 && houseRootY == -1;
+  const bool useHouse = !originMacro && !houseIndices_.empty() &&
+      coordinateHash3(seed_, macroX, houseRootY, macroZ, occupancySalt) % 11U == 0U;
   if (useHouse) {
     const BlockDefinition *definition = select(
-        houseIndices_, "HOUSE70", macroX, macroZ, variantSalt);
-    return placement({macroMinX, macroMinZ}, definition, 6, 4);
+        houseIndices_, "HOUSE70", macroX, houseRootY, macroZ, variantSalt);
+    const BlockPlacement house = placement(
+        {macroMinX, houseRootY, macroMinZ}, definition, 6, 4);
+    if (cell.y < houseRootY + static_cast<std::int64_t>(house.heightCells))
+      return house;
   }
 
-  const std::int64_t slotX = floorDiv(cell.x - macroMinX, 2);
-  const std::int64_t slotZ = floorDiv(cell.z - macroMinZ, 2);
-  const BlockCell slotAnchor{macroMinX + slotX * 2,
-                             macroMinZ + slotZ * 2};
-  const std::string_view biome = biomeFor(slotAnchor);
-  const bool useLarge = !originMacro &&
-      coordinateHash(seed_, slotAnchor.x, slotAnchor.z, occupancySalt ^ 0x40ULL) %
-          100U < 48U;
-  if (useLarge) {
-    const BlockDefinition *definition = select(
-        largeIndices_, biome, slotAnchor.x, slotAnchor.z, variantSalt ^ 0x40ULL);
-    return placement(slotAnchor, definition, 2, 2);
+  const std::int64_t localX = cell.x - macroMinX;
+  const std::int64_t localZ = cell.z - macroMinZ;
+  if (!horizontalFeatureIndices_.empty() &&
+      coordinateHash3(seed_, macroX, cell.y, macroZ, occupancySalt) % 8U == 0U) {
+    const bool right =
+        (coordinateHash3(seed_, macroX, cell.y, macroZ,
+                         occupancySalt ^ 0x5249474854ULL) & 1U) != 0;
+    const std::int64_t featureX = right ? 4 : 0;
+    const BlockCell featureProbe{macroMinX + featureX, cell.y, macroMinZ + 1};
+    const std::string_view biome = biomeFor(featureProbe);
+    std::vector<std::size_t> compatible;
+    for (const std::size_t index : horizontalFeatureIndices_)
+      if (manifest_->blocks[index].style == biome) compatible.push_back(index);
+    if (compatible.empty()) compatible = horizontalFeatureIndices_;
+    const BlockDefinition *definition = &manifest_->blocks[compatible[
+        coordinateHash3(seed_, macroX, cell.y, macroZ,
+                        variantSalt ^ 0x484f52495aULL) % compatible.size()]];
+    const unsigned depth = static_cast<unsigned>(
+        std::llround(definition->dimensionsCm.y / standardCellCm));
+    const std::int64_t featureZ = depth == 1 ? 1 : 0;
+    const BlockCell featureAnchor{macroMinX + featureX, cell.y,
+                                  macroMinZ + featureZ};
+    if (localX >= featureX && localX < featureX + 2 &&
+        localZ >= featureZ &&
+        localZ < featureZ + static_cast<std::int64_t>(depth))
+      return placement(featureAnchor, definition, 2, depth);
   }
 
   const BlockDefinition *definition =
-      cell.x == 0 && cell.z == 0
+      cell.x == 0 && cell.y == 0 && cell.z == 0
           ? &manifest_->blocks[originIndex_]
-          : select(smallIndices_, biomeFor(cell), cell.x, cell.z, variantSalt);
+          : select(smallIndices_, biomeFor(cell), cell.x, cell.y, cell.z,
+                   variantSalt);
   return placement(cell, definition, 1, 1);
 }
 
@@ -418,7 +479,10 @@ public:
     Ogre::LogManager::getSingleton().logMessage(
         "Luniverse: seed=" + std::to_string(options_.seed) +
         " active-radius=" + std::to_string(options_.horizontalLoadRadiusCm) +
-        "cm logical-extent=" + std::to_string(options_.logicalExtentCm) +
+        "cm vertical-levels=+/-" + std::to_string(std::max<std::int64_t>(
+            1, static_cast<std::int64_t>(std::ceil(
+                   options_.verticalLoadRadiusCm / manifest_.gridCm)))) +
+        " logical-extent=" + std::to_string(options_.logicalExtentCm) +
         "cm terminators=" + (options_.terminators ? "on" : "off"));
   }
 
@@ -743,14 +807,17 @@ public:
       if (active.definition == nullptr || !active.definition->light.enabled) continue;
       const physics::Vec3 position = localPosition(active.placement.rootCm);
       const double dx = position.x - player.x;
+      const double dy = position.y - player.y;
       const double dz = position.z - player.z;
-      candidates.push_back({dx * dx + dz * dz, cell});
+      candidates.push_back({dx * dx + dy * dy + dz * dz, cell});
     }
     std::sort(candidates.begin(), candidates.end(),
               [](const auto &left, const auto &right) {
                 if (left.first != right.first) return left.first < right.first;
                 if (left.second.x != right.second.x)
                   return left.second.x < right.second.x;
+                if (left.second.y != right.second.y)
+                  return left.second.y < right.second.y;
                 return left.second.z < right.second.z;
               });
     const std::size_t count = std::min(available, candidates.size());
@@ -805,11 +872,13 @@ public:
     for (const BlockDefinition &definition : manifest_.blocks) {
       if (definition.termination) continue;
       BlockPlacement placement;
-      placement.anchor = {fake--, -1000000};
+      placement.anchor = {fake--, -1000000, -1000000};
       placement.definition = &definition;
       placement.rootCm = {};
       placement.widthCells = static_cast<unsigned>(
           std::llround(definition.dimensionsCm.x / standardCellCm));
+      placement.heightCells = static_cast<unsigned>(std::ceil(
+          definition.dimensionsCm.z / manifest_.gridCm));
       placement.depthCells = static_cast<unsigned>(
           std::llround(definition.dimensionsCm.y / standardCellCm));
       createBlock(placement);
@@ -830,16 +899,21 @@ public:
 
   BlockCell centreWithHysteresis(const physics::Vec3 player) const {
     const double globalX = player.x + static_cast<double>(originX_);
+    const double globalY = player.y + static_cast<double>(originY_);
     const double globalZ = player.z + static_cast<double>(originZ_);
     if (!navigationCentre_)
       return {static_cast<std::int64_t>(std::llround(globalX / standardCellCm)),
+              static_cast<std::int64_t>(std::llround(globalY / manifest_.gridCm)),
               static_cast<std::int64_t>(std::llround(globalZ / standardCellCm))};
     BlockCell result = *navigationCentre_;
-    constexpr double threshold = standardCellCm * 0.70;
-    while (globalX - result.x * standardCellCm > threshold) ++result.x;
-    while (globalX - result.x * standardCellCm < -threshold) --result.x;
-    while (globalZ - result.z * standardCellCm > threshold) ++result.z;
-    while (globalZ - result.z * standardCellCm < -threshold) --result.z;
+    constexpr double horizontalThreshold = standardCellCm * 0.70;
+    const double verticalThreshold = manifest_.gridCm * 0.70;
+    while (globalX - result.x * standardCellCm > horizontalThreshold) ++result.x;
+    while (globalX - result.x * standardCellCm < -horizontalThreshold) --result.x;
+    while (globalY - result.y * manifest_.gridCm > verticalThreshold) ++result.y;
+    while (globalY - result.y * manifest_.gridCm < -verticalThreshold) --result.y;
+    while (globalZ - result.z * standardCellCm > horizontalThreshold) ++result.z;
+    while (globalZ - result.z * standardCellCm < -horizontalThreshold) --result.z;
     return result;
   }
 
@@ -848,24 +922,40 @@ public:
     plan.centre = centre;
     const std::int64_t radius = static_cast<std::int64_t>(
         std::ceil(options_.horizontalLoadRadiusCm / standardCellCm));
-    const std::int64_t maximumCell =
+    const std::int64_t verticalRadius = std::max<std::int64_t>(
+        1, static_cast<std::int64_t>(
+               std::ceil(options_.verticalLoadRadiusCm / manifest_.gridCm)));
+    const std::int64_t maximumHorizontalCell =
         (options_.logicalExtentCm / 2) / static_cast<std::int64_t>(standardCellCm);
-    for (std::int64_t x = centre.x - radius; x <= centre.x + radius; ++x) {
-      for (std::int64_t z = centre.z - radius; z <= centre.z + radius; ++z) {
-        if (std::abs(x) > maximumCell || std::abs(z) > maximumCell) continue;
-        const double dx = static_cast<double>(x - centre.x) * standardCellCm;
-        const double dz = static_cast<double>(z - centre.z) * standardCellCm;
-        if (dx * dx + dz * dz <=
-            options_.horizontalLoadRadiusCm * options_.horizontalLoadRadiusCm) {
-          const BlockPlacement placement = generator_.placementForCell({x, z});
+    const std::int64_t maximumVerticalCell =
+        (options_.logicalExtentCm / 2) /
+        static_cast<std::int64_t>(manifest_.gridCm);
+    for (std::int64_t y = centre.y - verticalRadius;
+         y <= centre.y + verticalRadius; ++y) {
+      if (std::abs(y) > maximumVerticalCell) continue;
+      for (std::int64_t x = centre.x - radius; x <= centre.x + radius; ++x) {
+        for (std::int64_t z = centre.z - radius; z <= centre.z + radius; ++z) {
+          if (std::abs(x) > maximumHorizontalCell ||
+              std::abs(z) > maximumHorizontalCell)
+            continue;
+          const double dx = static_cast<double>(x - centre.x) * standardCellCm;
+          const double dz = static_cast<double>(z - centre.z) * standardCellCm;
+          if (dx * dx + dz * dz >
+              options_.horizontalLoadRadiusCm * options_.horizontalLoadRadiusCm)
+            continue;
+          const BlockPlacement placement = generator_.placementForCell({x, y, z});
           const std::int64_t maximumX = placement.anchor.x +
               static_cast<std::int64_t>(placement.widthCells) - 1;
+          const std::int64_t maximumY = placement.anchor.y +
+              static_cast<std::int64_t>(placement.heightCells) - 1;
           const std::int64_t maximumZ = placement.anchor.z +
               static_cast<std::int64_t>(placement.depthCells) - 1;
-          if (std::abs(placement.anchor.x) <= maximumCell &&
-              std::abs(placement.anchor.z) <= maximumCell &&
-              std::abs(maximumX) <= maximumCell &&
-              std::abs(maximumZ) <= maximumCell)
+          if (std::abs(placement.anchor.x) <= maximumHorizontalCell &&
+              std::abs(placement.anchor.y) <= maximumVerticalCell &&
+              std::abs(placement.anchor.z) <= maximumHorizontalCell &&
+              std::abs(maximumX) <= maximumHorizontalCell &&
+              std::abs(maximumY) <= maximumVerticalCell &&
+              std::abs(maximumZ) <= maximumHorizontalCell)
             plan.blocks.emplace(placement.anchor, placement);
         }
       }
@@ -924,7 +1014,11 @@ public:
       const auto dl = std::abs(left.x - centre.x) + std::abs(left.z - centre.z);
       const auto dr = std::abs(right.x - centre.x) + std::abs(right.z - centre.z);
       if (dl != dr) return dl < dr;
+      const auto dyl = std::abs(left.y - centre.y);
+      const auto dyr = std::abs(right.y - centre.y);
+      if (dyl != dyr) return dyl < dyr;
       if (left.x != right.x) return left.x < right.x;
+      if (left.y != right.y) return left.y < right.y;
       return left.z < right.z;
     });
     for (const BlockCell cell : missing) createBlock(plan.blocks.at(cell));
@@ -946,6 +1040,7 @@ public:
     stats_.originXcm = originX_; stats_.originYcm = originY_; stats_.originZcm = originZ_;
     Ogre::LogManager::getSingleton().logMessage(
         "Luniverse stream: cell=" + std::to_string(plan.centre.x) + "," +
+        std::to_string(plan.centre.y) + "," +
         std::to_string(plan.centre.z) + " blocks=" + std::to_string(active_.size()) +
         " terminators=" + std::to_string(terminations_.size()) +
         " lights=" + std::to_string(activeLightCount_) +

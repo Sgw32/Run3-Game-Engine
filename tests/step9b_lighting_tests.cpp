@@ -6,6 +6,7 @@
 #include <run3/gameplay/LegacyMaterialCatalog.hpp>
 #include <run3/gameplay/SemiInfiniteWorld.hpp>
 #include <limits>
+#include <optional>
 #include <set>
 
 using namespace run3;
@@ -162,15 +163,15 @@ TEST_CASE("Luniverse manifest and seeded biome tiles are deterministic") {
                                               "01_BACKROOMS_20");
   const gameplay::SeededBlockGenerator second(manifest,0x123456789abcdef0ULL,
                                                "01_BACKROOMS_20");
-  CHECK(first.blockFor({0,0}).id=="01_BACKROOMS_20");
-  CHECK(first.blockFor({137,-91}).id==second.blockFor({137,-91}).id);
+  CHECK(first.blockFor({0,0,0}).id=="01_BACKROOMS_20");
+  CHECK(first.blockFor({137,0,-91}).id==second.blockFor({137,0,-91}).id);
   // These fixed vectors are also consumed by tools/luniverse_map_viewer.py's
   // uint64 generator and prevent the editor and runtime algorithms drifting.
-  CHECK(first.blockFor({-1,0}).id=="15_WOODROOMS_20x20x5");
-  CHECK(first.blockFor({12,12}).id=="03_POOLROOMS_20");
-  CHECK(first.blockFor({137,-91}).id=="09_OFFICE_20x20x5");
-  CHECK(first.biomeFor({1,1})==first.biomeFor({2,2}));
-  const auto &tile=first.blockFor({0,0});
+  CHECK(first.blockFor({-1,0,0}).id=="15_WOODROOMS_20x20x5");
+  CHECK(first.blockFor({12,0,12}).id=="03_POOLROOMS_20");
+  CHECK(first.blockFor({137,0,-91}).id=="09_OFFICE_20x20x5");
+  CHECK(first.biomeFor({1,0,1})==first.biomeFor({2,0,2}));
+  const auto &tile=first.blockFor({0,0,0});
   CHECK(tile.dimensionsCm.x==2000);
   CHECK(tile.dimensionsCm.y==2000);
   CHECK(tile.ports.size()==4);
@@ -202,13 +203,16 @@ TEST_CASE("Luniverse manifest and seeded biome tiles are deterministic") {
 
   std::set<std::string> generatedMeshes;
   bool foundCompatibleLargeFeature=false;
+  std::optional<gameplay::BlockPlacement> visibleHouse;
   for(std::int64_t z=-40;z<=40;++z) {
     for(std::int64_t x=-40;x<=40;++x) {
-      const auto placement=first.placementForCell({x,z});
+      const auto placement=first.placementForCell({x,0,z});
       REQUIRE(placement.definition!=nullptr);
       CHECK(x>=placement.anchor.x);
+      CHECK(0>=placement.anchor.y);
       CHECK(z>=placement.anchor.z);
       CHECK(x<placement.anchor.x+placement.widthCells);
+      CHECK(0<placement.anchor.y+placement.heightCells);
       CHECK(z<placement.anchor.z+placement.depthCells);
       const auto repeated=first.placementForCell(placement.anchor);
       CHECK(repeated.definition->id==placement.definition->id);
@@ -220,12 +224,49 @@ TEST_CASE("Luniverse manifest and seeded biome tiles are deterministic") {
          (placement.depthCells==1 || placement.depthCells==3))
         foundCompatibleLargeFeature=true;
       CHECK_FALSE((placement.widthCells==2 && placement.depthCells==2));
-      CHECK_FALSE((placement.widthCells==6 && placement.depthCells==4));
+      if(placement.widthCells==6 && placement.depthCells==4)
+        visibleHouse=placement;
       generatedMeshes.insert(placement.definition->mesh);
     }
   }
   CHECK(foundCompatibleLargeFeature);
   CHECK(generatedMeshes.size()>=5);
+  REQUIRE(visibleHouse);
+  CHECK(visibleHouse->anchor.y==-1);
+  CHECK(visibleHouse->heightCells==8);
+  const auto houseAtBasement=first.placementForCell(
+      {visibleHouse->anchor.x,-1,visibleHouse->anchor.z});
+  const auto houseAtGround=first.placementForCell(
+      {visibleHouse->anchor.x,0,visibleHouse->anchor.z});
+  const auto houseAboveGround=first.placementForCell(
+      {visibleHouse->anchor.x,1,visibleHouse->anchor.z});
+  CHECK(houseAtBasement.anchor==visibleHouse->anchor);
+  CHECK(houseAtGround.anchor==visibleHouse->anchor);
+  CHECK(houseAboveGround.anchor==visibleHouse->anchor);
+  CHECK(houseAtGround.definition->id==visibleHouse->definition->id);
+  CHECK(houseAboveGround.definition->id==visibleHouse->definition->id);
+
+  // Vertical layouts are deterministic and use the manifest's 500 cm stack
+  // grid. A tall landmark owns every level through its declared height.
+  const auto upper=first.placementForCell({7,1,9});
+  CHECK(upper.rootCm.y==Catch::Approx(
+      upper.anchor.y*static_cast<double>(manifest.gridCm)));
+  CHECK(upper.definition->id==second.placementForCell({7,1,9}).definition->id);
+  bool foundTallVolume=false;
+  for(std::int64_t z=-100;z<=100 && !foundTallVolume;++z) {
+    for(std::int64_t x=-100;x<=100 && !foundTallVolume;++x) {
+      const auto occupied=first.placementForCell({x,-1,z});
+      if(occupied.heightCells<=1) continue;
+      CHECK(occupied.anchor.y<=-1);
+      CHECK(-1<occupied.anchor.y+occupied.heightCells);
+      const auto bottom=first.placementForCell(
+          {x,occupied.anchor.y,z});
+      CHECK(bottom.anchor==occupied.anchor);
+      CHECK(bottom.definition->id==occupied.definition->id);
+      foundTallVolume=true;
+    }
+  }
+  CHECK(foundTallVolume);
 
   const auto findPort=[](const gameplay::BlockPlacement &placement,
                          gameplay::BlockSide side) {
@@ -248,9 +289,14 @@ TEST_CASE("Luniverse manifest and seeded biome tiles are deterministic") {
     const std::int64_t z=macroZ*4+1;
     std::int64_t x=-48;
     while(x<48) {
-      const auto left=first.placementForCell({x,z});
+      const auto left=first.placementForCell({x,0,z});
       const std::int64_t nextX=left.anchor.x+left.widthCells;
-      const auto right=first.placementForCell({nextX,z});
+      const auto right=first.placementForCell({nextX,0,z});
+      if(left.widthCells==6 || right.widthCells==6) {
+        x=std::max(nextX,right.anchor.x+
+            static_cast<std::int64_t>(right.widthCells));
+        continue;
+      }
       const auto east=findPort(left,gameplay::BlockSide::East);
       const auto west=findPort(right,gameplay::BlockSide::West);
       REQUIRE(east!=left.definition->ports.end());
@@ -268,8 +314,9 @@ TEST_CASE("Luniverse manifest and seeded biome tiles are deterministic") {
   for(std::int64_t macroX=-8;macroX<=8;++macroX) {
     const std::int64_t x=macroX*6+2;
     for(std::int64_t z=-32;z<32;++z) {
-      const auto near=first.placementForCell({x,z});
-      const auto far=first.placementForCell({x,z+1});
+      const auto near=first.placementForCell({x,0,z});
+      const auto far=first.placementForCell({x,0,z+1});
+      if(near.widthCells==6 || far.widthCells==6) continue;
       const auto south=findPort(near,gameplay::BlockSide::South);
       const auto north=findPort(far,gameplay::BlockSide::North);
       REQUIRE(south!=near.definition->ports.end());

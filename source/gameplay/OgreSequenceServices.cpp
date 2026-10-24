@@ -467,6 +467,7 @@ public:
     root = sceneManager->getRootSceneNode()->createChildSceneNode(
         "Run3Step8CSequenceRoot");
     setHudVisible(true);
+    setGameplayCursorVisible(true);
   }
 
   ~Impl() { destroyAll(); }
@@ -1225,6 +1226,11 @@ public:
 
   void setHudVisible(const bool visible) {
     ui->setHudVisible(visible);
+  }
+
+  void setGameplayCursorVisible(const bool visible) noexcept {
+    if (gameplayCursorVisible == visible && crosshairOverlay != nullptr) return;
+    gameplayCursorVisible = visible;
     try {
       if (crosshairOverlay == nullptr) {
         if (Ogre::OverlayManager::getSingleton().getByName(
@@ -1244,11 +1250,13 @@ public:
         throw std::runtime_error(
             "legacy Run3/CrosshairO overlay was not created");
       }
-      if (visible) crosshairOverlay->show();
+      if (gameplayCursorVisible) crosshairOverlay->show();
       else crosshairOverlay->hide();
     } catch (const std::exception &error) {
       log("warning: crosshair overlay unavailable: " +
           std::string(error.what()));
+    } catch (...) {
+      log("warning: crosshair overlay unavailable: unknown error");
     }
   }
 
@@ -1858,6 +1866,7 @@ public:
   Ogre::Overlay *gameTextOverlay{};
   Ogre::OverlayElement *gameTextElement{};
   Ogre::Overlay *crosshairOverlay{};
+  bool gameplayCursorVisible{true};
   double gameTextSeconds{};
   bool gameTextTyped{};
   std::string gameTextTypedValue;
@@ -1908,6 +1917,10 @@ bool OgreSequenceServices::flashlightEnabled() const noexcept {
 }
 bool OgreSequenceServices::flashlightAllowed() const noexcept {
   return impl_->flashlightAllowed;
+}
+void OgreSequenceServices::setGameplayCursorVisible(
+    const bool visible) noexcept {
+  impl_->setGameplayCursorVisible(visible);
 }
 void OgreSequenceServices::updateAudio(float seconds) {
   impl_->oneShots.update(seconds);

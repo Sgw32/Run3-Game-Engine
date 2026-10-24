@@ -83,6 +83,10 @@ public:
   void setFlashlightAllowed(bool allowed);
   [[nodiscard]] bool flashlightEnabled() const noexcept;
   [[nodiscard]] bool flashlightAllowed() const noexcept;
+  // The aiming cursor is gameplay state, not part of the authored HUD panel.
+  // Menus, inventory, computers and cutscenes suppress it independently of
+  // legacy HUDHide/HUDShow commands.
+  void setGameplayCursorVisible(bool visible) noexcept;
   void updateAudio(float seconds);
   void submit(const GameCommand &command) override;
   void setComputerPresentation(

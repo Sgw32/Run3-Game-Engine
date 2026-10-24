@@ -1030,6 +1030,10 @@ int Run3App::run() {
         if (debugOverlayPage_ != 0U) updateDebugOverlay();
         ui_->update(static_cast<float>(frame.elapsed.count()));
       }
+      // UI state can also be changed by Lua during the fixed update, without
+      // producing an input event. Keep capture and the gameplay crosshair in
+      // sync before every rendered frame.
+      refreshMouseCapture();
       updatePhysicsDebugDraw();
       if (lighting_) lighting_->update(static_cast<double>(renderedFrames_) / 60.0);
       // Native Ogre computer overlays are rendered into their isolated RTT
@@ -2191,10 +2195,17 @@ void Run3App::handleMenuAction(const ui::MenuAction &action) {
 }
 
 void Run3App::refreshMouseCapture() {
+  const bool uiObscuresGameplay = ui_ != nullptr &&
+      (ui_->menuVisible() || ui_->computerActive() ||
+       ui_->inventoryVisible() || ui_->consoleVisible());
+  const bool cutsceneActive = sequenceRuntime_ != nullptr &&
+      !sequenceRuntime_->presentation().activeCutscene.empty();
+  if (sequenceServices_ != nullptr) {
+    sequenceServices_->setGameplayCursorVisible(
+        player_ != nullptr && !uiObscuresGameplay && !cutsceneActive);
+  }
   const bool capture = player_ != nullptr && options_.frameLimit == 0 &&
-                       ui_ != nullptr && !ui_->menuVisible() &&
-                       !ui_->computerActive() && !ui_->inventoryVisible() &&
-                       !ui_->consoleVisible();
+                       ui_ != nullptr && !uiObscuresGameplay;
   if (capture != gameplayMouseCapture_) setGameplayMouseCapture(capture);
 }
 

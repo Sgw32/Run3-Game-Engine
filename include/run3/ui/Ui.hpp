@@ -81,8 +81,8 @@ public:
 class IButtonGuiFacade {
 public:
   virtual ~IButtonGuiFacade() = default;
-  virtual void activate(int layoutMode) = 0;
-  virtual void deactivate() noexcept = 0;
+  virtual void activateLayoutMode(int layoutMode) = 0;
+  virtual void deactivateLayoutMode() noexcept = 0;
   virtual void clear() noexcept = 0;
   [[nodiscard]] virtual std::string createButton(
       std::string name, std::string material, Rect rect, bool dummy,

@@ -88,8 +88,8 @@ public:
   }
   std::size_t callbacks() const noexcept { return registry_.callbackCount(); }
 
-  void activate(int) override {}
-  void deactivate() noexcept override {}
+  void activateLayoutMode(int) override {}
+  void deactivateLayoutMode() noexcept override {}
   void clear() noexcept override {
     for (const auto handle : legacy_) {
       try { destroyWidget(handle); } catch (...) {}
@@ -167,6 +167,32 @@ TEST_CASE("Step 9A layout covers required aspect ratios and high DPI",
   CHECK(classic.offsetY > 0.0F);
   CHECK(dpi.scale == 2.0F);
   CHECK_THROWS(run3::ui::calculateLayout(0, 720, 1.0F));
+}
+
+TEST_CASE("Step 9A computer buttonGUI preserves its 512-square contract",
+          "[step9a][ui][layout][button-gui]") {
+  const run3::ui::Rect raw = run3::ui::transformLegacyButtonRect(
+      {0, 0, 512, 512}, 0, true, 512, 512);
+  CHECK(raw.left == 0.0F);
+  CHECK(raw.top == 0.0F);
+  CHECK(raw.width == 512.0F);
+  CHECK(raw.height == 512.0F);
+
+  for (const int layoutMode : {1, 2, 3}) {
+    const run3::ui::Rect scaled = run3::ui::transformLegacyButtonRect(
+        {0, 0, 640, 480}, layoutMode, true, 512, 512);
+    CHECK(scaled.left == 0.0F);
+    CHECK(scaled.top == 0.0F);
+    CHECK(scaled.width == 512.0F);
+    CHECK(scaled.height == 512.0F);
+  }
+
+  const run3::ui::Rect centered = run3::ui::transformLegacyButtonRect(
+      {0, 0, 640, 480}, 1, false, 1920, 1080);
+  CHECK(centered.left == 640.0F);
+  CHECK(centered.top == 300.0F);
+  CHECK(centered.width == 640.0F);
+  CHECK(centered.height == 480.0F);
 }
 
 TEST_CASE("Step 9A typed MyGUI Lua facade is snapshotted and bounded",

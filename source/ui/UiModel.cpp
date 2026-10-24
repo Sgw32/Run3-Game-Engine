@@ -257,4 +257,33 @@ ScaledLayout calculateLayout(const unsigned width, const unsigned height,
           static_cast<unsigned>(logicalHeight)};
 }
 
+Rect transformLegacyButtonRect(Rect rect, const int layoutMode,
+                               const bool renderToTexture,
+                               const float targetWidth,
+                               const float targetHeight) noexcept {
+  if (layoutMode == 0) return rect;
+  if (renderToTexture) {
+    rect.left *= targetWidth / 640.0F;
+    rect.top *= targetHeight / 480.0F;
+    rect.width *= targetWidth / 640.0F;
+    rect.height *= targetHeight / 480.0F;
+    return rect;
+  }
+  if (layoutMode == 1) {
+    rect.left += targetWidth * 0.5F - 320.0F;
+    rect.top += targetHeight * 0.5F - 240.0F;
+  } else if (layoutMode == 2) {
+    rect.left *= targetWidth / 640.0F;
+    rect.top *= targetHeight / 480.0F;
+    rect.width *= targetWidth / 640.0F;
+    rect.height *= targetHeight / 480.0F;
+  } else if (layoutMode == 3) {
+    rect.left *= 512.0F / 640.0F;
+    rect.top *= 512.0F / 480.0F;
+    rect.width *= 512.0F / 640.0F;
+    rect.height *= 512.0F / 480.0F;
+  }
+  return rect;
+}
+
 } // namespace run3::ui

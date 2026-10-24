@@ -1,4 +1,5 @@
 #include <run3/ui/OgreButtonGui.hpp>
+#include <run3/ui/UiModel.hpp>
 
 #include "buttonGUI.h"
 
@@ -24,6 +25,9 @@
 
 namespace run3::ui {
 namespace {
+
+constexpr float computerSurfaceWidth = 512.0F;
+constexpr float computerSurfaceHeight = 512.0F;
 
 short pixel(const float value) {
   const float bounded = std::clamp(
@@ -53,10 +57,10 @@ public:
     if (renderToTexture_ && window_->getWidth() != 0 &&
         window_->getHeight() != 0) {
       mapped.x = static_cast<int>(std::lround(
-          static_cast<double>(event.x) * 1024.0 /
+          static_cast<double>(event.x) * computerSurfaceWidth /
           static_cast<double>(window_->getWidth())));
       mapped.y = static_cast<int>(std::lround(
-          static_cast<double>(event.y) * 768.0 /
+          static_cast<double>(event.y) * computerSurfaceHeight /
           static_cast<double>(window_->getHeight())));
     }
     switch (mapped.type) {
@@ -108,9 +112,9 @@ public:
   void resize() override {
     if (manager_) manager_->resetScreenResolution();
     if (backgroundPanel_) {
-      const Ogre::Real width = renderToTexture_ ? 1024.0F
+      const Ogre::Real width = renderToTexture_ ? computerSurfaceWidth
                                                 : window_->getWidth();
-      const Ogre::Real height = renderToTexture_ ? 768.0F
+      const Ogre::Real height = renderToTexture_ ? computerSurfaceHeight
                                                  : window_->getHeight();
       backgroundPanel_->setDimensions(width, height);
     }
@@ -120,10 +124,9 @@ public:
     shutdown();
     mode_ = Mode::Computer;
     renderToTexture_ = renderToTexture;
-    // Legacy computer scripts author their complete interface against a
-    // 640x480 canvas. Use that convention by default even when an old script
-    // omits buttonGUI_activateTopLeft640().
-    layoutMode_ = 2;
+    // With no explicit layout mode the original API uses raw target pixels.
+    // The authored in-world monitor target is 512x512.
+    layoutMode_ = 0;
     createManager();
 
     Ogre::OverlayManager &overlays = Ogre::OverlayManager::getSingleton();
@@ -133,8 +136,9 @@ public:
         overlays.createOverlayElement("Panel", "Run3ComputerButtonGuiBackgroundPanel"));
     backgroundPanel_->setMetricsMode(Ogre::GMM_PIXELS);
     backgroundPanel_->setPosition(0, 0);
-    backgroundPanel_->setDimensions(renderToTexture_ ? 1024.0F : window_->getWidth(),
-                                    renderToTexture_ ? 768.0F : window_->getHeight());
+    backgroundPanel_->setDimensions(
+        renderToTexture_ ? computerSurfaceWidth : window_->getWidth(),
+        renderToTexture_ ? computerSurfaceHeight : window_->getHeight());
     backgroundPanel_->setMaterialName(
         "Run3/BlackMat",
         Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
@@ -142,7 +146,8 @@ public:
         overlays.createOverlayElement("TextArea", "Run3ComputerDisplayText"));
     displayText_->setMetricsMode(Ogre::GMM_PIXELS);
     displayText_->setPosition(18, 18);
-    displayText_->setDimensions(988, 732);
+    displayText_->setDimensions(renderToTexture_ ? 476.0F : 988.0F,
+                                renderToTexture_ ? 476.0F : 732.0F);
     Ogre::FontPtr displayFont = Ogre::FontManager::getSingleton().getByName(
         "Run3ComputerDisplayFont",
         Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
@@ -221,7 +226,8 @@ public:
     } else if (command == "dSetFontSize" && !arguments.empty()) {
       try {
         float size = std::stof(arguments.front());
-        if (size <= 1.0F) size *= 768.0F;
+        if (size <= 1.0F)
+          size *= renderToTexture_ ? computerSurfaceHeight : 768.0F;
         displayText_->setCharHeight(std::clamp(size, 1.0F, 96.0F));
       } catch (...) {}
     } else if (command == "dSetFont" && !arguments.empty()) {
@@ -237,9 +243,11 @@ public:
         const float top = std::stof(arguments[1]);
         const float right = std::stof(arguments[2]);
         const float bottom = std::stof(arguments[3]);
-        displayText_->setPosition(left * 1024.0F, top * 768.0F);
-        displayText_->setDimensions(std::max(1.0F, (right - left) * 1024.0F),
-                                    std::max(1.0F, (bottom - top) * 768.0F));
+        const float width = canvasWidth();
+        const float height = canvasHeight();
+        displayText_->setPosition(left * width, top * height);
+        displayText_->setDimensions(std::max(1.0F, (right - left) * width),
+                                    std::max(1.0F, (bottom - top) * height));
       } catch (...) {}
     }
     while (computerLines_.size() > computerMaxLines_)
@@ -263,11 +271,11 @@ public:
 
   bool hasContent() const noexcept override { return hasContent_; }
 
-  void activate(const int layoutMode) override {
+  void activateLayoutMode(const int layoutMode) override {
     layoutMode_ = layoutMode;
     configureCursor();
   }
-  void deactivate() noexcept override { layoutMode_ = 0; }
+  void deactivateLayoutMode() noexcept override { layoutMode_ = 0; }
 
   void clear() noexcept override {
     callbacks_.clear();
@@ -374,8 +382,12 @@ private:
     manager_ = std::make_unique<buttonGUI::buttonManager>(
         "darkInput", text, sceneManager_, cameraName_, window_);
     configureCursor();
-    mouseX_ = renderToTexture_ ? 512 : static_cast<int>(window_->getWidth() / 2);
-    mouseY_ = renderToTexture_ ? 384 : static_cast<int>(window_->getHeight() / 2);
+    mouseX_ = renderToTexture_
+        ? static_cast<int>(computerSurfaceWidth / 2.0F)
+        : static_cast<int>(window_->getWidth() / 2);
+    mouseY_ = renderToTexture_
+        ? static_cast<int>(computerSurfaceHeight / 2.0F)
+        : static_cast<int>(window_->getHeight() / 2);
     static_cast<void>(manager_->injectMouseMove(mouseX_, mouseY_));
     if (renderToTexture_) manager_->setOverlayVisibility(false);
   }
@@ -407,46 +419,29 @@ private:
     mode_ = Mode::None;
   }
   void transformPosition(Rect &rect) const {
-    const float width = canvasWidth();
-    const float height = canvasHeight();
-    if (layoutMode_ == 1) {
-      rect.left += width * 0.5F - 320.0F;
-      rect.top += height * 0.5F - 240.0F;
-    } else if (usesScaled640Canvas()) {
-      rect.left *= width / 640.0F;
-      rect.top *= height / 480.0F;
-    } else if (layoutMode_ == 3) {
-      rect.left *= 512.0F / 640.0F;
-      rect.top *= 512.0F / 480.0F;
-    }
+    const Rect transformed = transformLegacyButtonRect(
+        rect, layoutMode_, renderToTexture_, canvasWidth(), canvasHeight());
+    rect.left = transformed.left;
+    rect.top = transformed.top;
   }
 
   void transform(Rect &rect) const {
-    transformPosition(rect);
-    if (usesScaled640Canvas()) {
-      rect.width *= canvasWidth() / 640.0F;
-      rect.height *= canvasHeight() / 480.0F;
-    } else if (layoutMode_ == 3) {
-      rect.width *= 512.0F / 640.0F;
-      rect.height *= 512.0F / 480.0F;
-    }
+    rect = transformLegacyButtonRect(rect, layoutMode_, renderToTexture_,
+                                     canvasWidth(), canvasHeight());
   }
 
   [[nodiscard]] float canvasWidth() const noexcept {
-    return renderToTexture_ ? 1024.0F
+    return renderToTexture_ ? computerSurfaceWidth
                             : static_cast<float>(window_->getWidth());
   }
 
   [[nodiscard]] float canvasHeight() const noexcept {
-    return renderToTexture_ ? 768.0F
+    return renderToTexture_ ? computerSurfaceHeight
                             : static_cast<float>(window_->getHeight());
   }
 
   [[nodiscard]] bool usesScaled640Canvas() const noexcept {
-    // Comp640 historically targeted a separate 512x512 surface. The modern
-    // in-world computer is a 4:3 1024x768 RTT, so both TopLeft variants share
-    // the same reference-space scaling there.
-    return layoutMode_ == 2 || (renderToTexture_ && layoutMode_ == 3);
+    return layoutMode_ == 2 || (renderToTexture_ && layoutMode_ != 0);
   }
 
   void configureCursor() {

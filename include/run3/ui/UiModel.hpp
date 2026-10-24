@@ -73,4 +73,12 @@ struct ScaledLayout {
 [[nodiscard]] ScaledLayout calculateLayout(unsigned width, unsigned height,
                                             float dpiScale);
 
+// Applies the original buttonGUI authoring modes. An inactive mode uses raw
+// target pixels. Active modes use a 640x480 authoring canvas; on computer RTTs
+// that canvas always fills the square monitor texture.
+[[nodiscard]] Rect transformLegacyButtonRect(Rect rect, int layoutMode,
+                                             bool renderToTexture,
+                                             float targetWidth,
+                                             float targetHeight) noexcept;
+
 } // namespace run3::ui

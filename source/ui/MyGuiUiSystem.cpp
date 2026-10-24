@@ -307,7 +307,7 @@ public:
     computerTexture_ = Ogre::TextureManager::getSingleton().createManual(
         "Run3ComputerSurfaceTexture",
         Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME,
-        Ogre::TEX_TYPE_2D, 1024, 768, 0, Ogre::PF_A8B8G8R8,
+        Ogre::TEX_TYPE_2D, 512, 512, 0, Ogre::PF_A8B8G8R8,
         Ogre::TU_RENDERTARGET);
     computerOgreTarget_ = computerTexture_->getBuffer()->getRenderTarget();
     if (computerOgreTarget_ == nullptr)
@@ -734,8 +734,8 @@ private:
     if (context != Context::Computer || !computerRenderToTexture_ ||
         window_->getWidth() == 0 ||
         window_->getHeight() == 0) return {event.x, event.y};
-    return {event.x * 1024 / static_cast<int>(window_->getWidth()),
-            event.y * 768 / static_cast<int>(window_->getHeight())};
+    return {event.x * 512 / static_cast<int>(window_->getWidth()),
+            event.y * 512 / static_cast<int>(window_->getHeight())};
   }
 
   void bindNativeEvents(const WidgetHandle handle, MyGUI::Widget &created) {

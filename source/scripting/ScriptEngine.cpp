@@ -364,23 +364,23 @@ public:
     auto &facade = buttonGuiFacade();
     if (call.name == "buttonGUI_activateCenter640") {
       legacyButtonTransform_ = 1;
-      facade.activate(legacyButtonTransform_);
+      facade.activateLayoutMode(legacyButtonTransform_);
       return ScriptValue{};
     }
     if (call.name == "buttonGUI_activateTopLeft640") {
       legacyButtonTransform_ = 2;
-      facade.activate(legacyButtonTransform_);
+      facade.activateLayoutMode(legacyButtonTransform_);
       return ScriptValue{};
     }
     if (call.name == "buttonGUI_activateTopLeftComp640") {
       legacyButtonTransform_ = 3;
-      facade.activate(legacyButtonTransform_);
+      facade.activateLayoutMode(legacyButtonTransform_);
       return ScriptValue{};
     }
     if (call.name == "buttonGUI_deactivateCenter640" ||
         call.name == "buttonGUI_deactivate640") {
       legacyButtonTransform_ = 0;
-      facade.deactivate();
+      facade.deactivateLayoutMode();
       return ScriptValue{};
     }
     if (call.name == "buttonGUI_deleteAllButtons") {

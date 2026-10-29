@@ -79,6 +79,36 @@ std::string unquote(std::string value) {
 struct LegacyMaterialCatalog::Impl {
   std::unordered_map<std::string, SourceMaterial> source;
   std::unordered_map<std::string, std::string> canonicalNames;
+  fs::path preferredTextureRoot;
+
+  [[nodiscard]] std::string availableTexture(std::string requested) const {
+    if (requested.empty() || preferredTextureRoot.empty() ||
+        requested.front() == '$') {
+      return requested;
+    }
+    std::error_code error;
+    const fs::path relative(requested);
+    if (fs::is_regular_file(preferredTextureRoot / relative, error) ||
+        fs::is_regular_file(preferredTextureRoot / relative.filename(),
+                            error)) {
+      return requested;
+    }
+
+    // Several shipped r3dds material exports still name the pre-conversion
+    // TGA even though only its DDS replacement is distributed. Ogre's old
+    // resource setup happened to resolve the converted asset; the explicit
+    // compatibility catalogue must perform that resolution itself. Keep the
+    // authored stem and use DDS only when it really exists in the selected
+    // quality directory.
+    fs::path converted = relative;
+    converted.replace_extension(".dds");
+    if (fs::is_regular_file(preferredTextureRoot / converted, error) ||
+        fs::is_regular_file(preferredTextureRoot / converted.filename(),
+                            error)) {
+      return converted.generic_string();
+    }
+    return requested;
+  }
 
   void parse(const fs::path &path) {
     std::ifstream stream(path);
@@ -415,6 +445,7 @@ struct LegacyMaterialCatalog::Impl {
         result.doubleSided = result.doubleSided || parent->doubleSided;
       }
     }
+    result.texture = availableTexture(std::move(result.texture));
     auto &surface = result.surface;
     const auto &input = found->second;
     if (!input.aliasTexture.empty() || !input.directTexture.empty()) {
@@ -497,6 +528,7 @@ void LegacyMaterialCatalog::scan(const fs::path &root,
                                  const fs::path &preferredRoot,
                                  const fs::path &overlayCore) {
   implementation_ = std::make_shared<Impl>();
+  implementation_->preferredTextureRoot = preferredRoot;
   std::error_code error;
   if (!fs::exists(root, error)) {
     return;

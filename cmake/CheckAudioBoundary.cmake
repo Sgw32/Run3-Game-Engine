@@ -2,7 +2,6 @@ set(_roots
     "${RUN3_SOURCE_ROOT}/include"
     "${RUN3_SOURCE_ROOT}/source")
 set(_forbidden
-    "audiere[.]h"
     "([/\\]|<)alut[.]h"
     "([/\\]|<)al[/\\]"
     "oalufmod"
@@ -30,4 +29,4 @@ foreach(_pattern IN LISTS _forbidden)
     endif()
 endforeach()
 
-message(STATUS "Run3 live audio boundary contains no OpenAL/ALUT/Audiere dependency")
+message(STATUS "Run3 live effects/voice boundary contains no retired OpenAL/ALUT dependency")

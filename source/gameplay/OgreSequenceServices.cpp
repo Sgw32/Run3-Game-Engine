@@ -36,6 +36,7 @@
 #include <OgreKeyFrame.h>
 #include <OgreMesh.h>
 #include <OgreParticleSystem.h>
+#include <OgreParticleEmitter.h>
 #include <OgrePose.h>
 #include <OgreResourceGroupManager.h>
 #include <OgreRoot.h>
@@ -1026,9 +1027,10 @@ public:
     audio::PlayOptions options;
     options.file = paths.contentPath(command.path);
     if (command.owner.id.value == 0 && mapAudio != nullptr) {
-      if (!mapAudio->playMusic(options.file, command.loop)) {
+      if (!mapAudio->playMusic(options.file, command.loop,
+                               command.immediate ? 0.0F : 0.25F)) {
         log("warning: cannot play music '" + command.path.string() +
-            "': " + audio->lastError());
+            "': " + mapAudio->musicLastError());
       }
       return;
     }
@@ -1196,19 +1198,50 @@ public:
   }
 
   void setEffectEnabled(const SetRuntimeEffectEnabled &command) {
-    const bool enabled = command.enabled.value_or(!effectStates[command.name]);
-    effectStates[command.name] = enabled;
+    Ogre::ParticleSystem *system{};
     const auto particle = particles.find(command.name);
-    if (particle != particles.end() && particle->second.system != nullptr) {
-      particle->second.system->setVisible(enabled);
-      return;
-    }
-    if (sceneManager->hasParticleSystem(command.name)) {
-      sceneManager->getParticleSystem(command.name)->setVisible(enabled);
+    if (particle != particles.end()) system = particle->second.system;
+    if (system == nullptr && sceneManager->hasParticleSystem(command.name))
+      system = sceneManager->getParticleSystem(command.name);
+
+    // The original toggleParticleSystem reads Ogre's current visibility.
+    // Using a default-inserted false bookkeeping value made the first toggle
+    // leave an initially visible map particle visible.
+    const bool enabled = command.enabled.value_or(
+        system != nullptr ? !system->getVisible()
+                          : !effectStates[command.name]);
+    effectStates[command.name] = enabled;
+    if (system != nullptr) {
+      system->setVisible(enabled);
       return;
     }
     log("warning: effect controller '" + command.name +
         "' has no loaded particle presentation; state retained");
+  }
+
+  void setEmitterEnabled(const SetRuntimeEmitterEnabled &command) {
+    Ogre::ParticleSystem *system{};
+    const auto particle = particles.find(command.name);
+    if (particle != particles.end()) system = particle->second.system;
+    if (system == nullptr && sceneManager->hasParticleSystem(command.name))
+      system = sceneManager->getParticleSystem(command.name);
+    if (system == nullptr) {
+      log("warning: particle emitter '" + command.name +
+          "' has no loaded particle system");
+      return;
+    }
+    if (system->getNumEmitters() == 0) {
+      log("warning: particle system '" + command.name +
+          "' has no emitter 0");
+      return;
+    }
+
+    // Preserve the original Run3 API exactly: emitter controls address the
+    // first emitter only and do not change ParticleSystem visibility. Existing
+    // particles remain alive until their normal time-to-live expires.
+    Ogre::ParticleEmitter *emitter = system->getEmitter(0);
+    const bool enabled = command.enabled.value_or(!emitter->getEnabled());
+    emitter->setEnabled(enabled);
   }
 
   void parseHudScript(const std::filesystem::path &relative) {
@@ -2215,6 +2248,9 @@ void OgreSequenceServices::submit(const GameCommand &command) {
           },
           [this](const SetRuntimeEffectEnabled &value) {
             impl_->setEffectEnabled(value);
+          },
+          [this](const SetRuntimeEmitterEnabled &value) {
+            impl_->setEmitterEnabled(value);
           },
           [this](const CreateRuntimeParticle &value) {
             RuntimeParticleSpec spec;

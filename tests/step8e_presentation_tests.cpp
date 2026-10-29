@@ -81,7 +81,18 @@ TEST_CASE("Step 8E cutscene is deterministic, skippable and restores control",
   CHECK(fixture.runtime->presentation().camera->position.x == 5.0);
   CHECK(fixture.runtime->handleInput(
       {InputEventType::KeyPressed, Key::Space}));
-  for (int tick = 0; tick < 5; ++tick) fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->cutsceneTimeScale() == 20.0);
+  CHECK(fixture.runtime->handleInput(
+      {InputEventType::KeyReleased, Key::Space}));
+  CHECK(fixture.runtime->cutsceneTimeScale() == 1.0);
+  CHECK_FALSE(fixture.runtime->handleInput(
+      {InputEventType::KeyPressed, Key::Escape}));
+  CHECK(fixture.runtime->handleInput(
+      {InputEventType::KeyPressed, Key::Space}));
+  for (int frame = 0; frame < 5; ++frame) {
+    const int steps = static_cast<int>(fixture.runtime->cutsceneTimeScale());
+    for (int tick = 0; tick < steps; ++tick) fixture.runtime->fixedUpdate();
+  }
   CHECK(fixture.runtime->presentation().activeCutscene.empty());
   CHECK_FALSE(fixture.runtime->presentation().playerFrozen);
   CHECK(fixture.runtime->presentation().hudVisible);
@@ -405,10 +416,11 @@ TEST_CASE("Step 8E selected content constructs every computer and cutscene",
         runtime.fixedUpdate();
         CHECK(runtime.presentation().activeCutscene == *name);
         CHECK(runtime.skipCutscene());
-        for (int tick = 0;
-             tick < 600 && !runtime.presentation().activeCutscene.empty();
-             ++tick) {
-          runtime.fixedUpdate();
+        for (int frame = 0;
+             frame < 1200 && !runtime.presentation().activeCutscene.empty();
+             ++frame) {
+          const int steps = static_cast<int>(runtime.cutsceneTimeScale());
+          for (int tick = 0; tick < steps; ++tick) runtime.fixedUpdate();
         }
         CHECK(runtime.presentation().activeCutscene.empty());
       }

@@ -214,12 +214,29 @@ TEST_CASE("Step 8C warns on missing objects and preserves script execution",
   CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
       {"world", "toggleParticleSystem", {"fixture-particle"}}));
   CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"world", "toggleEmitter", {"fixture-particle"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"world", "enableEmitter", {"fixture-particle"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
+      {"ui", "disableEmitter", {"fixture-particle"}}));
+  CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
       {"world", "createParticleSystem",
        {"Fixture/Particle", "spawned-particle", "1 2 3", "2 2 2"}}));
   CHECK_NOTHROW(fixture.runtime->dispatchScriptCall(
       {"ui", "deleteParticleSystem", {"spawned-particle"}}));
   CHECK(fixture.services.count<gameplay::SetRuntimeNamedMaterial>() == 1);
   CHECK(fixture.services.count<gameplay::SetRuntimeEffectEnabled>() == 1);
+  CHECK(fixture.services.count<gameplay::SetRuntimeEmitterEnabled>() == 3);
+  std::vector<std::optional<bool>> emitterStates;
+  for (const auto &command : fixture.services.commands) {
+    if (const auto *emitter =
+            std::get_if<gameplay::SetRuntimeEmitterEnabled>(&command))
+      emitterStates.push_back(emitter->enabled);
+  }
+  REQUIRE(emitterStates.size() == 3);
+  CHECK_FALSE(emitterStates[0].has_value());
+  CHECK(emitterStates[1] == std::optional<bool>{true});
+  CHECK(emitterStates[2] == std::optional<bool>{false});
   CHECK(fixture.services.count<gameplay::CreateRuntimeParticle>() == 1);
   CHECK(fixture.services.count<gameplay::DestroyRuntimeParticle>() == 1);
 

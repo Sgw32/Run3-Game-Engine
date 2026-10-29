@@ -194,10 +194,14 @@ MapAudioLoadResult loadLegacyMapAudio(const fs::path &contentRoot,
     sound.position = {number(values, "x", 0.0F) * multiplier,
                       number(values, "y", 0.0F) * multiplier,
                       number(values, "z", 0.0F) * multiplier};
-    sound.minDistance = std::max(0.0F, number(values, "distance", 1.0F));
+    sound.minDistance = std::max(
+        0.0F, number(values, "distance", 1.0F) * multiplier);
     sound.maxDistance =
-        std::max(sound.minDistance, number(values, "maxDistance", 1000.0F));
+        std::max(sound.minDistance,
+                 number(values, "maxDistance", 1000.0F) * multiplier);
     sound.gain = std::max(0.0F, number(values, "maxGain", 1.0F));
+    sound.minimumGain = std::clamp(number(values, "minGain", 0.0F),
+                                   0.0F, 1.0F);
     sound.loop = boolean(values, "loop", true);
     warnIfMissing(result, sound.file);
     if (sound.logicalName.empty()) {
@@ -223,8 +227,12 @@ MapAudioLoadResult loadLegacyMapAudio(const fs::path &contentRoot,
   return result;
 }
 
-MapAudioRuntime::MapAudioRuntime(IAudioEngine &engine)
-    : engine_(engine), music_(engine), oneShots_(engine) {}
+MapAudioRuntime::MapAudioRuntime(IAudioEngine &engine,
+                                 const bool useAudiereMusic)
+    : engine_(engine), music_(engine), oneShots_(engine) {
+  if (useAudiereMusic)
+    audiereMusic_ = std::make_unique<AudiereMusicPlayer>();
+}
 
 MapAudioRuntime::~MapAudioRuntime() { clear(); }
 
@@ -235,20 +243,27 @@ MapAudioStartResult MapAudioRuntime::start(MapAudioDefinition definition) {
   // Ambient declarations describe virtual sounds, not permanently occupied
   // mixer voices. A voice is allocated only while its attenuation sphere is
   // relevant to the listener and released after the listener leaves it.
-  ambient_.resize(definition_.ambientSounds.size());
-  ambientTriggered_.assign(definition_.ambientSounds.size(), false);
-  namedAmbient_.resize(definition_.namedAmbientSounds.size());
-  music_.setVolume(definition_.musicGain * 10.0F);
+  const std::size_t ambientCount = definition_.ambientSounds.size() +
+                                   definition_.namedAmbientSounds.size();
+  ambient_.resize(ambientCount);
+  ambientTriggered_.assign(ambientCount, false);
+  ambientEnabled_.assign(ambientCount, true);
+  ambientPlaybackSeconds_.assign(ambientCount, 0.0F);
+  if (audiereMusic_) audiereMusic_->setVolume(definition_.musicGain * 10.0F);
+  else music_.setVolume(definition_.musicGain * 10.0F);
   return result;
 }
 
 bool MapAudioRuntime::startPendingMusic() {
   musicStartAllowed_ = true;
   if (definition_.musicFile.empty()) return false;
-  const bool started =
-      music_.play(definition_.musicFile, definition_.musicLoop, 0.0F);
+  const bool started = audiereMusic_
+      ? audiereMusic_->play(definition_.musicFile, definition_.musicLoop, 0.0F)
+      : music_.play(definition_.musicFile, definition_.musicLoop, 0.0F);
   if (started && pendingMusicSeek_) {
-    static_cast<void>(music_.seekSeconds(*pendingMusicSeek_));
+    static_cast<void>(audiereMusic_
+        ? audiereMusic_->seekSeconds(*pendingMusicSeek_)
+        : music_.seekSeconds(*pendingMusicSeek_));
     pendingMusicSeek_.reset();
   }
   return started;
@@ -259,43 +274,39 @@ bool MapAudioRuntime::setNamedAmbientEnabled(std::string_view name,
   for (std::size_t index = 0; index < definition_.namedAmbientSounds.size(); ++index) {
     const AmbientSoundDefinition &sound = definition_.namedAmbientSounds[index];
     if (sound.logicalName != name) continue;
+    const std::size_t runtimeIndex = definition_.ambientSounds.size() + index;
+    ambientEnabled_[runtimeIndex] = enabled;
     if (!enabled) {
-      namedAmbient_[index].reset();
-      return true;
-    }
-    if (!namedAmbient_[index].valid()) {
-      PlayOptions options;
-      options.file = sound.file;
-      options.bus = Bus::effects;
-      options.loop = sound.loop;
-      options.spatial = true;
-      options.gain = sound.gain;
-      options.position = sound.position;
-      options.minDistance = sound.minDistance;
-      options.maxDistance = sound.maxDistance;
-      namedAmbient_[index] = engine_.play(options);
-      if (!namedAmbient_[index].valid()) {
-        throw std::runtime_error("cannot enable ambient '" +
-                                 sound.logicalName + "': " + engine_.lastError());
-      }
+      if (ambient_[runtimeIndex].valid())
+        ambientPlaybackSeconds_[runtimeIndex] =
+            engine_.playbackSeconds(ambient_[runtimeIndex]);
+      ambient_[runtimeIndex].reset();
+    } else {
+      // Match the legacy runtime: enabling makes the named declaration
+      // eligible immediately; updateAmbient decides whether it is in range.
+      ambientTriggered_[runtimeIndex] = false;
     }
     return true;
   }
   return false;
 }
 
-bool MapAudioRuntime::playMusic(const fs::path &file, bool loop) {
+bool MapAudioRuntime::playMusic(const fs::path &file, bool loop,
+                                const float transitionSeconds) {
   if (!musicStartAllowed_) {
     definition_.musicFile = file;
     definition_.musicLoop = loop;
     pendingMusicSeek_.reset();
     return !file.empty();
   }
-  if (file == definition_.musicFile && music_.active() &&
+  const bool musicActive = audiereMusic_ ? audiereMusic_->active() : music_.active();
+  if (file == definition_.musicFile && musicActive &&
       loop == definition_.musicLoop) {
     return true;
   }
-  const bool started = music_.play(file, loop, 0.25F);
+  const bool started = audiereMusic_
+      ? audiereMusic_->play(file, loop, transitionSeconds)
+      : music_.play(file, loop, transitionSeconds);
   if (started) {
     definition_.musicFile = file;
     definition_.musicLoop = loop;
@@ -304,23 +315,35 @@ bool MapAudioRuntime::playMusic(const fs::path &file, bool loop) {
 }
 
 void MapAudioRuntime::stopMusic(float fadeSeconds) {
-  music_.stop(fadeSeconds);
+  if (audiereMusic_) audiereMusic_->stop(fadeSeconds);
+  else music_.stop(fadeSeconds);
   definition_.musicFile.clear();
   pendingMusicSeek_.reset();
 }
 
 void MapAudioRuntime::setMusicVolume(float gain) {
-  music_.setVolume(gain * 10.0F);
+  if (audiereMusic_) audiereMusic_->setVolume(gain * 10.0F);
+  else music_.setVolume(gain * 10.0F);
   definition_.musicGain = gain;
+}
+
+void MapAudioRuntime::setMusicPitch(const float pitch) {
+  if (audiereMusic_) audiereMusic_->setPitch(pitch);
+  else music_.setPitch(pitch);
 }
 
 const fs::path &MapAudioRuntime::musicFile() const noexcept {
   return definition_.musicFile;
 }
 
+std::string MapAudioRuntime::musicLastError() const {
+  return audiereMusic_ ? audiereMusic_->lastError() : engine_.lastError();
+}
+
 std::optional<float> MapAudioRuntime::musicPlaybackSeconds() const {
   if (!musicStartAllowed_ && !definition_.musicFile.empty()) return 0.0F;
-  return music_.playbackSeconds();
+  return audiereMusic_ ? audiereMusic_->playbackSeconds()
+                       : music_.playbackSeconds();
 }
 
 bool MapAudioRuntime::seekMusicSeconds(const float seconds) {
@@ -328,11 +351,13 @@ bool MapAudioRuntime::seekMusicSeconds(const float seconds) {
     pendingMusicSeek_ = std::max(0.0F, seconds);
     return true;
   }
-  return music_.seekSeconds(seconds);
+  return audiereMusic_ ? audiereMusic_->seekSeconds(seconds)
+                       : music_.seekSeconds(seconds);
 }
 
 void MapAudioRuntime::update(const float seconds, const FootstepState *player) {
-  music_.update(seconds);
+  if (audiereMusic_) audiereMusic_->update(seconds);
+  else music_.update(seconds);
   oneShots_.update(seconds);
   if (player != nullptr) {
     updateAmbient(player->position);
@@ -344,10 +369,12 @@ void MapAudioRuntime::update(const float seconds, const FootstepState *player) {
 
 void MapAudioRuntime::clear() noexcept {
   oneShots_.clear();
-  music_.clear();
+  if (audiereMusic_) audiereMusic_->clear();
+  else music_.clear();
   ambient_.clear();
   ambientTriggered_.clear();
-  namedAmbient_.clear();
+  ambientEnabled_.clear();
+  ambientPlaybackSeconds_.clear();
   definition_ = {};
   footstepTimer_ = 0.0F;
   nextFootstep_ = 0;
@@ -362,9 +389,23 @@ void MapAudioRuntime::updateAmbient(const Vec3 listenerPosition) {
     float distanceSquared{};
   };
   std::vector<Candidate> candidates;
-  candidates.reserve(definition_.ambientSounds.size());
-  for (std::size_t index = 0; index < definition_.ambientSounds.size(); ++index) {
-    const AmbientSoundDefinition &sound = definition_.ambientSounds[index];
+  candidates.reserve(ambient_.size());
+  const auto definitionAt = [this](const std::size_t index)
+      -> const AmbientSoundDefinition & {
+    if (index < definition_.ambientSounds.size())
+      return definition_.ambientSounds[index];
+    return definition_.namedAmbientSounds[
+        index - definition_.ambientSounds.size()];
+  };
+  for (std::size_t index = 0; index < ambient_.size(); ++index) {
+    const AmbientSoundDefinition &sound = definitionAt(index);
+    if (!ambientEnabled_[index]) {
+      if (ambient_[index].valid())
+        ambientPlaybackSeconds_[index] =
+            engine_.playbackSeconds(ambient_[index]);
+      ambient_[index].reset();
+      continue;
+    }
     const float x = listenerPosition.x - sound.position.x;
     const float y = listenerPosition.y - sound.position.y;
     const float z = listenerPosition.z - sound.position.z;
@@ -377,6 +418,9 @@ void MapAudioRuntime::updateAmbient(const Vec3 listenerPosition) {
         ? distanceSquared <= exitDistance * exitDistance
         : distanceSquared <= enterDistance * enterDistance;
     if (!relevant) {
+      if (ambient_[index].valid())
+        ambientPlaybackSeconds_[index] =
+            engine_.playbackSeconds(ambient_[index]);
       ambient_[index].reset();
       ambientTriggered_[index] = false;
       continue;
@@ -403,12 +447,16 @@ void MapAudioRuntime::updateAmbient(const Vec3 listenerPosition) {
   const std::size_t unavailable = std::max(nonAmbient, reserve);
   const std::size_t budget = stats.voiceCapacity > unavailable
       ? stats.voiceCapacity - unavailable : 0;
-  for (std::size_t ordinal = budget; ordinal < candidates.size(); ++ordinal)
-    ambient_[candidates[ordinal].index].reset();
+  for (std::size_t ordinal = budget; ordinal < candidates.size(); ++ordinal) {
+    const std::size_t index = candidates[ordinal].index;
+    if (ambient_[index].valid())
+      ambientPlaybackSeconds_[index] = engine_.playbackSeconds(ambient_[index]);
+    ambient_[index].reset();
+  }
   for (std::size_t ordinal = 0;
        ordinal < std::min(budget, candidates.size()); ++ordinal) {
     const std::size_t index = candidates[ordinal].index;
-    const AmbientSoundDefinition &sound = definition_.ambientSounds[index];
+    const AmbientSoundDefinition &sound = definitionAt(index);
     if (ambient_[index].valid() || (!sound.loop && ambientTriggered_[index]))
       continue;
     PlayOptions options;
@@ -420,8 +468,14 @@ void MapAudioRuntime::updateAmbient(const Vec3 listenerPosition) {
     options.position = sound.position;
     options.minDistance = sound.minDistance;
     options.maxDistance = sound.maxDistance;
+    options.minimumGain = sound.minimumGain;
     ambient_[index] = engine_.play(options);
-    if (ambient_[index].valid()) ambientTriggered_[index] = true;
+    if (ambient_[index].valid()) {
+      if (sound.loop && ambientPlaybackSeconds_[index] > 0.0F)
+        static_cast<void>(engine_.seekSeconds(
+            ambient_[index], ambientPlaybackSeconds_[index]));
+      ambientTriggered_[index] = true;
+    }
   }
 }
 

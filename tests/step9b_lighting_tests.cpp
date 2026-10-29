@@ -404,3 +404,16 @@ TEST_CASE("Legacy buttonGUI texture aliases resolve from shipped content") {
   CHECK(scope->surface.diffuseScrollU == Catch::Approx(2.0F));
   CHECK(scope->surface.diffuseScrollV == Catch::Approx(0.0F));
 }
+
+TEST_CASE("Legacy converted materials resolve absent TGA names to selected DDS") {
+  gameplay::LegacyMaterialCatalog catalog;
+  const auto content = std::filesystem::path(RUN3_TEST_SOURCE_DIR) /
+                       "Games/The Long Way/TheLongWay";
+  catalog.scan(content, content / "run3/mats/high");
+
+  const auto vodniki = catalog.find("VODNIKI1material_18");
+  REQUIRE(vodniki);
+  CHECK(vodniki->surface.diffuseMap.name == "vodniki1_material_18.dds");
+  CHECK(vodniki->surface.surface == Surface::Transparent);
+  CHECK_FALSE(vodniki->surface.lighting);
+}

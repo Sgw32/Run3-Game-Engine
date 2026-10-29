@@ -1,4 +1,5 @@
 #include <run3/audio/Audio.hpp>
+#include <run3/audio/AudiereMusicPlayer.hpp>
 #include <run3/audio/MapAudio.hpp>
 #include <run3/audio/MusicPlayer.hpp>
 #include <run3/audio/SoundRuntime.hpp>
@@ -132,6 +133,33 @@ TEST_CASE("game and Ogre audio coordinates retain the legacy convention") {
   CHECK(converted.z == input.z);
 }
 
+#ifdef _WIN32
+TEST_CASE("Audiere decodes tracker and FLAC music independently") {
+  const fs::path source = fs::path(RUN3_TEST_SOURCE_DIR);
+  const fs::path flac = firstWithExtension(
+      source / "converted-content" / "audio-flac", ".flac");
+  if (!flac.empty()) {
+    AudiereMusicPlayer flacMusic;
+    const bool flacStarted = flacMusic.play(flac, false);
+    INFO(flacMusic.lastError());
+    REQUIRE(flacStarted);
+    CHECK(flacMusic.active());
+    flacMusic.clear();
+  }
+  const fs::path tracker = fs::path(RUN3_TEST_SOURCE_DIR) / "Games" /
+      "The Long Way" / "TheLongWay" / "run3" / "sounds" / "mrgspnv2.xm";
+  if (!fs::is_regular_file(tracker)) SKIP("The Long Way content is not attached");
+  AudiereMusicPlayer music;
+  REQUIRE(music.play(tracker, false));
+  CHECK(music.active());
+  music.setPitch(2.0F);
+  music.update(0.01F);
+  music.clear();
+  CHECK_FALSE(music.active());
+
+}
+#endif
+
 TEST_CASE("Doppler velocity converts centimetre-like game units to metres") {
   const Vec3 converted = fromGameVelocity({300.0F, -50.0F, 1000.0F});
   CHECK(converted.x == Catch::Approx(3.0F));
@@ -169,12 +197,13 @@ TEST_CASE("null backend supports state, fades, pitch, seek, buses, and 3D attenu
   options.position = {55.0F, 0.0F, 0.0F};
   options.minDistance = 10.0F;
   options.maxDistance = 100.0F;
+  options.minimumGain = 0.25F;
   SoundHandle sound = engine->play(options);
   REQUIRE(sound.valid());
   engine->setListener({});
   engine->setBusGain(Bus::master, 0.5F);
   engine->setBusGain(Bus::effects, 0.5F);
-  CHECK(engine->effectiveGain(sound) == Catch::Approx(0.125F));
+  CHECK(engine->effectiveGain(sound) == Catch::Approx(0.0625F));
 
   CHECK(engine->setPaused(sound, true));
   CHECK(engine->state(sound) == SoundState::paused);
@@ -187,7 +216,7 @@ TEST_CASE("null backend supports state, fades, pitch, seek, buses, and 3D attenu
   CHECK(engine->playbackSeconds(sound) == Catch::Approx(3.0F));
   CHECK(engine->fadeTo(sound, 0.25F, 1.0F));
   engine->update(1.0F);
-  CHECK(engine->effectiveGain(sound) == Catch::Approx(0.03125F));
+  CHECK(engine->effectiveGain(sound) == Catch::Approx(0.015625F));
   CHECK(engine->stop(sound, 0.5F));
   engine->update(0.5F);
   CHECK(engine->state(sound) == SoundState::stopped);
@@ -249,7 +278,7 @@ TEST_CASE("legacy map audio fixture starts static ambience music and footsteps")
   CHECK_FALSE(musicVoice->spatial);
   CHECK(musicVoice->file.filename() == "background.wav");
   CHECK(runtime.setNamedAmbientEnabled("script_alarm", true));
-  CHECK(engine->stats().activeVoices == 2);
+  CHECK(engine->stats().activeVoices == 1);
   CHECK(runtime.setNamedAmbientEnabled("script_alarm", false));
   CHECK(engine->stats().activeVoices == 1);
 
@@ -300,6 +329,24 @@ TEST_CASE("ambient virtualization assigns bounded slots to nearest sounds") {
   runtime.update(0.01F, &right);
   REQUIRE(engine->activeVoices().size() == 1);
   CHECK(engine->activeVoices().front().file.filename() == "right.wav");
+}
+
+TEST_CASE("named legacy ambience remains automatic and script-toggleable") {
+  auto engine = createNullAudioEngine({2, false});
+  MapAudioDefinition definition;
+  definition.namedAmbientSounds = {
+      {"machine_hum", "hum.wav", {}, 10.0F, 200.0F, 1.0F, true, 0.01F}};
+  MapAudioRuntime runtime(*engine);
+  static_cast<void>(runtime.start(std::move(definition)));
+
+  const FootstepState nearby{{}, {}, false, false};
+  runtime.update(0.01F, &nearby);
+  CHECK(runtime.ambientCount() == 1);
+  CHECK(runtime.setNamedAmbientEnabled("machine_hum", false));
+  CHECK(runtime.ambientCount() == 0);
+  CHECK(runtime.setNamedAmbientEnabled("machine_hum", true));
+  runtime.update(0.01F, &nearby);
+  CHECK(runtime.ambientCount() == 1);
 }
 
 TEST_CASE("attached tlwcao exposes authored spawn ambience music and footsteps") {

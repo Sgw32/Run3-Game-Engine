@@ -109,6 +109,7 @@ struct PlayRuntimeSound {
   physics::Vec3 position;
   bool loop{};
   float gain{1.0F};
+  bool immediate{};
 };
 struct StopRuntimeSound { EntityHandle owner; };
 struct PlayRuntimeEffect {
@@ -155,6 +156,10 @@ struct SetRuntimeShaderParameter {
   std::string value;
 };
 struct SetRuntimeEffectEnabled {
+  std::string name;
+  std::optional<bool> enabled;
+};
+struct SetRuntimeEmitterEnabled {
   std::string name;
   std::optional<bool> enabled;
 };
@@ -247,6 +252,7 @@ using GameCommand =
                   SetRuntimeFov,
                   SetRuntimeCompositor,
                  SetRuntimeShaderParameter, SetRuntimeEffectEnabled,
+                 SetRuntimeEmitterEnabled,
                  CreateRuntimeParticle, DestroyRuntimeParticle,
                  SetComputerPresentation,
                  SendComputerInput, UpdateComputerDisplay, SetRuntimeDarkness,

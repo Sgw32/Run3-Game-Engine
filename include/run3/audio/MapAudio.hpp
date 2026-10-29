@@ -1,11 +1,13 @@
 #pragma once
 
 #include <run3/audio/Audio.hpp>
+#include <run3/audio/AudiereMusicPlayer.hpp>
 #include <run3/audio/MusicPlayer.hpp>
 #include <run3/audio/SoundRuntime.hpp>
 
 #include <cstddef>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -20,6 +22,7 @@ struct AmbientSoundDefinition {
   float maxDistance{1000.0F};
   float gain{1.0F};
   bool loop{true};
+  float minimumGain{};
 };
 
 struct MapAudioDefinition {
@@ -38,9 +41,9 @@ struct MapAudioLoadResult {
   std::size_t scriptControlledSounds{};
 };
 
-// Reads only static audio declarations. Lua execution and event-controlled
-// named sounds remain Step 8 work; named ambient entries are counted but not
-// started early.
+// Reads static audio declarations. Named ambient entries retain their script
+// control name while participating in the same proximity virtualization as
+// unnamed ambient sounds.
 [[nodiscard]] MapAudioLoadResult loadLegacyMapAudio(
     const std::filesystem::path &contentRoot, const std::string &mapName,
     const std::string &quality,
@@ -61,7 +64,7 @@ struct MapAudioStartResult {
 
 class MapAudioRuntime final {
 public:
-  explicit MapAudioRuntime(IAudioEngine &engine);
+  explicit MapAudioRuntime(IAudioEngine &engine, bool useAudiereMusic = false);
   ~MapAudioRuntime();
 
   MapAudioRuntime(const MapAudioRuntime &) = delete;
@@ -72,10 +75,13 @@ public:
   // frame of the newly loaded map is rendered.
   [[nodiscard]] bool startPendingMusic();
   [[nodiscard]] bool setNamedAmbientEnabled(std::string_view name, bool enabled);
-  [[nodiscard]] bool playMusic(const std::filesystem::path &file, bool loop);
+  [[nodiscard]] bool playMusic(const std::filesystem::path &file, bool loop,
+                               float transitionSeconds = 0.25F);
   void stopMusic(float fadeSeconds = 0.0F);
   void setMusicVolume(float gain);
+  void setMusicPitch(float pitch);
   [[nodiscard]] const std::filesystem::path &musicFile() const noexcept;
+  [[nodiscard]] std::string musicLastError() const;
   [[nodiscard]] std::optional<float> musicPlaybackSeconds() const;
   bool seekMusicSeconds(float seconds);
   void update(float seconds, const FootstepState *player = nullptr);
@@ -90,7 +96,9 @@ public:
   [[nodiscard]] std::size_t footstepCount() const noexcept {
     return footstepCount_;
   }
-  [[nodiscard]] bool musicActive() const noexcept { return music_.active(); }
+  [[nodiscard]] bool musicActive() const noexcept {
+    return audiereMusic_ ? audiereMusic_->active() : music_.active();
+  }
   [[nodiscard]] bool musicPending() const noexcept {
     return !musicStartAllowed_ && !definition_.musicFile.empty();
   }
@@ -101,11 +109,13 @@ private:
 
   IAudioEngine &engine_;
   MusicPlayer music_;
+  std::unique_ptr<AudiereMusicPlayer> audiereMusic_;
   SoundRuntime oneShots_;
   MapAudioDefinition definition_;
   std::vector<SoundHandle> ambient_;
   std::vector<bool> ambientTriggered_;
-  std::vector<SoundHandle> namedAmbient_;
+  std::vector<bool> ambientEnabled_;
+  std::vector<float> ambientPlaybackSeconds_;
   float footstepTimer_{};
   std::size_t nextFootstep_{};
   std::size_t footstepCount_{};

@@ -17,7 +17,7 @@ REM cd /d C:\Run3-Game-Engine
     --content-root "C:\Run3-Game-Engine\Games\The Long Way\TheLongWay" ^
     --content-variant tlwrm ^
     --content-overlay "%~dp0derived-content\tlwrm" ^
-    --map tlwdelusion01 ^
+    --map tlwhome02 ^
     --user-dir ".\build\user\windows-release" ^
     --fullscreen ^
     --lighting-pipeline legacy-forward --shadow-quality high --exposure 0.6 ^

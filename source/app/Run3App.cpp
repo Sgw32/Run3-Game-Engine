@@ -825,6 +825,10 @@ int Run3App::run() {
                                    ? clock_.advance(EngineClock::Duration{
                                          1.0 / options_.renderHz})
                                    : clock_.tick();
+      const double worldTimeScale = sequenceRuntime_
+          ? sequenceRuntime_->cutsceneTimeScale() : 1.0;
+      if (mapAudio_)
+        mapAudio_->setMusicPitch(static_cast<float>(worldTimeScale));
       if (player_) {
         gameplay::PlayerCommand command;
         const InputState &state = input_.state();
@@ -898,7 +902,10 @@ int Run3App::run() {
         player_->setOnLadder(onLadder);
         player_->setCommand(command);
         player_->setYawRadians(yawRadians_);
-        for (std::size_t step = 0; step < frame.simulationSteps; ++step) {
+        const std::size_t scaledSimulationSteps = static_cast<std::size_t>(
+            std::llround(static_cast<double>(frame.simulationSteps) *
+                         worldTimeScale));
+        for (std::size_t step = 0; step < scaledSimulationSteps; ++step) {
           if (sequenceRuntime_) {
             sequenceRuntime_->fixedUpdate();
           }
@@ -1002,9 +1009,9 @@ int Run3App::run() {
                 std::string("Map audio: third-frame music ") +
                 (started ? "started" :
                  appointed ? "failed" : "not appointed"));
-            if (appointed && !started && !audioEngine_->lastError().empty()) {
+            if (appointed && !started && !mapAudio_->musicLastError().empty()) {
               Ogre::LogManager::getSingleton().logMessage(
-                  "Map audio backend detail: " + audioEngine_->lastError());
+                  "Map audio backend detail: " + mapAudio_->musicLastError());
             }
             mapMusicStartFrame_.reset();
           }
@@ -1025,7 +1032,7 @@ int Run3App::run() {
         }
         if (sequenceServices_) {
           sequenceServices_->updateAudio(
-              static_cast<float>(frame.elapsed.count()));
+              static_cast<float>(frame.elapsed.count() * worldTimeScale));
         }
         audioEngine_->update(static_cast<float>(frame.elapsed.count()));
       }
@@ -1472,13 +1479,13 @@ void Run3App::loadMap(const std::string &mapName) {
       for (const std::string &warning : loaded.warnings) {
         Ogre::LogManager::getSingleton().logMessage("Map audio: " + warning);
       }
-      mapAudio_ = std::make_unique<audio::MapAudioRuntime>(*audioEngine_);
+      mapAudio_ = std::make_unique<audio::MapAudioRuntime>(*audioEngine_, true);
       const audio::MapAudioStartResult started =
           mapAudio_->start(std::move(loaded.definition));
       Ogre::LogManager::getSingleton().logMessage(
           "Map audio: ambient=" + std::to_string(started.ambientStarted) +
           " failed=" + std::to_string(started.ambientFailed) +
-          " script-controlled-deferred=" +
+          " named-ambient=" +
           std::to_string(loaded.scriptControlledSounds) + " music=" +
           (mapAudio_->musicPending() ? "appointed for frame 3" :
                                        "not appointed"));

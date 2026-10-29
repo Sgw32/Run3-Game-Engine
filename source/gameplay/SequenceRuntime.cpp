@@ -374,7 +374,7 @@ public:
     std::uint64_t musicLengthTicks{};
     std::uint64_t waitTicks{};
     std::uint64_t elapsedTicks{};
-    double skipMultiplier{10.0};
+    double skipMultiplier{3.0};
     bool freeze{true};
     bool hideHud{true};
     bool infinite{};
@@ -578,7 +578,9 @@ public:
     scene.name = attribute(element, "name", "undefined");
     scene.lengthTicks = std::max<std::uint64_t>(
         1, secondsToTicks(number(element, "length", 20.0)));
-    scene.skipMultiplier = number(element, "skipAnimSpeed", 10.0);
+    scene.skipMultiplier = number(element, "skipAnimSpeed", 3.0);
+    if (!std::isfinite(scene.skipMultiplier) || scene.skipMultiplier < 1.0)
+      scene.skipMultiplier = 1.0;
     scene.freeze = boolean(element, "freezeb", true);
     scene.hideHud = boolean(element, "hideHUD", true);
     scene.infinite = boolean(element, "inf", false);
@@ -642,7 +644,8 @@ public:
     services->submit(SetRuntimeHudVisible{presentationState.hudVisible});
     try {
       if (!scene->music.empty())
-        services->submit(PlayRuntimeSound{{}, scene->music, {}, false, 1.0F});
+        services->submit(
+            PlayRuntimeSound{{}, scene->music, {}, false, 1.0F, true});
     } catch (...) {
       finishCutscene();
       throw;
@@ -1228,11 +1231,7 @@ public:
     }
     if (activeCutscene != nullptr) {
       Cutscene &scene = *activeCutscene;
-      const std::uint64_t advance = scene.skipping
-          ? std::max<std::uint64_t>(1, static_cast<std::uint64_t>(
-                std::floor(scene.skipMultiplier)))
-          : 1;
-      const auto musicSeconds = !scene.skipping && !scene.music.empty()
+      const auto musicSeconds = !scene.music.empty()
           ? services->runtimeMusicSeconds() : std::nullopt;
       if (musicSeconds && std::isfinite(*musicSeconds) && *musicSeconds >= 0.0) {
         std::uint64_t musicTick = secondsToTicks(*musicSeconds);
@@ -1245,7 +1244,7 @@ public:
               scene.elapsedTicks, std::min(scene.lengthTicks, musicTick));
       } else {
         scene.elapsedTicks = std::min(scene.lengthTicks,
-                                      scene.elapsedTicks + advance);
+                                      scene.elapsedTicks + 1);
       }
       for (CutsceneRun &run : scene.runs) {
         if (!run.fired && run.tick <= scene.elapsedTicks) {
@@ -1431,11 +1430,15 @@ bool SequenceRuntime::handleInput(const InputEvent &event) {
            event.type == InputEventType::MousePressed ||
            event.type == InputEventType::MouseReleased;
   }
-  if (impl_->activeCutscene != nullptr &&
-      event.type == InputEventType::KeyPressed && !event.repeated &&
-      (event.key == Key::Escape || event.key == Key::Space)) {
-    impl_->activeCutscene->skipping = true;
-    return true;
+  if (impl_->activeCutscene != nullptr && event.key == Key::Space) {
+    if (event.type == InputEventType::KeyPressed) {
+      impl_->activeCutscene->skipping = true;
+      return true;
+    }
+    if (event.type == InputEventType::KeyReleased) {
+      impl_->activeCutscene->skipping = false;
+      return true;
+    }
   }
   return false;
 }
@@ -1447,6 +1450,11 @@ bool SequenceRuntime::skipCutscene() {
   if (impl_->activeCutscene == nullptr) return false;
   impl_->activeCutscene->skipping = true;
   return true;
+}
+double SequenceRuntime::cutsceneTimeScale() const noexcept {
+  if (impl_->activeCutscene == nullptr || !impl_->activeCutscene->skipping)
+    return 1.0;
+  return impl_->activeCutscene->skipMultiplier;
 }
 bool SequenceRuntime::exitComputer() { return impl_->exitComputer(); }
 
@@ -1734,6 +1742,14 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
     } else if (call.name == "toggleParticleSystem") {
       impl_->services->submit(SetRuntimeEffectEnabled{requireName(),
                                                        std::nullopt});
+    } else if (call.name == "toggleEmitter" ||
+               call.name == "enableEmitter" ||
+               call.name == "disableEmitter") {
+      impl_->services->submit(SetRuntimeEmitterEnabled{
+          requireName(), call.name == "toggleEmitter"
+                             ? std::nullopt
+                             : std::optional<bool>{call.name ==
+                                                   "enableEmitter"}});
     } else if (call.name == "createParticleSystem") {
       if (call.arguments.size() != 4)
         throw std::invalid_argument(

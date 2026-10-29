@@ -7,7 +7,7 @@ project(
     Run3
     VERSION 0.1.0
     DESCRIPTION "Run3 game engine modernization"
-    LANGUAGES CXX)
+    LANGUAGES C CXX)
 
 include(GNUInstallDirs)
 
@@ -97,6 +97,8 @@ set(_run3_required_ogre_targets
     Plugin_ParticleFX
     Codec_STBI)
 if(WIN32)
+    find_package(FLAC CONFIG REQUIRED)
+    find_package(Vorbis CONFIG REQUIRED)
     list(APPEND _run3_required_ogre_targets RenderSystem_Direct3D11)
 endif()
 foreach(_target IN LISTS _run3_required_ogre_targets)
@@ -129,8 +131,64 @@ target_include_directories(
     run3_core PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 target_link_libraries(run3_core PRIVATE run3::warnings)
 
+# Audiere is the original Run3 music engine.  Keep it as an isolated library:
+# map music deliberately does not share the positional effects/voice mixer.
+if(WIN32)
+    find_path(DUMB_INCLUDE_DIR dumb.h REQUIRED)
+    find_library(DUMB_LIBRARY NAMES dumb REQUIRED)
+    add_library(run3_audiere STATIC
+        audiere/src/basic_source.cpp
+        audiere/src/debug.cpp
+        audiere/src/device.cpp
+        audiere/src/device_ds.cpp
+        audiere/src/device_ds_buffer.cpp
+        audiere/src/device_ds_stream.cpp
+        audiere/src/device_mixer.cpp
+        audiere/src/device_mm.cpp
+        audiere/src/device_null.cpp
+        audiere/src/dumb_resample.cpp
+        audiere/src/dxguid.cpp
+        audiere/src/file_ansi.cpp
+        audiere/src/input.cpp
+        audiere/src/input_aiff.cpp
+        audiere/src/input_flac.cpp
+        audiere/src/input_mod.cpp
+        audiere/src/input_mp3.cpp
+        audiere/src/input_ogg.cpp
+        audiere/src/input_wav.cpp
+        audiere/src/loop_point_source.cpp
+        audiere/src/memory_file.cpp
+        audiere/src/noise.cpp
+        audiere/src/resampler.cpp
+        audiere/src/sample_buffer.cpp
+        audiere/src/sound.cpp
+        audiere/src/sound_effect.cpp
+        audiere/src/square_wave.cpp
+        audiere/src/threads_win32.cpp
+        audiere/src/timer_win32.cpp
+        audiere/src/tone.cpp
+        audiere/src/utility.cpp
+        audiere/src/version.cpp
+        audiere/src/mpaudec/bits.c
+        audiere/src/mpaudec/mpaudec.c)
+    add_library(run3::audiere ALIAS run3_audiere)
+    target_include_directories(run3_audiere PUBLIC audiere/src
+                               PRIVATE "${DUMB_INCLUDE_DIR}")
+    target_compile_definitions(run3_audiere
+        PRIVATE AUDIERE_EXPORTS DUMB_DECLARE_DEPRECATED HAVE_DSOUND HAVE_WINMM NOMINMAX
+                NO_SPEEX)
+    target_compile_features(run3_audiere PUBLIC cxx_std_17)
+    target_link_libraries(run3_audiere
+        PRIVATE run3::warnings "${DUMB_LIBRARY}" FLAC::FLAC
+                Vorbis::vorbisfile dsound winmm rpcrt4)
+    set_source_files_properties(
+        audiere/src/mpaudec/bits.c audiere/src/mpaudec/mpaudec.c
+        PROPERTIES COMPILE_OPTIONS "$<$<C_COMPILER_ID:MSVC>:/W0>;$<$<NOT:$<C_COMPILER_ID:MSVC>>:-w>")
+endif()
+
 add_library(run3_audio STATIC
             source/audio/Audio.cpp
+            source/audio/AudiereMusicPlayer.cpp
             source/audio/MapAudio.cpp
             source/audio/MusicPlayer.cpp
             source/audio/NullAudioBackend.cpp
@@ -140,6 +198,9 @@ target_compile_features(run3_audio PUBLIC cxx_std_17)
 target_include_directories(
     run3_audio PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 target_link_libraries(run3_audio PRIVATE run3::warnings)
+if(WIN32)
+    target_link_libraries(run3_audio PRIVATE run3::audiere)
+endif()
 
 # miniaudio.h remains private to this implementation target. Its implementation
 # macro exists in exactly one translation unit; no gameplay/public header sees

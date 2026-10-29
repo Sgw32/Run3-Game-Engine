@@ -94,6 +94,7 @@ public:
   bool handleInput(const InputEvent &event);
   bool startCutscene(std::string_view name);
   bool skipCutscene();
+  [[nodiscard]] double cutsceneTimeScale() const noexcept;
   bool exitComputer();
   void unload(bool runOnExit = true);
 

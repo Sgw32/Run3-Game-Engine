@@ -59,6 +59,7 @@ public:
       return {};
     }
     if (options.gain < 0.0F || options.pitch <= 0.0F ||
+        options.minimumGain < 0.0F || options.minimumGain > 1.0F ||
         options.minDistance < 0.0F ||
         options.maxDistance < options.minDistance) {
       lastError_ = "invalid gain, pitch, or attenuation distances";
@@ -221,14 +222,12 @@ public:
       return result;
     }
     const float separation = distance(slot->options.position, listener_.position);
-    if (separation >= slot->options.maxDistance) {
-      return 0.0F;
-    }
-    if (separation <= slot->options.minDistance) {
-      return result;
-    }
-    const float range = slot->options.maxDistance - slot->options.minDistance;
-    return result * (1.0F - (separation - slot->options.minDistance) / range);
+    const float reference = std::max(slot->options.minDistance, 0.0001F);
+    const float clampedDistance = std::clamp(
+        separation, reference, std::max(reference, slot->options.maxDistance));
+    const float attenuation = reference /
+        (reference + (clampedDistance - reference));
+    return result * std::max(slot->options.minimumGain, attenuation);
   }
 
   void setBusGain(const Bus bus, const float gain) override {

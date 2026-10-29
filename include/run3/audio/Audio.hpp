@@ -50,6 +50,9 @@ struct PlayOptions {
   float minDistance{1.0F};
   float maxDistance{1000.0F};
   float fadeInSeconds{};
+  // OpenAL's AL_MIN_GAIN equivalent. Legacy ambient declarations use this
+  // as an audible floor inside their dynamically loaded radius.
+  float minimumGain{};
 };
 
 struct AudioEngineConfig {

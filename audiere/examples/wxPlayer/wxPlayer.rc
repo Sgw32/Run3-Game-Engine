@@ -1,0 +1,10 @@
+aaaa                    ICON    "main.ico"
+
+/* Useful if PROVIDE_DEFAULT_ICONS is set in wx_setup.h */
+#define IHaveMDIParentIcon
+
+wxSTD_MDIPARENTFRAME    ICON    "main.ico"
+
+
+#include "wx/msw/wx.rc"
+

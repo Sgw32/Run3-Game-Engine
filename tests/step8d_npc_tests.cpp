@@ -2,6 +2,7 @@
 #include <run3/content/MapDefinition.hpp>
 #include <run3/gameplay/EntityRegistry.hpp>
 #include <run3/gameplay/NpcFacialAnimation.hpp>
+#include <run3/gameplay/NpcBehavior.hpp>
 #include <run3/gameplay/NpcSystem.hpp>
 
 #include <catch2/catch_approx.hpp>
@@ -190,6 +191,9 @@ TEST_CASE("Step 8D constructs typed neutral and enemy NPCs", "[step8d][npc]") {
   CHECK(spec.visualRotationDegrees == Catch::Approx(15.0));
   CHECK(spec.castShadows);
   CHECK(spec.strangeLook);
+  CHECK(spec.animationTimeMultiplier >= 0.9);
+  CHECK(spec.animationTimeMultiplier < 1.1);
+  CHECK(spec.behaviorSeed != 0);
   CHECK(spec.headBone == "GuideHead");
   CHECK(spec.headAxis.x == Catch::Approx(1.0));
   CHECK(spec.headAxis.y == Catch::Approx(0.0));
@@ -204,6 +208,10 @@ TEST_CASE("Step 8D constructs typed neutral and enemy NPCs", "[step8d][npc]") {
       std::get<gameplay::SpawnRuntimeEntity>(*raiderSpawned).spec;
   CHECK_FALSE(raiderSpec.autoPosition);
   CHECK_FALSE(raiderSpec.castShadows);
+  CHECK(raiderSpec.animationTimeMultiplier >= 0.9);
+  CHECK(raiderSpec.animationTimeMultiplier < 1.1);
+  CHECK(raiderSpec.animationTimeMultiplier !=
+        Catch::Approx(spec.animationTimeMultiplier));
   const auto handle = fixture.npcs->state("guide")->handle;
   fixture.npcs->dispatch({"guide", 19, "run3/lua/use.lua", {}, false});
   CHECK(fixture.npcs->use(handle));
@@ -211,6 +219,41 @@ TEST_CASE("Step 8D constructs typed neutral and enemy NPCs", "[step8d][npc]") {
   fixture.npcs->unload();
   CHECK(fixture.services.count<gameplay::DestroyRuntimeEntity>() == 2);
   CHECK(fixture.npcs->size() == 0);
+}
+
+TEST_CASE("Step 8D NPC animation variation and strange look are deterministic",
+          "[step8d][npc][look]") {
+  using namespace gameplay;
+  const std::uint64_t seed =
+      stableNpcBehaviorSeed("guide", "maps/fixture.xml", 7);
+  CHECK(seed == stableNpcBehaviorSeed("guide", "maps/fixture.xml", 7));
+  CHECK(seed != stableNpcBehaviorSeed("other", "maps/fixture.xml", 7));
+  CHECK(npcAnimationTimeMultiplier(seed) >= 0.9);
+  CHECK(npcAnimationTimeMultiplier(seed) < 1.1);
+
+  NpcLookState state;
+  CHECK(updateNpcLookState(state, true, 0.0, seed).target ==
+        NpcLookTarget::Player);
+  const double first = npcLookPhaseDuration(
+      seed, NpcLookPhase::PlayerFirst, 0);
+  CHECK(updateNpcLookState(state, true, first, seed).target ==
+        NpcLookTarget::Forward);
+  const double forward = npcLookPhaseDuration(
+      seed, NpcLookPhase::Forward, 0);
+  CHECK(updateNpcLookState(state, true, forward, seed).target ==
+        NpcLookTarget::Player);
+  const double second = npcLookPhaseDuration(
+      seed, NpcLookPhase::PlayerSecond, 0);
+  const auto elsewhere = updateNpcLookState(state, true, second, seed);
+  CHECK(elsewhere.target == NpcLookTarget::Elsewhere);
+  CHECK(std::abs(elsewhere.elsewhereYawDegrees) >= 20.0);
+  CHECK(std::abs(elsewhere.elsewhereYawDegrees) <= 40.0);
+
+  CHECK(updateNpcLookState(state, false, 1.0, seed).target ==
+        NpcLookTarget::Forward);
+  CHECK_FALSE(state.engaged);
+  CHECK(updateNpcLookState(state, true, 0.0, seed).target ==
+        NpcLookTarget::Player);
 }
 
 TEST_CASE("Step 8D near script fires once and explicit use stays separate",

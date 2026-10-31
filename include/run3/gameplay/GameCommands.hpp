@@ -4,6 +4,7 @@
 #include <run3/physics/Physics.hpp>
 
 #include <filesystem>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -67,6 +68,10 @@ struct RuntimeEntitySpec {
   double renderDistance{10000.0};
   std::string handBone{"Hand"};
   bool strangeLook{};
+  // Stable equivalents of npc_neutral's legacy uniqueMult and per-instance
+  // behavior randomness.
+  double animationTimeMultiplier{1.0};
+  std::uint64_t behaviorSeed{};
   std::string headBone{"BMan0002-Head"};
   physics::Vec3 headAxis{0.0, 1.0, 0.0};
   bool visible{true};

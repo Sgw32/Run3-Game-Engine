@@ -2232,7 +2232,9 @@ void Run3App::refreshMouseCapture() {
       !sequenceRuntime_->presentation().activeCutscene.empty();
   if (sequenceServices_ != nullptr) {
     sequenceServices_->setGameplayCursorVisible(
-        player_ != nullptr && !uiObscuresGameplay && !cutsceneActive);
+        player_ != nullptr && !uiObscuresGameplay && !cutsceneActive &&
+        (sequenceRuntime_ == nullptr ||
+         sequenceRuntime_->presentation().hudVisible));
   }
   const bool capture = player_ != nullptr && options_.frameLimit == 0 &&
                        ui_ != nullptr && !uiObscuresGameplay;

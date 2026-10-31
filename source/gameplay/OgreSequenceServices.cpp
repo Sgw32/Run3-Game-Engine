@@ -4,6 +4,7 @@
 #include <run3/audio/SoundRuntime.hpp>
 #include <run3/gameplay/DynamicPhysicsScene.hpp>
 #include <run3/gameplay/NpcFacialAnimation.hpp>
+#include <run3/gameplay/NpcBehavior.hpp>
 #include <run3/gameplay/NpcSystem.hpp>
 #include <run3/gameplay/PlayerController.hpp>
 #include <run3/gameplay/StaticMap.hpp>
@@ -18,6 +19,7 @@
 #include <OgreBone.h>
 #include <OgreCamera.h>
 #include <OgreEntity.h>
+#include <OgreFontManager.h>
 #include <OgreHardwareIndexBuffer.h>
 #include <OgreHardwareVertexBuffer.h>
 #include <OgreHighLevelGpuProgramManager.h>
@@ -416,6 +418,7 @@ public:
     Ogre::Bone *headBone{};
     Ogre::Quaternion headBaseOrientation{Ogre::Quaternion::IDENTITY};
     Ogre::Real headYawDegrees{};
+    NpcLookState lookState;
   };
   struct ParticlePresentation {
     std::string name;
@@ -980,10 +983,14 @@ public:
         presentation.headBone->_getDerivedPosition();
     const Ogre::Vector3 playerEye = toOgre(player->eyePosition());
     const Ogre::Vector3 worldDelta = playerEye - headWorld;
-    Ogre::Real targetYaw{};
-    if (presentation.entity->getVisible() &&
+    const bool playerNear = presentation.entity->getVisible() &&
         worldDelta.squaredLength() <=
-            npcStrangeLookDistance * npcStrangeLookDistance) {
+            npcStrangeLookDistance * npcStrangeLookDistance;
+    const NpcLookDecision look = updateNpcLookState(
+        presentation.lookState, playerNear, seconds,
+        presentation.spec.behaviorSeed);
+    Ogre::Real targetYaw{};
+    if (look.target == NpcLookTarget::Player) {
       const Ogre::Vector3 localDelta =
           visual->_getDerivedOrientation().Inverse() * worldDelta;
       if (localDelta.x != 0.0F || localDelta.z != 0.0F) {
@@ -991,6 +998,8 @@ public:
                         .valueDegrees();
         targetYaw = std::clamp(targetYaw, -45.0F, 45.0F);
       }
+    } else if (look.target == NpcLookTarget::Elsewhere) {
+      targetYaw = static_cast<Ogre::Real>(look.elsewhereYawDegrees);
     }
     const Ogre::Real blend = 1.0F - std::exp(
         -5.0F * std::clamp<Ogre::Real>(seconds, 0.0F, 0.25F));
@@ -1259,6 +1268,42 @@ public:
 
   void setHudVisible(const bool visible) {
     ui->setHudVisible(visible);
+    try {
+      if (hudOverlay == nullptr) {
+        auto &overlays = Ogre::OverlayManager::getSingleton();
+        if (overlays.getByName("Run3/HUD") == nullptr) {
+          // Load only the HUD resources; the full legacy resource group
+          // also contains programs for unsupported graphics profiles.
+          if (!Ogre::FontManager::getSingleton().resourceExists(
+                  "ABC_HUD", "Run3Step6BContent")) {
+            const auto path = paths.contentPath("run3/fonts/hud.fontdef");
+            std::ifstream source(path, std::ios::binary);
+            if (!source) throw std::runtime_error("missing HUD font definition");
+            Ogre::DataStreamPtr data(OGRE_NEW Ogre::FileStreamDataStream(
+                path.filename().string(), &source, false));
+            Ogre::FontManager::getSingleton().parseScript(data,
+                                                        "Run3Step6BContent");
+          }
+          const auto path = paths.contentPath("run3/game/hud/game_hud.overlay");
+          std::ifstream source(path, std::ios::binary);
+          if (!source) throw std::runtime_error("missing legacy HUD overlay");
+          Ogre::DataStreamPtr data(OGRE_NEW Ogre::FileStreamDataStream(
+              path.filename().string(), &source, false));
+          overlays.parseScript(data, "Run3Step6BContent");
+        }
+        hudOverlay = overlays.getByName("Run3/HUD");
+        if (hudOverlay == nullptr)
+          throw std::runtime_error("legacy Run3/HUD overlay was not created");
+        if (auto *health = overlays.getOverlayElement("Run3/HUDHealthInd", false))
+          health->setCaption("100");
+      }
+      // Health and the three energy bars are disabled for now.
+      // if (visible) hudOverlay->show();
+      // else hudOverlay->hide();
+      hudOverlay->hide();
+    } catch (const std::exception &error) {
+      log("warning: HUD overlay unavailable: " + std::string(error.what()));
+    }
   }
 
   void setGameplayCursorVisible(const bool visible) noexcept {
@@ -1391,6 +1436,9 @@ public:
   void destroyAll() noexcept {
     destroyFlashlight();
     if (ui != nullptr) ui->resetMapState();
+    if (hudOverlay != nullptr) {
+      try { hudOverlay->hide(); } catch (...) {}
+    }
     if (gameTextOverlay != nullptr) {
       try { gameTextOverlay->hide(); } catch (...) {}
     }
@@ -1898,6 +1946,7 @@ public:
   bool flashlightAllowed{true};
   Ogre::Overlay *gameTextOverlay{};
   Ogre::OverlayElement *gameTextElement{};
+  Ogre::Overlay *hudOverlay{};
   Ogre::Overlay *crosshairOverlay{};
   bool gameplayCursorVisible{true};
   double gameTextSeconds{};
@@ -1999,7 +2048,8 @@ void OgreSequenceServices::updateAudio(float seconds) {
       impl_->updateStrangeLook(presentation, seconds);
       continue;
     }
-    presentation.pendingAnimationSeconds += seconds;
+    presentation.pendingAnimationSeconds +=
+        seconds * presentation.spec.animationTimeMultiplier;
     const bool animationDue = animationInterval != 0 &&
         (impl_->npcPresentationFrame + id) % animationInterval == 0;
     if (animationInterval == 1) ++impl_->npcStats.fullRateAnimations;

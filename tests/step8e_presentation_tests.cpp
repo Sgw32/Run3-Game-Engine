@@ -103,6 +103,59 @@ TEST_CASE("Step 8E cutscene is deterministic, skippable and restores control",
   }) == 1);
 }
 
+TEST_CASE("DotScene HUD visibility defaults on and honors environment show",
+          "[step8e][hud]") {
+  ReadyFixture fixture;
+  bool expected = true;
+  SECTION("No hud tag") {}
+  SECTION("Missing show attribute") {
+    fixture.definition.scene.children.push_back({"environment"});
+    fixture.definition.scene.children.back().children.push_back({"hud"});
+  }
+  SECTION("Explicit show true") {
+    fixture.definition.scene.children.push_back({"environment"});
+    fixture.definition.scene.children.back().children.push_back(
+        {"hud", {{"show", "true"}}});
+  }
+  SECTION("Explicit show false") {
+    expected = false;
+    fixture.definition.scene.children.push_back({"environment"});
+    fixture.definition.scene.children.back().children.push_back(
+        {"hud", {{"show", "false"}}});
+  }
+  fixture.runtime = std::make_unique<gameplay::SequenceRuntime>(
+      fixture.definition, fixture.registry, fixture.services);
+  fixture.runtime->start();
+  CHECK(fixture.runtime->presentation().hudVisible == expected);
+  REQUIRE_FALSE(fixture.services.commands.empty());
+  const auto *hud = std::get_if<gameplay::SetRuntimeHudVisible>(
+      &fixture.services.commands.front());
+  REQUIRE(hud != nullptr);
+  CHECK(hud->visible == expected);
+
+  // tlwhome01 hides the HUD in Lua before starting its opening cutscene.
+  // Those temporary commands must not replace the map's authored default.
+  scripting::ScriptEngine scripts(
+      {fixture.paths.contentRoot(), fixture.paths.userRoot(), 10000},
+      [&fixture](const scripting::ScriptCall &call) {
+        return fixture.runtime->dispatchScriptCall(call);
+      });
+  scripts.executeText("HUDHide(); HUDDisable();", "hud-startup.lua");
+  CHECK_FALSE(fixture.runtime->presentation().hudVisible);
+  REQUIRE(fixture.runtime->startCutscene("intro"));
+  CHECK_FALSE(fixture.runtime->presentation().hudVisible);
+  for (int tick = 0; tick < 180; ++tick) fixture.runtime->fixedUpdate();
+  REQUIRE(fixture.runtime->presentation().activeCutscene.empty());
+  CHECK(fixture.runtime->presentation().hudVisible == expected);
+
+  const auto terminal = fixture.registry.findFirst("terminal");
+  REQUIRE(terminal.has_value());
+  REQUIRE(fixture.runtime->interact(*terminal));
+  REQUIRE(fixture.runtime->handleInput(
+      {InputEventType::KeyPressed, Key::Escape}));
+  CHECK(fixture.runtime->presentation().hudVisible == expected);
+}
+
 TEST_CASE("Step 8E cutscene pose is independent of rendering frequency",
           "[step8e][cutscene][replay]") {
   const auto poseAtRate = [](int renderingHz) {

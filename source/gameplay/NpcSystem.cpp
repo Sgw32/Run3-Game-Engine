@@ -1,4 +1,5 @@
 #include <run3/gameplay/NpcSystem.hpp>
+#include <run3/gameplay/NpcBehavior.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -136,6 +137,8 @@ struct NpcSystem::Impl {
     bool flashlight{};
     bool gravityEnabled{true};
     bool castShadows{true};
+    std::uint64_t behaviorSeed{};
+    double animationTimeMultiplier{1.0};
     std::uint64_t perceptionTick{}, attackTick{};
     std::vector<air3::PathNode> path;
     std::size_t waypoint{1};
@@ -224,6 +227,11 @@ struct NpcSystem::Impl {
       if (found == handles.end())
         throw std::runtime_error(origin(*element) + ": no typed entity handle");
       npc.publicState.handle = *found;
+      npc.behaviorSeed = stableNpcBehaviorSeed(
+          npc.publicState.name, element->source.file.generic_string(),
+          element->order);
+      npc.animationTimeMultiplier =
+          npcAnimationTimeMultiplier(npc.behaviorSeed);
       npc.publicState.animation = npc.animated ? "Idle1" : "";
       scales.push_back(scale);
       records.push_back(std::move(npc));
@@ -332,6 +340,8 @@ void NpcSystem::start() {
     spec.castShadows = npc.castShadows;
     spec.handBone = npc.handBone;
     spec.strangeLook = npc.strangeLook;
+    spec.animationTimeMultiplier = npc.animationTimeMultiplier;
+    spec.behaviorSeed = npc.behaviorSeed;
     spec.headBone = npc.headBone;
     spec.headAxis = npc.headAxis;
     // Ogre derives either the automatic walking-pose fit or the legacy mesh

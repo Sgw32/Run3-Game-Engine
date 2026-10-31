@@ -388,6 +388,12 @@ public:
        IGameServices &gameServices)
       : definition(&mapDefinition), registry(&entityRegistry),
         services(&gameServices) {
+    if (const auto *environment = definition->scene.firstChild("environment")) {
+      if (const auto *hud = environment->firstChild("hud")) {
+        hudEnabled = boolean(*hud, "show", true);
+      }
+    }
+    presentationState.hudVisible = hudEnabled;
     build();
   }
 
@@ -640,7 +646,8 @@ public:
     activeCutscene = scene;
     presentationState.activeCutscene = scene->name;
     presentationState.playerFrozen = scene->freeze;
-    presentationState.hudVisible = !scene->hideHud;
+    presentationState.hudVisible = hudEnabled && !scene->hideHud &&
+                                   activeComputer == nullptr;
     services->submit(SetRuntimeHudVisible{presentationState.hudVisible});
     try {
       if (!scene->music.empty())
@@ -662,8 +669,8 @@ public:
     presentationState.activeCutscene.clear();
     presentationState.camera.reset();
     presentationState.playerFrozen = activeComputer != nullptr;
-    presentationState.hudVisible = true;
-    services->submit(SetRuntimeHudVisible{true});
+    presentationState.hudVisible = hudEnabled && activeComputer == nullptr;
+    services->submit(SetRuntimeHudVisible{presentationState.hudVisible});
   }
 
   void updateCutsceneCamera(Cutscene &scene) {
@@ -847,6 +854,7 @@ public:
     }
     if (isStarted) return;
     isStarted = true;
+    services->submit(SetRuntimeHudVisible{presentationState.hudVisible});
     for (Record &record : records) {
       if (record.publicState.tag == "timer") {
         record.nextTick = tickNumber + record.periodTicks;
@@ -993,7 +1001,8 @@ public:
     presentationState.computerFocused = false;
     presentationState.playerFrozen = activeCutscene != nullptr &&
                                      activeCutscene->freeze;
-    presentationState.hudVisible = activeCutscene == nullptr;
+    presentationState.hudVisible = hudEnabled &&
+        (activeCutscene == nullptr || !activeCutscene->hideHud);
     services->submit(SetRuntimeHudVisible{presentationState.hudVisible});
     if (failure) std::rethrow_exception(failure);
     return true;
@@ -1393,6 +1402,7 @@ public:
   std::vector<Cutscene> cutscenes;
   Cutscene *activeCutscene{};
   Record *activeComputer{};
+  bool hudEnabled{true};
   SequencePresentationState presentationState;
   std::string playerParent;
   bool fullPlayerParent{};

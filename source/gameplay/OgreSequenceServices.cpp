@@ -6,6 +6,7 @@
 #include <run3/gameplay/NpcFacialAnimation.hpp>
 #include <run3/gameplay/NpcBehavior.hpp>
 #include <run3/gameplay/NpcSystem.hpp>
+#include <run3/gameplay/OgreNodeAttachment.hpp>
 #include <run3/gameplay/PlayerController.hpp>
 #include <run3/gameplay/StaticMap.hpp>
 #include <run3/rendering/OgreLighting.hpp>
@@ -394,8 +395,7 @@ template <class... Ts> Overloaded(Ts...) -> Overloaded<Ts...>;
 class OgreSequenceServices::Impl final {
 public:
   struct Attachment {
-    Ogre::Entity *object{};
-    Ogre::SceneNode *originalNode{};
+    OgreNodeAttachment pose;
     std::string objectName;
   };
   struct Presentation {
@@ -1451,14 +1451,12 @@ public:
     while (!computerMaterialBindings.empty())
       restoreComputerMaterial(computerMaterialBindings.begin()->first);
     for (auto &[id, attached] : attachments) {
-      auto owner = presentations.find(id);
+      static_cast<void>(id);
       for (auto &item : attached) {
         try {
-          if (owner != presentations.end() && owner->second.entity)
-            owner->second.entity->detachObjectFromBone(item.object);
-          if (item.originalNode) item.originalNode->attachObject(item.object);
+          item.pose.restore();
           static_cast<void>(staticMap->setNamedObjectPhysicsEnabled(
-              item.objectName, true));
+              item.objectName, true, true));
         } catch (...) {}
       }
     }
@@ -1532,10 +1530,9 @@ public:
     auto attached = attachments.find(handle.id.value);
     if (attached != attachments.end()) {
       for (auto &item : attached->second) {
-        if (entry.entity) entry.entity->detachObjectFromBone(item.object);
-        if (item.originalNode) item.originalNode->attachObject(item.object);
+        item.pose.restore();
         static_cast<void>(staticMap->setNamedObjectPhysicsEnabled(
-            item.objectName, true));
+            item.objectName, true, true));
       }
       attachments.erase(attached);
     }
@@ -1592,10 +1589,9 @@ public:
         });
     if (!command.attach) {
       if (previous == owned.end()) return;
-      owner.entity->detachObjectFromBone(previous->object);
-      if (previous->originalNode) previous->originalNode->attachObject(previous->object);
+      previous->pose.restore();
       static_cast<void>(staticMap->setNamedObjectPhysicsEnabled(
-          previous->objectName, true));
+          previous->objectName, true, true));
       owned.erase(previous);
       return;
     }
@@ -1616,18 +1612,26 @@ public:
       return;
     }
     Ogre::SceneNode *original = object->getParentSceneNode();
+    if (original == nullptr || owner.entity->getParentSceneNode() == nullptr) {
+      log("warning: NPC attachment '" + command.object + "' has no scene node");
+      return;
+    }
+    OgreNodeAttachment pose(*original, *owner.entity->getParentSceneNode(),
+                            *owner.entity->getSkeleton()->getBone(command.bone));
     static_cast<void>(staticMap->setNamedObjectPhysicsEnabled(command.object,
-                                                                false));
-    object->detachFromParent();
+                                                              false, true));
     try {
-      owner.entity->attachObjectToBone(command.bone, object);
+      owned.push_back({pose, command.object});
+      owner.entity->_updateAnimation();
+      owned.back().pose.update();
     } catch (...) {
-      if (original) original->attachObject(object);
+      pose.restore();
+      if (!owned.empty() && owned.back().objectName == command.object)
+        owned.pop_back();
       static_cast<void>(staticMap->setNamedObjectPhysicsEnabled(command.object,
-                                                                 true));
+                                                                true, true));
       throw;
     }
-    owned.push_back({object, original, command.object});
   }
 
   void resetFacialPose(FacialPresentation &facial) {
@@ -2008,6 +2012,13 @@ void OgreSequenceServices::updateAudio(float seconds) {
   impl_->oneShots.update(seconds);
   impl_->updateGameText(seconds);
   impl_->updateFacials(seconds);
+  for (auto &[id, attached] : impl_->attachments) {
+    const auto owner = impl_->presentations.find(id);
+    if (owner == impl_->presentations.end() || owner->second.entity == nullptr)
+      continue;
+    owner->second.entity->_updateAnimation();
+    for (const auto &item : attached) item.pose.update();
+  }
   ++impl_->npcPresentationFrame;
   impl_->npcStats = {};
   struct ShadowCandidate {

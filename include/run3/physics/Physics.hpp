@@ -153,6 +153,9 @@ struct BodyDesc {
   double massKg{};
   Transform transform;
   Vec3 linearVelocity;
+  // Per-axis response to forces and contact impulses; scripted transforms
+  // remain unrestricted. Zero locks an axis, one allows normal integration.
+  Vec3 linearFactor{1.0, 1.0, 1.0};
   Vec3 angularFactor{1.0, 1.0, 1.0};
   bool gravityEnabled{true};
   double friction{0.5};

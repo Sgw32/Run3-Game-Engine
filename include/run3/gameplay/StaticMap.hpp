@@ -96,7 +96,8 @@ public:
   namedObjectBounds(std::string_view name) const;
   [[nodiscard]] Ogre::Entity *namedObject(std::string_view name) const;
   [[nodiscard]] bool setNamedObjectPhysicsEnabled(std::string_view name,
-                                                  bool enabled);
+                                                  bool enabled,
+                                                  bool includeChildren = false);
   [[nodiscard]] bool setNamedObjectFrozen(std::string_view name, bool frozen);
   void prepareParticleSystem(Ogre::ParticleSystem &system);
   [[nodiscard]] bool setNamedObjectMaterial(std::string_view name,

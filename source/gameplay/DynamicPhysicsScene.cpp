@@ -78,6 +78,12 @@ struct DynamicPhysicsScene::Impl {
                       : 0.0;
     body.transform = description.transform;
     body.angularFactor = description.angularFactor;
+    if (description.type == BodyType::Npc) {
+      // NPC navigation/scripts own horizontal movement and facing. Keep
+      // gravity and floor contacts dynamic without accepting player pushes.
+      body.linearFactor = {0.0, 1.0, 0.0};
+      body.angularFactor = {};
+    }
     body.gravityEnabled = description.gravityEnabled;
     body.group = description.group;
     body.mask = description.mask;

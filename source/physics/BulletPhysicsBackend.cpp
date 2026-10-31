@@ -214,6 +214,10 @@ public:
     record->body->setInterpolationWorldTransform(
         record->body->getWorldTransform());
     record->body->setLinearVelocity(toBullet(description.linearVelocity, units_));
+    record->body->setLinearFactor(
+        {static_cast<btScalar>(description.linearFactor.x),
+         static_cast<btScalar>(description.linearFactor.y),
+         static_cast<btScalar>(description.linearFactor.z)});
     record->body->setAngularFactor(
         {static_cast<btScalar>(description.angularFactor.x),
          static_cast<btScalar>(description.angularFactor.y),

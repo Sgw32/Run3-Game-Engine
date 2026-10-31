@@ -56,6 +56,7 @@ void validateBody(const BodyDesc &description) {
   if (!finite(description.transform.position) ||
       !finite(description.transform.rotation) ||
       !finite(description.linearVelocity) ||
+      !finite(description.linearFactor) ||
       !finite(description.angularFactor) ||
       !std::isfinite(description.friction) || description.friction < 0.0) {
     throw std::invalid_argument("body transform and velocity must be finite");

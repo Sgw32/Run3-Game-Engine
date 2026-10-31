@@ -1,5 +1,6 @@
 #include <run3/air3/AirPathFind.hpp>
 #include <run3/gameplay/DynamicPhysicsScene.hpp>
+#include <run3/gameplay/PlayerController.hpp>
 #include <run3/physics/PhysicsQuery.hpp>
 
 #include <catch2/catch_test_macros.hpp>
@@ -225,6 +226,70 @@ TEST_CASE("NPC contact is preserved without pointer or string casts") {
   CHECK(found->entity == npcId);
   CHECK(found->other == 900);
   CHECK(player.valid());
+}
+
+TEST_CASE("Player pressure cannot push NPCs but scripted movement remains available",
+          "[npc][physics]") {
+  PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
+  BodyDesc floor{Shape::box({2000, 10, 2000})};
+  floor.transform.position = {0, -10, 0};
+  floor.group = CollisionGroup::World;
+  const auto floorBody = world.createBody(floor);
+  DynamicPhysicsScene scene(world);
+  DynamicEntityDesc npc{"guard", BodyType::Npc, Shape::box({20, 100, 20})};
+  npc.massKg = 80;
+  npc.transform.position = {0, 150, 0};
+  npc.group = CollisionGroup::Npc;
+  const auto npcId = scene.createEntity(npc);
+  for (int tick = 0; tick < 120; ++tick)
+    static_cast<void>(world.advance(step));
+  // Axis locking must retain gravity and floor settling.
+  CHECK_THAT(scene.transform(npcId).position.y, WithinAbs(100, 0.5));
+
+  Vec3 start{-120, 100, 0};
+  run3::gameplay::PlayerCommand command;
+  command.strafe = 1;
+  SECTION("Push from negative X") {}
+  SECTION("Push from positive X") { start.x = 120; command.strafe = -1; }
+  SECTION("Push from negative Z") {
+    start = {0, 100, -120}; command.strafe = 0; command.forward = -1;
+  }
+  SECTION("Push from positive Z") {
+    start = {0, 100, 120}; command.strafe = 0; command.forward = 1;
+  }
+  run3::gameplay::PlayerController player(world);
+  player.spawn(start);
+  player.setCommand(command);
+  for (int tick = 0; tick < 180; ++tick)
+    static_cast<void>(player.simulateFixedStep());
+  CHECK_THAT(scene.transform(npcId).position.x, WithinAbs(0, 0.001));
+  CHECK_THAT(scene.transform(npcId).position.z, WithinAbs(0, 0.001));
+  CHECK_THAT(scene.transform(npcId).position.y, WithinAbs(100, 0.5));
+  CHECK(hasEvent(scene.processContactEvents(), GameplayPhysicsEventType::NpcContact));
+  // The player must be blocked, rather than simply passing through the NPC.
+  CHECK(player.state().position.x * start.x +
+        player.state().position.z * start.z > 30 * 120);
+
+  // Navigation, teleport and rotate events use setEntityTransform. They must
+  // keep working while physics contact impulses are constrained.
+  const run3::physics::Quaternion facing{0.7071067811865476, 0,
+                                         0.7071067811865476, 0};
+  for (int tick = 0; tick < 60; ++tick) {
+    const Transform scripted{{200.0 + tick * 2, 100, 50.0 + tick}, facing};
+    scene.setEntityTransform(npcId, scripted);
+    static_cast<void>(world.advance(step));
+    CHECK_THAT(scene.transform(npcId).position.x,
+               WithinAbs(scripted.position.x, 0.001));
+    CHECK_THAT(scene.transform(npcId).position.z,
+               WithinAbs(scripted.position.z, 0.001));
+    CHECK_THAT(scene.transform(npcId).rotation.y, WithinAbs(facing.y, 0.001));
+  }
+  // No latent contact velocity may make a stopped NPC slide afterwards.
+  const auto stopped = scene.transform(npcId).position;
+  for (int tick = 0; tick < 120; ++tick)
+    static_cast<void>(world.advance(step));
+  CHECK_THAT(scene.transform(npcId).position.x, WithinAbs(stopped.x, 0.001));
+  CHECK_THAT(scene.transform(npcId).position.z, WithinAbs(stopped.z, 0.001));
 }
 
 TEST_CASE("ragdoll constraints and map unload have explicit RAII lifetimes") {

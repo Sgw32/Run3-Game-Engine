@@ -5,12 +5,65 @@
 #include <run3/app/AppPaths.hpp>
 #include <run3/gameplay/LegacyMaterialCatalog.hpp>
 #include <run3/gameplay/SemiInfiniteWorld.hpp>
+#include <run3/gameplay/OgreNodeAttachment.hpp>
 #include <limits>
 #include <optional>
 #include <set>
 
 using namespace run3;
 using namespace run3::rendering;
+
+TEST_CASE("NPC attachment follows the bone with the complete authored hierarchy",
+          "[npc][attachment]") {
+  Ogre::SceneNode map(nullptr), carrier(nullptr), saw(nullptr);
+  map.addChild(&carrier);
+  carrier.addChild(&saw);
+  map.setPosition(100, 20, -30);
+  map.setOrientation(Ogre::Quaternion(Ogre::Degree(30), Ogre::Vector3::UNIT_Y));
+  carrier.setPosition(5, 6, 7);
+  carrier.setOrientation(
+      Ogre::Quaternion(Ogre::Degree(90), Ogre::Vector3::UNIT_X));
+  carrier.setScale(0.01F, 0.01F, 0.01F);
+  saw.setPosition(0, 0, 2500);
+  saw.setOrientation(
+      Ogre::Quaternion(Ogre::Degree(180), Ogre::Vector3::UNIT_Y));
+  saw.setScale(7000, 7000, 7000);
+  const auto originalOrientation = carrier._getDerivedOrientation();
+  const auto originalPosition = carrier.getPosition();
+  const auto originalLocalOrientation = carrier.getOrientation();
+
+  Ogre::SceneNode npc(nullptr), bone(nullptr);
+  npc.setPosition(-5689, -9242, 2324);
+  npc.setScale(90, 90, 90);
+  npc.setOrientation(
+      Ogre::Quaternion(Ogre::Degree(60), Ogre::Vector3::UNIT_Y));
+  bone.setPosition(1, 2, 3);
+  bone.setOrientation(
+      Ogre::Quaternion(Ogre::Degree(45), Ogre::Vector3::UNIT_Z));
+  gameplay::OgreNodeAttachment attachment(carrier, npc, bone);
+
+  for (int frame = 0; frame < 2; ++frame) {
+    attachment.update();
+    const auto hand = npc.convertLocalToWorldPosition(bone.getPosition());
+    const auto orientation = npc.getOrientation() * bone.getOrientation() *
+                             originalOrientation;
+    CHECK(carrier._getDerivedPosition().positionEquals(hand, 0.01F));
+    CHECK(carrier._getDerivedOrientation().equals(orientation, Ogre::Degree(0.01F)));
+    CHECK(carrier._getDerivedScale().positionEquals({0.01F, 0.01F, 0.01F}));
+    CHECK(saw._getDerivedScale().positionEquals({70, 70, 70}, 0.001F));
+    CHECK(saw._getDerivedPosition().positionEquals(
+        hand + orientation * Ogre::Vector3(0, 0, 25), 0.01F));
+    CHECK(saw.getParent() == &carrier);
+    npc.translate(10, 20, 30);
+    bone.setOrientation(Ogre::Quaternion::IDENTITY);
+  }
+  attachment.restore();
+  CHECK(carrier.getPosition() == originalPosition);
+  CHECK(carrier.getOrientation() == originalLocalOrientation);
+  CHECK(carrier.getScale().positionEquals({0.01F, 0.01F, 0.01F}));
+  CHECK(saw.getPosition() == Ogre::Vector3(0, 0, 2500));
+}
+
 TEST_CASE("Lighting pipeline and shadow keys reject typos") {
   for(const auto *key:{"legacy-forward","deferred","pbr","fast-forward"})
     CHECK(pipelineName(parseLightingPipeline(key))==key);

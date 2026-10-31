@@ -1284,7 +1284,7 @@ public:
   void syncDynamicTransforms() {
     for (auto &binding : bodies_) {
       if (binding.node == nullptr || binding.node == rootNode_ ||
-          !binding.body.valid()) {
+          !binding.body.valid() || !world_->isEnabled(binding.body)) {
         continue;
       }
       const physics::Transform transform =
@@ -1418,18 +1418,23 @@ Ogre::Entity *StaticMap::namedObject(std::string_view name) const {
 }
 
 bool StaticMap::setNamedObjectPhysicsEnabled(std::string_view name,
-                                              bool enabled) {
+                                              bool enabled,
+                                              bool includeChildren) {
   Ogre::Entity *entity = namedObject(name);
   if (entity == nullptr) return false;
   Ogre::SceneNode *node = entity->getParentSceneNode();
   if (node == nullptr) return false;
+  bool found = false;
   for (auto &binding : implementation_->bodies_) {
-    if (binding.node == node) {
+    auto *candidate = static_cast<Ogre::Node *>(binding.node);
+    while (candidate != nullptr && candidate != node && includeChildren)
+      candidate = candidate->getParent();
+    if (candidate == node) {
       implementation_->world_->setEnabled(binding.body, enabled);
-      return true;
+      found = true;
     }
   }
-  return false;
+  return found;
 }
 
 bool StaticMap::setNamedObjectFrozen(std::string_view name, bool frozen) {

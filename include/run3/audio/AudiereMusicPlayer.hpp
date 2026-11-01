@@ -26,6 +26,7 @@ public:
   void clear() noexcept;
   [[nodiscard]] bool active() const noexcept;
   [[nodiscard]] std::optional<float> playbackSeconds() const;
+  [[nodiscard]] std::optional<float> durationSeconds() const;
   bool seekSeconds(float seconds);
   [[nodiscard]] const std::string &lastError() const noexcept;
 

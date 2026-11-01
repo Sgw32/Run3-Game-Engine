@@ -83,6 +83,7 @@ public:
   [[nodiscard]] const std::filesystem::path &musicFile() const noexcept;
   [[nodiscard]] std::string musicLastError() const;
   [[nodiscard]] std::optional<float> musicPlaybackSeconds() const;
+  [[nodiscard]] std::optional<float> musicDurationSeconds() const;
   bool seekMusicSeconds(float seconds);
   void update(float seconds, const FootstepState *player = nullptr);
   void clear() noexcept;

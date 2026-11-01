@@ -77,6 +77,8 @@ struct SequencePresentationState {
   std::string activeCutscene;
   std::string activeComputer;
   std::optional<physics::Transform> camera;
+  double cutsceneTimeSeconds{};
+  double cutsceneDurationSeconds{};
 };
 
 class SequenceRuntime final {
@@ -91,6 +93,9 @@ public:
 
   void start();
   void fixedUpdate();
+  // Refresh a music-driven camera/events from the player cursor even when
+  // no physics step is due. Never advances an unsynchronised cutscene.
+  void updateCutscenePresentation();
   bool handleInput(const InputEvent &event);
   bool startCutscene(std::string_view name);
   bool skipCutscene();

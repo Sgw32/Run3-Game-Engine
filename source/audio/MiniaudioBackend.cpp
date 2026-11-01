@@ -330,6 +330,16 @@ public:
                : 0.0F;
   }
 
+  std::optional<float> durationSeconds(const SoundHandle &sound) const override {
+    const Slot *slot = find(sound);
+    float duration{};
+    if (slot != nullptr &&
+        ma_sound_get_length_in_seconds(&slot->sound, &duration) == MA_SUCCESS &&
+        duration > 0.0F)
+      return duration;
+    return std::nullopt;
+  }
+
   bool seekSeconds(const SoundHandle &sound, const float seconds) override {
     Slot *slot = find(sound);
     if (slot == nullptr || seconds < 0.0F) {

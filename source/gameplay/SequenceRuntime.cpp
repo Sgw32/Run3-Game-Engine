@@ -371,9 +371,10 @@ public:
     std::vector<CutsceneFrame> frames;
     std::vector<CutsceneRun> runs;
     std::uint64_t lengthTicks{};
-    std::uint64_t musicLengthTicks{};
+    double musicLengthSeconds{};
     std::uint64_t waitTicks{};
     std::uint64_t elapsedTicks{};
+    std::optional<double> musicCameraTick;
     double skipMultiplier{3.0};
     bool freeze{true};
     bool hideHud{true};
@@ -593,8 +594,11 @@ public:
     if (boolean(element, "music", false))
       scene.music = attribute(element, "musicFile", "");
     if (!scene.music.empty())
-      scene.musicLengthTicks = secondsToTicks(
-          std::max(0.0, number(element, "musicLength", 0.0)));
+      scene.musicLengthSeconds = std::max(0.0, number(element, "musicLength", 0.0));
+    // Original CutScene::setMusicSync/setFasterCoefficient limit music
+    // skipping to 2x. The camera follows that cursor; it is not scaled again.
+    if (!scene.music.empty())
+      scene.skipMultiplier = std::min(scene.skipMultiplier, 2.0);
     for (const AuthoredElement &frame : element.children) {
       if (frame.tag != "frame") continue;
       physics::Transform pose;
@@ -641,6 +645,7 @@ public:
     finishCutscene();
     for (CutsceneRun &run : scene->runs) run.fired = false;
     scene->elapsedTicks = 0;
+    scene->musicCameraTick.reset();
     scene->active = true;
     scene->scheduled = false;
     activeCutscene = scene;
@@ -668,22 +673,29 @@ public:
     activeCutscene = nullptr;
     presentationState.activeCutscene.clear();
     presentationState.camera.reset();
+    presentationState.cutsceneTimeSeconds = 0.0;
+    presentationState.cutsceneDurationSeconds = 0.0;
     presentationState.playerFrozen = activeComputer != nullptr;
     presentationState.hudVisible = hudEnabled && activeComputer == nullptr;
     services->submit(SetRuntimeHudVisible{presentationState.hudVisible});
   }
 
   void updateCutsceneCamera(Cutscene &scene) {
+    const double cameraTick = scene.musicCameraTick.value_or(
+        static_cast<double>(scene.elapsedTicks));
+    presentationState.cutsceneTimeSeconds = cameraTick * fixedStepSeconds;
+    presentationState.cutsceneDurationSeconds =
+        static_cast<double>(scene.lengthTicks) * fixedStepSeconds;
     const CutsceneFrame *before = &scene.frames.front();
     const CutsceneFrame *after = before;
     for (const CutsceneFrame &frame : scene.frames) {
-      if (frame.tick <= scene.elapsedTicks) before = &frame;
-      if (frame.tick >= scene.elapsedTicks) { after = &frame; break; }
+      if (frame.tick <= cameraTick) before = &frame;
+      if (frame.tick >= cameraTick) { after = &frame; break; }
       after = &frame;
     }
     double amount{};
     if (after->tick > before->tick)
-      amount = static_cast<double>(scene.elapsedTicks - before->tick) /
+      amount = (cameraTick - static_cast<double>(before->tick)) /
                static_cast<double>(after->tick - before->tick);
     physics::Transform pose;
     pose.position = add(before->transform.position,
@@ -1088,6 +1100,7 @@ public:
   }
 
   void updateDoor(Record &record) {
+    record.speed += record.acceleration * fixedStepSeconds;
     if (record.rotational) {
       const physics::Vec3 target = record.publicState.active
           ? record.rotationTarget : physics::Vec3{};
@@ -1134,6 +1147,8 @@ public:
   }
 
   void updateRotator(Record &record) {
+    // func_door accelerates before motion, even while the rotator is stopped.
+    record.speed += record.acceleration * fixedStepSeconds;
     if (!record.rotational || !record.publicState.active) return;
     // Legacy func_door applied each authored Euler channel independently at
     // -rotspeed * dt * 5 * sign(channel), without normalising the vector.
@@ -1227,6 +1242,58 @@ public:
     }
   }
 
+  void updateCutscene(bool advanceWithoutMusic) {
+    if (activeCutscene != nullptr) {
+      Cutscene &scene = *activeCutscene;
+      if (!advanceWithoutMusic && scene.music.empty()) return;
+      const auto musicSeconds = !scene.music.empty()
+          ? services->runtimeMusicSeconds() : std::nullopt;
+      if (musicSeconds && std::isfinite(*musicSeconds) && *musicSeconds >= 0.0) {
+        double position = *musicSeconds;
+        const auto duration = services->runtimeMusicDurationSeconds();
+        if (scene.musicLengthSeconds > 0 && duration &&
+            std::isfinite(*duration) && *duration > 0.0) {
+          // Match MusicPlayer::getPosition() * musicLength exactly:
+          // authored musicLength calibrates the timeline, not a time cap.
+          position = (*musicSeconds / *duration) * scene.musicLengthSeconds;
+        }
+        const std::uint64_t musicTick = secondsToTicks(position);
+        const double preciseTick = position / fixedStepSeconds;
+        scene.musicCameraTick = scene.infinite
+            ? std::fmod(preciseTick, static_cast<double>(scene.lengthTicks))
+            : std::min(preciseTick, static_cast<double>(scene.lengthTicks));
+        if (scene.infinite && scene.lengthTicks > 0)
+          scene.elapsedTicks = musicTick % scene.lengthTicks;
+        else
+          scene.elapsedTicks = std::min(scene.lengthTicks, musicTick);
+      } else {
+        if (!advanceWithoutMusic) return;
+        scene.musicCameraTick.reset();
+        scene.elapsedTicks = std::min(scene.lengthTicks,
+                                      scene.elapsedTicks + 1);
+      }
+      const double presentationTick = scene.musicCameraTick.value_or(
+          static_cast<double>(scene.elapsedTicks));
+      for (CutsceneRun &run : scene.runs) {
+        if (!run.fired && run.tick <= presentationTick) {
+          run.fired = true;
+          try {
+            submitScript(run.source, run.script);
+          } catch (...) {
+            finishCutscene();
+            throw;
+          }
+          if (activeCutscene != &scene) return;
+        }
+      }
+      updateCutsceneCamera(scene);
+      if (presentationTick >= scene.lengthTicks) {
+        if (scene.infinite) scene.elapsedTicks = 0;
+        else finishCutscene();
+      }
+    }
+  }
+
   void fixedUpdate() {
     if (!isStarted || isUnloaded) {
       throw std::logic_error("SequenceRuntime fixedUpdate outside active lifecycle");
@@ -1238,40 +1305,7 @@ public:
         break;
       }
     }
-    if (activeCutscene != nullptr) {
-      Cutscene &scene = *activeCutscene;
-      const auto musicSeconds = !scene.music.empty()
-          ? services->runtimeMusicSeconds() : std::nullopt;
-      if (musicSeconds && std::isfinite(*musicSeconds) && *musicSeconds >= 0.0) {
-        std::uint64_t musicTick = secondsToTicks(*musicSeconds);
-        if (scene.musicLengthTicks > 0)
-          musicTick = std::min(musicTick, scene.musicLengthTicks);
-        if (scene.infinite && scene.lengthTicks > 0)
-          scene.elapsedTicks = musicTick % scene.lengthTicks;
-        else
-          scene.elapsedTicks = std::max(
-              scene.elapsedTicks, std::min(scene.lengthTicks, musicTick));
-      } else {
-        scene.elapsedTicks = std::min(scene.lengthTicks,
-                                      scene.elapsedTicks + 1);
-      }
-      for (CutsceneRun &run : scene.runs) {
-        if (!run.fired && run.tick <= scene.elapsedTicks) {
-          run.fired = true;
-          try {
-            submitScript(run.source, run.script);
-          } catch (...) {
-            finishCutscene();
-            throw;
-          }
-        }
-      }
-      updateCutsceneCamera(scene);
-      if (scene.elapsedTicks >= scene.lengthTicks) {
-        if (scene.infinite) scene.elapsedTicks = 0;
-        else finishCutscene();
-      }
-    }
+    updateCutscene(true);
     const physics::Vec3 player = services->playerPosition();
     double darkness = 1.0;
     for (Record &record : records) {
@@ -1421,6 +1455,9 @@ SequenceRuntime::SequenceRuntime(const content::MapDefinition &definition,
 SequenceRuntime::~SequenceRuntime() = default;
 void SequenceRuntime::start() { impl_->start(); }
 void SequenceRuntime::fixedUpdate() { impl_->fixedUpdate(); }
+void SequenceRuntime::updateCutscenePresentation() {
+  if (impl_->isStarted && !impl_->isUnloaded) impl_->updateCutscene(false);
+}
 void SequenceRuntime::unload(bool runOnExit) { impl_->unload(runOnExit); }
 
 bool SequenceRuntime::handleInput(const InputEvent &event) {
@@ -1835,6 +1872,13 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
     } else if (call.name == "setNPCManagerStep") {
       impl_->services->submit(SetNpcUpdateInterval{
           std::max(0.0, argumentNumber(call, 0))});
+    } else if (call.name == "setAccDoor") {
+      const std::string &name = requireName();
+      const double acceleration = argumentNumber(call, 1);
+      Impl::Record *record = impl_->findKind(name, RuntimeEntityKind::Door);
+      if (record == nullptr) record = impl_->findKind(name, RuntimeEntityKind::Rotator);
+      if (record == nullptr) warnMissing("door", name);
+      else record->acceleration = acceleration;
     } else if (call.name == "setSpeedTrain" ||
                call.name == "setAccTrain" ||
                call.name == "setRotSpeed") {
@@ -1976,9 +2020,15 @@ void SequenceRuntime::restoreState(const PersistentSequenceState &state) {
     if (!impl_->startCutscene(state.activeCutscene))
       throw std::invalid_argument("sequence save references missing cutscene");
     impl_->activeCutscene->elapsedTicks = state.cutsceneTick;
-    if (!impl_->activeCutscene->music.empty())
-      static_cast<void>(impl_->services->seekRuntimeMusicSeconds(
-          static_cast<double>(state.cutsceneTick) * fixedStepSeconds));
+    if (!impl_->activeCutscene->music.empty()) {
+      double seconds = static_cast<double>(state.cutsceneTick) * fixedStepSeconds;
+      const auto duration = impl_->services->runtimeMusicDurationSeconds();
+      if (impl_->activeCutscene->musicLengthSeconds > 0 && duration &&
+          std::isfinite(*duration) && *duration > 0.0) {
+        seconds = seconds / impl_->activeCutscene->musicLengthSeconds * *duration;
+      }
+      static_cast<void>(impl_->services->seekRuntimeMusicSeconds(seconds));
+    }
     impl_->updateCutsceneCamera(*impl_->activeCutscene);
   }
   if (!state.activeComputer.empty()) {

@@ -35,6 +35,8 @@ struct FakeServices final : gameplay::IGameServices {
   std::size_t activePresentations{};
   double fovDegrees{75.0};
   std::optional<double> musicSeconds;
+  std::optional<double> musicDuration;
+  std::vector<double> musicSeeks;
 
   void submit(const gameplay::GameCommand &command) override {
     if (const auto *script = std::get_if<gameplay::RunRuntimeScript>(&command);
@@ -67,6 +69,14 @@ struct FakeServices final : gameplay::IGameServices {
   }
   [[nodiscard]] std::optional<double> runtimeMusicSeconds() const override {
     return musicSeconds;
+  }
+  [[nodiscard]] std::optional<double> runtimeMusicDurationSeconds() const override {
+    return musicDuration;
+  }
+  bool seekRuntimeMusicSeconds(double seconds) override {
+    musicSeeks.push_back(seconds);
+    musicSeconds = seconds;
+    return true;
   }
 
   template <class T> std::size_t count() const {
@@ -139,6 +149,91 @@ TEST_CASE("Step 8C music-synchronised cutscene follows the audio cursor",
   fixture.runtime->fixedUpdate();
   CHECK(fixture.runtime->presentation().camera->position.x ==
         Catch::Approx(90.0));
+}
+
+TEST_CASE("Music skipping follows normalized playback without scaling the camera twice",
+          "[step8c][cutscene][audio][skip]") {
+  FixtureRuntime fixture;
+  fixture.services.musicDuration = 4.0; // authored musicLength is 2 seconds
+  fixture.services.musicSeconds = 1.0;
+  fixture.runtime->start();
+  REQUIRE(fixture.runtime->startCutscene("music-sync"));
+  REQUIRE(fixture.runtime->skipCutscene());
+  CHECK(fixture.runtime->cutsceneTimeScale() == 2.0);
+  const auto tick = fixture.runtime->tick();
+  fixture.runtime->updateCutscenePresentation();
+  REQUIRE(fixture.runtime->presentation().camera);
+  CHECK(fixture.runtime->presentation().camera->position.x == Catch::Approx(30));
+  CHECK(fixture.runtime->tick() == tick); // no physics step was needed
+  for (int step = 0; step < 20; ++step) fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->presentation().camera->position.x == Catch::Approx(30));
+  fixture.services.musicSeconds = 3.0;
+  fixture.runtime->updateCutscenePresentation();
+  CHECK(fixture.runtime->presentation().camera->position.x == Catch::Approx(90));
+  REQUIRE(fixture.runtime->handleInput({InputEventType::KeyReleased, Key::Space}));
+  CHECK(fixture.runtime->cutsceneTimeScale() == 1.0);
+  // A backward cursor correction must move the cutscene back too, not leave
+  // it ahead of the music waiting for the old high-water mark.
+  fixture.services.musicSeconds = 2.0;
+  fixture.runtime->updateCutscenePresentation();
+  CHECK(fixture.runtime->presentation().camera->position.x == Catch::Approx(60));
+  CHECK(fixture.services.musicSeeks.empty());
+  CHECK(std::count_if(fixture.services.commands.begin(), fixture.services.commands.end(),
+      [](const auto &command) {
+        const auto *sound = std::get_if<gameplay::PlayRuntimeSound>(&command);
+        return sound != nullptr && sound->path == "run3/sounds/score.ogg";
+      }) == 1);
+
+  const auto saved = fixture.runtime->saveState();
+  fixture.runtime->restoreState(saved);
+  REQUIRE(fixture.services.musicSeeks.size() == 1);
+  CHECK(fixture.services.musicSeeks.back() == Catch::Approx(2.0));
+  fixture.services.musicSeconds = 1.013;
+  fixture.runtime->updateCutscenePresentation();
+  CHECK(fixture.runtime->presentation().camera->position.x == Catch::Approx(30.39));
+  CHECK(fixture.runtime->presentation().cutsceneTimeSeconds == Catch::Approx(0.5065));
+  CHECK(fixture.runtime->presentation().cutsceneDurationSeconds == Catch::Approx(2.0));
+}
+
+TEST_CASE("Music-driven presentation fires crossed hooks once without physics catchup",
+          "[step8c][cutscene][audio]") {
+  FixtureRuntime fixture;
+  fixture.runtime.reset();
+  content::AuthoredElement hook{"cutscene", {{"name", "music-sync"}}};
+  hook.children.push_back({"run", {{"sec", "1"}, {"script", "beat.lua"}}});
+  fixture.definition.sequences.front().events.push_back(hook);
+  fixture.runtime = std::make_unique<gameplay::SequenceRuntime>(
+      fixture.definition, fixture.registry, fixture.services);
+  fixture.runtime->start();
+  fixture.services.musicDuration = 4.0;
+  fixture.services.musicSeconds = 0.0;
+  REQUIRE(fixture.runtime->startCutscene("music-sync"));
+  const auto scriptsBefore = fixture.services.count<gameplay::RunRuntimeScript>();
+  fixture.services.musicSeconds = 1.999; // just before the authored one-second beat
+  fixture.runtime->updateCutscenePresentation();
+  CHECK(fixture.services.count<gameplay::RunRuntimeScript>() == scriptsBefore);
+  fixture.services.musicSeconds = 3.5; // jump past the beat on a slow frame
+  fixture.runtime->updateCutscenePresentation();
+  const auto fired = [&] {
+    return std::count_if(fixture.services.commands.begin(), fixture.services.commands.end(),
+        [](const auto &command) {
+          const auto *script = std::get_if<gameplay::RunRuntimeScript>(&command);
+          return script != nullptr && script->path == "beat.lua";
+        });
+  };
+  CHECK(fired() == 1);
+  fixture.runtime->updateCutscenePresentation();
+  fixture.runtime->fixedUpdate();
+  CHECK(fired() == 1);
+  fixture.services.musicSeconds = 3.999;
+  fixture.runtime->updateCutscenePresentation();
+  CHECK_FALSE(fixture.runtime->presentation().activeCutscene.empty());
+  fixture.services.musicSeconds = 4.0;
+  fixture.runtime->updateCutscenePresentation();
+  CHECK(fixture.runtime->presentation().activeCutscene.empty());
+  CHECK(fixture.runtime->presentation().cutsceneTimeSeconds == 0.0);
+  CHECK(fixture.runtime->presentation().cutsceneDurationSeconds == 0.0);
+  CHECK(fixture.runtime->cutsceneTimeScale() == 1.0);
 }
 
 TEST_CASE("Step 8C lifecycle constructs in authored order and cancels queued work",
@@ -454,6 +549,81 @@ TEST_CASE("Step 8C rotating doors and func rotators preserve legacy activation a
   fixture.runtime->fixedUpdate();
   CHECK(fixture.runtime->state("rotDoor")->transform.rotation ==
         physics::Quaternion{});
+}
+
+TEST_CASE("Door acceleration starts zero-speed rotators and survives save restoration",
+          "[step8c][door][rotator][lua]") {
+  FixtureRuntime fixture;
+  fixture.services.player = {1000, 1000, 1000};
+  fixture.runtime->start();
+  scripting::ScriptEngine scripts(
+      {fixture.paths.contentRoot(), fixture.paths.userRoot(), 10000},
+      [&fixture](const scripting::ScriptCall &call) {
+        return fixture.runtime->dispatchScriptCall(call);
+      });
+  scripts.executeText(
+      "setRotSpeed('rot','0'); setAccDoor('rot','5'); toggleDoor('rot')",
+      "accelerate-wheel.lua");
+  fixture.runtime->fixedUpdate();
+  fixture.runtime->fixedUpdate();
+  // Speeds 5/60 and 10/60 deg/s are applied before rotation, with the
+  // original func_door factor of five: total angle = -25/1200 degrees.
+  const auto expectedY = [](double degrees) {
+    return -std::sin(degrees * 3.14159265358979323846 / 360.0);
+  };
+  CHECK(fixture.runtime->state("rot")->transform.rotation.y ==
+        Catch::Approx(expectedY(25.0 / 1200.0)));
+  const auto saved = fixture.runtime->saveState();
+  fixture.runtime->fixedUpdate();
+  const auto continued = fixture.runtime->state("rot")->transform.rotation;
+  fixture.runtime->restoreState(saved);
+  fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->state("rot")->transform.rotation == continued);
+  CHECK(fixture.services.count<gameplay::DeferredLegacyCommand>() == 0);
+}
+
+TEST_CASE("Stations02 pandus2 script accelerates all fourteen vehicle wheels",
+          "[step8c][rotator][content][lua]") {
+  const auto root = sourceRoot / "Games/The Long Way/TheLongWay";
+  const auto script = root / "run3/lua/chapters/tlwstations02/pandus2.lua";
+  if (!fs::is_regular_file(script)) SKIP("optional author content not attached");
+  auto paths = AppPaths::resolve(sourceRoot / "build/wheel-regression.exe", root,
+                                sourceRoot / "build/wheel-regression-user");
+  paths.setContentOverlay(sourceRoot / "derived-content/tlwrm");
+  const auto definition = content::loadMapDefinition(paths, "tlwstations02", "high");
+  gameplay::EntityRegistry registry;
+  static_cast<void>(gameplay::populateEntityRegistry(definition, registry, true));
+  FakeServices services;
+  services.player = {1000000, 1000000, 1000000};
+  gameplay::SequenceRuntime runtime(definition, registry, services);
+  runtime.start();
+  std::map<std::string, physics::Transform> wheels;
+  for (const auto &state : runtime.states()) {
+    if (state.tag == "rot" && state.name.rfind("wheel", 0) == 0) {
+      CHECK_FALSE(state.active);
+      wheels.emplace(state.name, state.transform);
+    }
+  }
+  REQUIRE(wheels.size() == 14);
+  scripting::ScriptEngine scripts(
+      {paths.contentRoot(), paths.userRoot(), 10000},
+      [&runtime](const scripting::ScriptCall &call) {
+        return runtime.dispatchScriptCall(call);
+      });
+  scripts.executeFile(script);
+  for (int tick = 0; tick < 60; ++tick) runtime.fixedUpdate();
+  for (const auto &[name, initial] : wheels) {
+    INFO(name);
+    const auto wheel = runtime.state(name);
+    REQUIRE(wheel);
+    CHECK(wheel->active);
+    CHECK_FALSE(wheel->transform.rotation == initial.rotation);
+    CHECK(wheel->transform.position == initial.position);
+  }
+  for (const auto &command : services.commands) {
+    const auto *deferred = std::get_if<gameplay::DeferredLegacyCommand>(&command);
+    if (deferred) CHECK(deferred->name != "setAccDoor");
+  }
 }
 
 TEST_CASE("Step 8C legacy FOV bindings return a number and drive the camera service",

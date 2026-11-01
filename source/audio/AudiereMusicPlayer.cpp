@@ -184,6 +184,17 @@ std::optional<float> AudiereMusicPlayer::playbackSeconds() const {
 #endif
 }
 
+std::optional<float> AudiereMusicPlayer::durationSeconds() const {
+#ifdef _WIN32
+  if (!impl_->stream || impl_->sampleRate <= 0 || impl_->stream->getLength() <= 0)
+    return std::nullopt;
+  return static_cast<float>(impl_->stream->getLength()) /
+         static_cast<float>(impl_->sampleRate);
+#else
+  return std::nullopt;
+#endif
+}
+
 bool AudiereMusicPlayer::seekSeconds(const float seconds) {
 #ifdef _WIN32
   if (!impl_->stream || !impl_->stream->isSeekable() ||

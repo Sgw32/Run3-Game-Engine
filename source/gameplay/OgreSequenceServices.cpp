@@ -2117,6 +2117,14 @@ std::optional<double> OgreSequenceServices::runtimeMusicSeconds() const {
   return static_cast<double>(impl_->audio->playbackSeconds(impl_->music));
 }
 
+std::optional<double> OgreSequenceServices::runtimeMusicDurationSeconds() const {
+  const auto duration = impl_->mapAudio != nullptr
+      ? impl_->mapAudio->musicDurationSeconds()
+      : impl_->music.valid() ? impl_->audio->durationSeconds(impl_->music)
+                            : std::nullopt;
+  return duration ? std::optional<double>{*duration} : std::nullopt;
+}
+
 bool OgreSequenceServices::seekRuntimeMusicSeconds(const double seconds) {
   if (!std::isfinite(seconds) || seconds < 0.0) return false;
   if (impl_->mapAudio != nullptr)

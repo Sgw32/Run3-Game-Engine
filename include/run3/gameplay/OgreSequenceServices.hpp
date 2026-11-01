@@ -106,6 +106,7 @@ public:
   [[nodiscard]] bool runtimeFacialActive(EntityHandle handle) const override;
   [[nodiscard]] double runtimeFovDegrees() const override;
   [[nodiscard]] std::optional<double> runtimeMusicSeconds() const override;
+  [[nodiscard]] std::optional<double> runtimeMusicDurationSeconds() const override;
   bool seekRuntimeMusicSeconds(double seconds) override;
   [[nodiscard]] std::optional<EntityHandle>
   handleForPhysicsEntity(std::uint64_t physicsEntity) const;

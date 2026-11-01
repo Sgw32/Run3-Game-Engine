@@ -24,6 +24,7 @@ public:
   [[nodiscard]] bool active() const noexcept { return current_.valid(); }
   [[nodiscard]] const SoundHandle &current() const noexcept { return current_; }
   [[nodiscard]] std::optional<float> playbackSeconds() const;
+  [[nodiscard]] std::optional<float> durationSeconds() const;
   bool seekSeconds(float seconds);
 
 private:

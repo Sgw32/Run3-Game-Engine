@@ -295,6 +295,11 @@ public:
   [[nodiscard]] virtual std::optional<double> runtimeMusicSeconds() const {
     return std::nullopt;
   }
+  // Decoded track duration, used with authored musicLength to reproduce the
+  // original normalized music-position clock.
+  [[nodiscard]] virtual std::optional<double> runtimeMusicDurationSeconds() const {
+    return std::nullopt;
+  }
   virtual bool seekRuntimeMusicSeconds(double) { return false; }
 };
 

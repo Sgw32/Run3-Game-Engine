@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -124,6 +125,8 @@ public:
   [[nodiscard]] virtual SoundState state(const SoundHandle &sound) const = 0;
   [[nodiscard]] virtual float playbackSeconds(
       const SoundHandle &sound) const = 0;
+    [[nodiscard]] virtual std::optional<float> durationSeconds(
+        const SoundHandle &) const { return std::nullopt; }
   virtual bool seekSeconds(const SoundHandle &sound, float seconds) = 0;
   [[nodiscard]] virtual float effectiveGain(
       const SoundHandle &sound) const = 0;

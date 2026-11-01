@@ -933,6 +933,7 @@ int Run3App::run() {
           semiInfiniteWorld_->update(playerPosition);
         }
         const physics::Vec3 eye = player_->eyePosition();
+        if (sequenceRuntime_) sequenceRuntime_->updateCutscenePresentation();
         const auto &presentation = sequenceRuntime_
             ? sequenceRuntime_->presentation()
             : gameplay::SequencePresentationState{};
@@ -2078,6 +2079,29 @@ void Run3App::updateDebugOverlay() {
     }
   } else if (debugOverlayPage_ == 3U) {
     out << "SOUND  [P: next]\n";
+    out << std::setprecision(3) << "Cutscene ";
+    if (sequenceRuntime_ &&
+        !sequenceRuntime_->presentation().activeCutscene.empty()) {
+      const auto &presentation = sequenceRuntime_->presentation();
+      out << presentation.activeCutscene << "  "
+          << presentation.cutsceneTimeSeconds << " / "
+          << presentation.cutsceneDurationSeconds << " s\n";
+    } else {
+      out << "<none>\n";
+    }
+    out << "Music time ";
+    const auto musicSeconds = sequenceServices_
+        ? sequenceServices_->runtimeMusicSeconds() : std::nullopt;
+    const auto musicDuration = sequenceServices_
+        ? sequenceServices_->runtimeMusicDurationSeconds() : std::nullopt;
+    if (musicSeconds) {
+      out << *musicSeconds;
+      if (musicDuration) out << " / " << *musicDuration;
+      out << " s\n";
+    } else {
+      out << "<unavailable>\n";
+    }
+    out << std::setprecision(1);
     if (audioEngine_) {
       const auto stats = audioEngine_->stats();
       out << "Backend " << audioEngine_->backendName() << "  device "

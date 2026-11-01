@@ -144,6 +144,8 @@ TEST_CASE("Audiere decodes tracker and FLAC music independently") {
     INFO(flacMusic.lastError());
     REQUIRE(flacStarted);
     CHECK(flacMusic.active());
+    REQUIRE(flacMusic.durationSeconds());
+    CHECK(*flacMusic.durationSeconds() > 0.0F);
     flacMusic.clear();
   }
   const fs::path tracker = fs::path(RUN3_TEST_SOURCE_DIR) / "Games" /
@@ -416,6 +418,8 @@ TEST_CASE("miniaudio reports missing and corrupt data and decodes WAV") {
   SoundHandle wave = engine->play(options);
   REQUIRE(wave.valid());
   CHECK(engine->state(wave) != SoundState::invalid);
+  REQUIRE(engine->durationSeconds(wave));
+  CHECK(*engine->durationSeconds(wave) > 0.0F);
   wave.reset();
 
   options.file = options.file.parent_path() / "missing.wav";

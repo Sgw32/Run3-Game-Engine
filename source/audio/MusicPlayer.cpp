@@ -89,6 +89,11 @@ std::optional<float> MusicPlayer::playbackSeconds() const {
   return engine_.playbackSeconds(current_);
 }
 
+std::optional<float> MusicPlayer::durationSeconds() const {
+  if (pending_ || !current_.valid()) return std::nullopt;
+  return engine_.durationSeconds(current_);
+}
+
 bool MusicPlayer::seekSeconds(const float seconds) {
   if (seconds < 0.0F) return false;
   if (pending_) {

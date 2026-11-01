@@ -346,6 +346,11 @@ std::optional<float> MapAudioRuntime::musicPlaybackSeconds() const {
                        : music_.playbackSeconds();
 }
 
+std::optional<float> MapAudioRuntime::musicDurationSeconds() const {
+  if (!musicStartAllowed_) return std::nullopt;
+  return audiereMusic_ ? audiereMusic_->durationSeconds() : music_.durationSeconds();
+}
+
 bool MapAudioRuntime::seekMusicSeconds(const float seconds) {
   if (!musicStartAllowed_ && !definition_.musicFile.empty()) {
     pendingMusicSeek_ = std::max(0.0F, seconds);

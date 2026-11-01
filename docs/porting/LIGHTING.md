@@ -58,10 +58,10 @@ which overrides content defaults. Config keys: `render.lighting_pipeline`,
 `render.shadow_quality`, `render.shadow_update_interval`, `render.exposure`.
 Pipeline values are exactly those
 above; shadow values are `off`, `low`, `medium`, `high`, `ultra`. Defaults are
-`legacy-forward`, `off`, exposure `1`. Legacy/fast-forward refresh their shadow
-textures every two rendered frames by default; deferred/PBR and
-`--shadow-update-interval 1` retain Ogre's every-frame behaviour. Valid refresh
-intervals are 1..8. Invalid values fail with an error.
+`legacy-forward`, `off`, exposure `1`. All pipelines refresh shadow textures
+every frame by default. Valid opt-in refresh intervals are 1..8; movement,
+rotation, projection changes, and changes to the active shadow lights force
+an immediate refresh even with a longer interval. Invalid values fail.
 
 Asset-independent lab (do not combine `--lighting-lab` with `--map`):
 
@@ -90,9 +90,20 @@ and spotlight cones. The shared Ogre texture-shadow renderer allocates one map
 per shadow-casting light, up to the six-light maximum found in the shipped map
 definitions. This covers every authored spotlight in high-quality `tlwcao` and
 `outro`; exceeding the budget is a hard load error instead of silently dropping
-a light. Low/medium/high/ultra allocate 512/1024/2048/4096-square depth textures
-with 2,500/5,000/10,000/20,000 game-unit ranges. Low/medium use PCF4 and
-high/ultra use PCF16. Spotlights use their authored cone. Point-light
+a light. Low/medium/high/ultra allocate 512/1024/2048/4096-square depth textures.
+Directional projections use fixed light-space tiles centred on the viewer's
+position, snapped to world texels. Camera rotation/FOV and visible scene bounds
+do not change their basis or footprint. A single-light high/ultra map uses
+three nested tiles with the configured directional distances; receivers blend
+between tile coverage instead of switching across camera-depth planes.
+
+Mixed-light maps retain one map per light. Their directional footprint uses
+the first configured distance (default radius 6,000 cm / 60 m), trading distant
+directional coverage for useful near-field precision. Spotlights retain their
+authored cone and range. The depth atlas remains 32-bit; the original Run3
+moment caster cannot be paired with comparison-depth receivers. Its filtering
+inspired the new weighted PCF kernel, with receiver-plane depth correction and
+soft tile borders. Low/medium use PCF4 and high/ultra use PCF16. Point-light
 illumination is omnidirectional, but point lights do not cast texture shadows:
 Ogre Classic's built-in point path is a camera-facing 120-degree projection,
 not an omnidirectional shadow, and produces a moving clipping plane when the
@@ -101,12 +112,25 @@ remains required before point shadows can be enabled. Bias tuning and
 device-capability fallback also remain required.
 
 Run3's scene-manager overlay caches the completed spotlight shadow textures
-between refreshes. It forces an immediate refresh whenever the active caster
-light set, mask, type, position, or direction changes; otherwise the forward
-pipelines use the configured frame interval. This reduces shadow-caster scene
+between refreshes. It forces an immediate refresh whenever the viewer or active
+caster-light set, mask, type, position, or direction changes; otherwise it uses
+the configured frame interval. This reduces shadow-caster scene
 batches without skipping the main world or compositor render. Lighting JSON
 captures record refresh/skipped counts and rendered/estimated-avoided shadow
 batches; window-target batch statistics still exclude off-screen passes.
+
+CPU verification includes a rotated/FOV-changed directional camera regression
+and eight FXC receiver variants (PCF4/PCF16, one/three tiles, ordinary/reversed Z):
+
+```powershell
+ctest --preset windows-msvc-x64-release -R run3_step9b --output-on-failure
+python tools/check_shadow_filter.py --fxc "C:\Program Files (x86)\Windows Kits\10\bin\10.0.28000.0\x64\fxc.exe" --ogre-media build/windows-msvc-x64-release/vcpkg_installed/x64-windows/share/ogre/Media --output build/shadow-filter-check
+```
+
+Visual verification remains manual: turn/pitch in place, then move inside the
+train using `run_tlw.bat --map tlwstations03 --shadow-quality high`. Repeat with
+`--renderer gl3plus` and with medium quality. The JSON lighting report records
+the stable projection, weighted filter and effective mixed-light radius.
 
 Ogre 14.5.2 has an out-of-range projector lookup when a multi-light RTSS
 receiver is rendered while no shadow-casting light intersects the camera

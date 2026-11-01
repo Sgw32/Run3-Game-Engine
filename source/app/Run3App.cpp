@@ -646,11 +646,8 @@ Run3AppOptions loadRun3AppOptions(int argc, char **argv,
         "directional shadow cascade distances must be ordered, with "
         "cascade 1 greater than the 5-unit camera near plane");
   }
-  const bool forwardPipeline =
-      options.lighting.pipeline == rendering::LightingPipeline::LegacyForward ||
-      options.lighting.pipeline == rendering::LightingPipeline::FastForward;
   const std::uint64_t shadowUpdateInterval = configuration.unsignedOr(
-      "render.shadow_update_interval", forwardPipeline ? 2U : 1U);
+      "render.shadow_update_interval", 1U);
   if (shadowUpdateInterval < 1 || shadowUpdateInterval > 8)
     throw std::runtime_error("shadow-update-interval must be in [1,8]");
   options.lighting.shadowUpdateInterval =
@@ -1210,9 +1207,11 @@ void Run3App::locateResources() {
           .lexically_normal();
   resources.addResourceLocation((media / "Main").string(), "FileSystem",
                                 Ogre::RGN_INTERNAL);
-  resources.addResourceLocation((media / "RTShaderLib").string(), "FileSystem",
-                                Ogre::RGN_INTERNAL);
+  // The Run3 shadow-filter library overrides Ogre's stock library by name.
+  // Ogre indexes the first matching resource in a group.
   resources.addResourceLocation((media / "Lighting").string(), "FileSystem",
+                                Ogre::RGN_INTERNAL);
+  resources.addResourceLocation((media / "RTShaderLib").string(), "FileSystem",
                                 Ogre::RGN_INTERNAL);
   resources.addResourceLocation((media / "MyGUI_Media").string(), "FileSystem",
                                 "Run3MyGUI");

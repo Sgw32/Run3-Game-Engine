@@ -10,7 +10,7 @@ namespace run3::rendering {
 // viewport render. Run3 maps mostly use fixed spotlights and static world
 // geometry, so refreshing those textures at a small, explicit frame interval
 // saves the shadow-caster batches while preserving the normal per-frame scene
-// render. A changed shadow-light set always forces an immediate refresh.
+// render. A changed shadow-light set or viewer always forces a refresh.
 class Run3SceneManager final : public Ogre::SceneManager {
 public:
   Run3SceneManager(const Ogre::String &name, unsigned shadowUpdateInterval);
@@ -27,10 +27,12 @@ public:
 
 private:
   std::size_t shadowLightSignature(const Ogre::LightList &) const;
+  std::size_t shadowViewSignature(const Ogre::Camera &) const;
 
   unsigned shadowUpdateInterval_{1};
   unsigned long lastShadowUpdateFrame_{};
   std::size_t lastShadowLightSignature_{};
+  std::size_t lastShadowViewSignature_{};
   bool hasShadowCache_{};
   std::uint64_t shadowTextureUpdates_{};
   std::uint64_t shadowTextureUpdatesSkipped_{};

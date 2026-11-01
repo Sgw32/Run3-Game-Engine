@@ -1,6 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 #include <run3/rendering/Lighting.hpp>
+#include <run3/rendering/StableShadowCamera.hpp>
+#include <OgreRoot.h>
 #include <run3/app/Configuration.hpp>
 #include <run3/app/AppPaths.hpp>
 #include <run3/gameplay/LegacyMaterialCatalog.hpp>
@@ -12,6 +14,51 @@
 
 using namespace run3;
 using namespace run3::rendering;
+
+TEST_CASE("Directional shadow tiles ignore viewer rotation and snap to texels",
+          "[shadow][camera]") {
+  // Frustum construction needs Ogre's CPU services, not a render system.
+  Ogre::Root root("", "", "");
+  Ogre::SceneNode viewerNode(nullptr), lightNode(nullptr), shadowNode(nullptr),
+                  cullNode(nullptr);
+  Ogre::Camera viewer("viewer", nullptr), shadow("shadow", nullptr),
+               cull("cull", nullptr);
+  Ogre::Light sun("sun");
+  viewerNode.attachObject(&viewer);
+  shadowNode.attachObject(&shadow);
+  cullNode.attachObject(&cull);
+  lightNode.attachObject(&sun);
+  sun.setType(Ogre::Light::LT_DIRECTIONAL);
+  shadow.setCullingFrustum(&cull);
+  viewerNode.setPosition(100, 200, 300);
+  lightNode.setDirection(Ogre::Vector3(0.3F, -1, -0.2F).normalisedCopy());
+  StableShadowCamera setup({6000, 100000, 500000}, 2048);
+  for (std::size_t tile = 0; tile < 3; ++tile) {
+    setup.getShadowCamera(nullptr, &viewer, nullptr, &sun, &shadow, tile);
+    const auto position = shadowNode.getPosition();
+    const auto orientation = shadowNode.getOrientation();
+    const auto width = shadow.getOrthoWindowWidth();
+    CHECK(shadow.getFarClipDistance() > shadow.getNearClipDistance());
+    CHECK(cull.getOrthoWindowWidth() == width);
+    CHECK(cullNode.getPosition() == position);
+    viewerNode.setOrientation(Ogre::Quaternion(Ogre::Degree(137), Ogre::Vector3::UNIT_Y));
+    viewer.setFOVy(Ogre::Degree(95));
+    setup.getShadowCamera(nullptr, &viewer, nullptr, &sun, &shadow, tile);
+    CHECK(shadowNode.getPosition() == position);
+    CHECK(shadowNode.getOrientation() == orientation);
+    CHECK(shadow.getOrthoWindowWidth() == width);
+    // Light-space camera coordinates must lie on the world-texel grid.
+    const auto local = orientation.Inverse() * position;
+    const auto texel = width / 2048;
+    CHECK(local.x / texel == Catch::Approx(std::round(local.x / texel)).margin(0.01));
+    CHECK(local.y / texel == Catch::Approx(std::round(local.y / texel)).margin(0.01));
+  }
+  shadow.setCullingFrustum(nullptr);
+  viewerNode.detachAllObjects();
+  shadowNode.detachAllObjects();
+  cullNode.detachAllObjects();
+  lightNode.detachAllObjects();
+}
 
 TEST_CASE("NPC attachment follows the bone with the complete authored hierarchy",
           "[npc][attachment]") {

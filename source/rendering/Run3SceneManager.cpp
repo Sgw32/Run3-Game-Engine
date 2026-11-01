@@ -48,18 +48,34 @@ Run3SceneManager::shadowLightSignature(const Ogre::LightList &lights) const {
   return result;
 }
 
+std::size_t Run3SceneManager::shadowViewSignature(const Ogre::Camera &camera) const {
+  std::size_t result = reinterpret_cast<std::size_t>(&camera);
+  const auto hashReal = std::hash<Ogre::Real>{};
+  const auto hashMatrix = [&](const auto &matrix, unsigned rows) {
+    for (unsigned row = 0; row < rows; ++row)
+      for (unsigned column = 0; column < 4; ++column)
+        combine(result, hashReal(matrix[row][column]));
+  };
+  hashMatrix(camera.getViewMatrix(), 3);
+  hashMatrix(camera.getProjectionMatrix(), 4);
+  return result;
+}
+
 void Run3SceneManager::updateShadowTextures(
     Ogre::Camera *camera, Ogre::Viewport *viewport,
     const Ogre::LightList *lightList) {
   const Ogre::LightList &activeLights =
       lightList == nullptr ? mLightsAffectingFrustum : *lightList;
   const std::size_t signature = shadowLightSignature(activeLights);
+  const std::size_t viewSignature = shadowViewSignature(*camera);
   const unsigned long frame = Ogre::Root::getSingleton().getNextFrameNumber();
   const bool lightSetChanged = !hasShadowCache_ || signature != lastShadowLightSignature_;
   const bool intervalElapsed = !hasShadowCache_ ||
       frame - lastShadowUpdateFrame_ >= shadowUpdateInterval_;
+  const bool viewChanged = !hasShadowCache_ ||
+      viewSignature != lastShadowViewSignature_;
 
-  if (lightSetChanged || intervalElapsed) {
+  if (lightSetChanged || viewChanged || intervalElapsed) {
     Ogre::SceneManager::updateShadowTextures(camera, viewport, lightList);
     lastShadowBatchCount_ = 0;
     for (std::size_t index = 0; index < getShadowTextureConfigList().size();
@@ -75,6 +91,7 @@ void Run3SceneManager::updateShadowTextures(
     shadowBatchesRendered_ += lastShadowBatchCount_;
     lastShadowUpdateFrame_ = frame;
     lastShadowLightSignature_ = signature;
+    lastShadowViewSignature_ = viewSignature;
     hasShadowCache_ = true;
     ++shadowTextureUpdates_;
     return;

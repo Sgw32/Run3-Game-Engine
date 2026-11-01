@@ -55,8 +55,8 @@ struct LightingSettings {
   // these explicit PSSM boundaries instead of coupling range to resolution.
   std::array<float, 3> directionalShadowDistances{6000.0F, 100000.0F,
                                                    500000.0F};
-  // One is Ogre's original every-frame behaviour. The application selects a
-  // conservative interval of two for legacy/fast-forward authored lighting.
+  // One refreshes moving casters every frame. Larger opt-in intervals only
+  // reuse textures while the viewer and shadow-light set remain unchanged.
   unsigned shadowUpdateInterval{1};
 };
 struct ShadowBudget {

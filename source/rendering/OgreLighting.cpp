@@ -4,6 +4,7 @@
 #include "SurfaceMaps.hpp"
 #include "GBufferGeometry.hpp"
 #include <run3/rendering/Run3SceneManager.hpp>
+#include <run3/rendering/StableShadowCamera.hpp>
 #include <Ogre.h>
 #include <OgreShaderGenerator.h>
 #include <OgreShaderRenderState.h>
@@ -263,18 +264,12 @@ public:
     auto *globalState = generator.getRenderState(Ogre::MSN_SHADERGEN);
 
     if (usePssm) {
-      auto setup = Ogre::PSSMShadowCameraSetup::create();
-      auto pssm = std::static_pointer_cast<Ogre::PSSMShadowCameraSetup>(setup);
       const Ogre::PSSMShadowCameraSetup::SplitPointList splitPoints{
           camera.getNearClipDistance(), settings.directionalShadowDistances[0],
           settings.directionalShadowDistances[1],
           settings.directionalShadowDistances[2]};
-      pssm->setSplitPoints(splitPoints);
-      pssm->setSplitPadding(camera.getNearClipDistance() * 2.0F);
-      pssm->setOptimalAdjustFactor(0, 2.0F);
-      pssm->setOptimalAdjustFactor(1, 1.0F);
-      pssm->setOptimalAdjustFactor(2, 0.5F);
-      scene.setShadowCameraSetup(setup);
+      scene.setShadowCameraSetup(std::make_shared<StableShadowCamera>(
+          settings.directionalShadowDistances, budget.resolution));
       scene.setShadowTextureCountPerLightType(Ogre::Light::LT_DIRECTIONAL, 3);
       scene.setShadowTextureCountPerLightType(Ogre::Light::LT_SPOTLIGHT, 1);
       scene.setShadowTextureSettings(
@@ -301,14 +296,18 @@ public:
               (budget.filterSamples == 16 ? std::string("pcf16")
                                           : std::string("pcf4")));
     } else {
-      scene.setShadowCameraSetup(Ogre::DefaultShadowCameraSetup::create());
       scene.setShadowTextureCountPerLightType(Ogre::Light::LT_DIRECTIONAL, 1);
       scene.setShadowTextureCountPerLightType(Ogre::Light::LT_SPOTLIGHT, 1);
       scene.setShadowTextureSettings(
           static_cast<Ogre::uint16>(budget.resolution),
           static_cast<Ogre::uint16>(budget.textures), Ogre::PF_DEPTH32);
-      const float directionalDistance = budget.splits > 1
-          ? settings.directionalShadowDistances[2] : budget.distance;
+      const float directionalDistance = std::min(
+          budget.distance, settings.directionalShadowDistances[0]);
+      // A mixed-light pass has one map per light, not three cascades. Spend
+      // its texels on nearby receivers instead of a 10 km-wide footprint.
+      scene.setShadowCameraSetup(std::make_shared<StableShadowCamera>(
+          std::array<float, 3>{directionalDistance, directionalDistance,
+                               directionalDistance}, budget.resolution));
       scene.setShadowFarDistance(directionalDistance);
       scene.setShadowDirectionalLightExtrusionDistance(
           directionalDistance * 2.0F);
@@ -326,7 +325,8 @@ public:
               std::to_string(authoredLights) + " directional-casters=" +
               std::to_string(directionalCasters) + " spotlight-casters=" +
               std::to_string(spotlightCasters) +
-              "; preserving multi-light shadows");
+              "; preserving multi-light shadows; stable directional radius=" +
+              std::to_string(directionalDistance));
     }
     generator.invalidateScheme(Ogre::MSN_SHADERGEN);
   }
@@ -760,6 +760,10 @@ void OgreLighting::writeReport(const std::filesystem::path &path, Ogre::RenderWi
     {"shadow_splits",s.directionalPssm ? 3 : 1},
     {"directional_pssm",s.directionalPssm},
     {"shadow_cascade_distances",s.settings.directionalShadowDistances},
+    {"shadow_projection","stable_light_space_tiles"},
+    {"shadow_filter","weighted_pcf_receiver_plane"},
+    {"shadow_mixed_directional_radius",std::min(
+        budget.distance, s.settings.directionalShadowDistances[0])},
     {"cpu_wall_seconds",std::chrono::duration<double>(std::chrono::steady_clock::now()-s.started).count()}};
   if (const auto *scene = dynamic_cast<const Run3SceneManager *>(&s.scene)) {
     report["shadow_update_interval_frames"] = scene->shadowUpdateInterval();

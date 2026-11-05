@@ -36,6 +36,23 @@ run3::scripting::ScriptEngine makeEngine(std::size_t budget = 1'000'000) {
 
 } // namespace
 
+TEST_CASE("Legacy numeric registers survive a chapter Lua session change",
+          "[step8][lua][registers]") {
+  auto registers = std::make_shared<run3::scripting::NumericRegisters>();
+  {
+    run3::scripting::ScriptEngine first(
+        {fixtureRoot / "scripts", fixtureRoot / "user", 10000, nullptr, nullptr, registers});
+    first.executeText("set__register('ra','100'); add__register('ra','2'); "
+                      "inc__register('ra'); dec__register('ra'); "
+                      "assert(get__register('ra')==102); assert(toString(-12.9)=='-12')",
+                      "register-first-chapter");
+  }
+  run3::scripting::ScriptEngine second(
+      {fixtureRoot / "scripts", fixtureRoot / "user", 10000, nullptr, nullptr, registers});
+  second.executeText("assert(get__register('ra')==102); "
+                     "assert(get__register('rx1')==0)", "register-next-chapter");
+}
+
 TEST_CASE("Step 8 XML schemas match pre-migration golden semantics",
           "[step8][xml]") {
   using run3::content::XmlSchema;

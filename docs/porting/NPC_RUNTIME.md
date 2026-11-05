@@ -57,7 +57,7 @@ The numeric values are content ABI and must never be renumbered.
 | 25 | `ResetParent` | releases parent transform following |
 | 26 | `SetGravity` | implemented; live `tlwstations01` inspector calls accept `0` without aborting startup |
 | 27 | `FacialActivity` | parses the facial XML, plays positional voice audio after the legacy 0.2-second pose lead-in, drives mesh poses from the audio cursor, and displays the authored subtitle |
-| 28 | `ToggleFlashlight` | rejected; light presentation belongs to the later lighting step |
+| 28 | `ToggleFlashlight` | toggles a root-attached spotlight and legacy switch sound; preserved on save/restore and released on death/destruction/unload |
 | 29-32 | attach/detach physical object variants | typed bone attachment with shared map physics disabled while attached |
 
 `npcEvent`, `npcEvent2`, `__all_npcEvent`, and `destroyNPC` route to these
@@ -82,6 +82,10 @@ authored station timing control without reviving `NPCManager`.
   at the authored attack distance. Both use the same AIR3 query and Bullet NPC
   collision path; no second navigation or collision world was introduced.
 - Gravity-enabled NPCs use upright, rotation-locked dynamic Bullet bodies.
+  Their collision mask includes train roots and collidable train children,
+  alongside world, doors, dynamic objects and the player. Both sides of a
+  Bullet pair must accept each other's collision group; omitting `Train`
+  made released station passengers fall through invisible train floors.
   They receive an initial downward floor query, then Bullet remains
   authoritative for vertical motion while navigation changes only horizontal
   position and facing. Runtime gravity events control the body directly.
@@ -114,7 +118,7 @@ authored station timing control without reviving `NPCManager`.
   removes NPC/ragdoll bodies and voices, destroys presentation, invalidates
   explicitly destroyed registry handles, and cannot survive a map unload.
 - NPC identity, state, transform, goal, health, animation, parent name, and
-  gravity state serialize through the stable `RUN3_NPC_STATE 1` format.
+  gravity and flashlight state serialize through `RUN3_NPC_STATE 2` (version 1 remains readable).
   Handles are rebuilt by the new map registry and are never persisted raw.
 
 ## Intentional/incomplete differences
@@ -123,7 +127,7 @@ This is a tested Step 8D vertical slice, not a claim of complete 1:1 NPC
 presentation or combat. The legacy random animation timing, per-bone head/look
 tracking, animation cross-fade weights, detailed
   footstep/attack/random sound set, blood/gib
-effects, flashlight presentation, and attachment offsets need content-specific
+effects and attachment offsets need content-specific
 fixtures before parity can be claimed. Enemy line-of-sight/attack animation is
 currently a bounded distance policy. Ragdoll construction uses the existing
 generic Step 6C constraint rig rather than legacy `auto.xml` bone mapping.
@@ -133,6 +137,25 @@ placeholders. Adding them should extend the Run3-owned interfaces and state
 machine; it must not restore `NPCManager`, OgreNewt, or global callbacks.
 
 ## Verification
+
+The `tlwstations03` compatibility regression executes all 22 attached chapter
+Lua files against the high TLWRM map and typed sequence/NPC runtimes, plus the
+document-check branches for payment, insufficient funds, and intelligence.
+It rejects deferred commands and checks the $30 debit. Event 28 follows the
+original neutral NPC spotlight settings (60/80 degrees, range 3000, root-local
+offset `0 0 -20`) and switch sound. Train position-save enable/disable now holds
+and releases the captured position and survives sequence saves (version 5,
+older versions readable). Numeric Lua registers and legacy integer `toString`
+are implemented; Run3App shares the registers across map-owned Lua sessions.
+These CPU tests verify command routing and state, not rendered light appearance
+or a complete live campaign playthrough.
+
+The Step 6C station-passenger CPU model uses the authored train origin, scale,
+yaw and passenger offsets, a 160-second parented ride at speed 800, and gravity
+release onto either a train-group box or triangle-mesh floor. It reproduces
+fall-through with the old NPC mask and verifies landing and subsequent scripted
+walking with train contacts enabled. Gravity disable already clears velocity
+and forces; this failure was collision filtering, not accumulated gravity.
 
 `run3_step8d_tests` covers neutral/enemy construction, AIR3 success and blocked
 paths, 30/60/144 deterministic replay, reach/near/use/death callbacks,

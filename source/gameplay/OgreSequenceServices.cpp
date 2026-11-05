@@ -419,6 +419,8 @@ public:
     Ogre::Quaternion headBaseOrientation{Ogre::Quaternion::IDENTITY};
     Ogre::Real headYawDegrees{};
     NpcLookState lookState;
+    Ogre::Light *flashlight{};
+    Ogre::SceneNode *flashlightNode{};
   };
   struct ParticlePresentation {
     std::string name;
@@ -449,7 +451,8 @@ public:
        PlayerController &playerController,
        audio::IAudioEngine &audioEngine, ui::IUiSystem &uiSystem,
        MapChangeRequest changeRequest,
-       double lodBias, double configuredFovDegrees)
+       double lodBias, double configuredFovDegrees,
+       std::shared_ptr<scripting::NumericRegisters> numericRegisters)
       : paths(appPaths), sceneManager(&manager), camera(&gameCamera),
         physicsWorld(&world),
         staticMap(&loadedMap),
@@ -457,7 +460,7 @@ public:
         audio(&audioEngine), ui(&uiSystem), oneShots(audioEngine), dynamicPhysics(world),
         mapChangeRequest(std::move(changeRequest)),
         scripts({paths.contentRoot(), paths.userRoot(), 1'000'000, &uiSystem,
-                 &uiSystem.buttonGui()},
+                 &uiSystem.buttonGui(), std::move(numericRegisters)},
                 [this](const scripting::ScriptCall &call) {
                   if (runtime == nullptr) {
                     throw std::runtime_error(
@@ -617,9 +620,7 @@ public:
     body.group = collisionGroup(presentation.spec.kind);
     body.mask = physics::collisionMask(physics::CollisionGroup::Player);
     if (presentation.spec.kind == RuntimeEntityKind::Npc)
-      body.mask |= physics::collisionMask(physics::CollisionGroup::World) |
-                   physics::collisionMask(physics::CollisionGroup::Dynamic) |
-                   physics::collisionMask(physics::CollisionGroup::Door);
+      body.mask = npcCollisionMask();
     if (presentation.spec.kind == RuntimeEntityKind::Door ||
         presentation.spec.kind == RuntimeEntityKind::Rotator ||
         presentation.spec.kind == RuntimeEntityKind::Pendulum ||
@@ -1483,6 +1484,7 @@ public:
     if (sceneManager != nullptr) {
       for (auto &[id, presentation] : presentations) {
         static_cast<void>(id);
+        try { setNpcFlashlight(presentation, false); } catch (...) {}
         if (presentation.entity != nullptr) {
           try { sceneManager->destroyEntity(presentation.entity); }
           catch (...) {}
@@ -1518,6 +1520,7 @@ public:
     // systems release their handles. Treat that second release as idempotent.
     if (found == presentations.end()) return;
     Presentation &entry = found->second;
+    setNpcFlashlight(entry, false);
     Ogre::MeshPtr facialMesh;
     std::string facialAnimation;
     const auto facial = facials.find(handle.id.value);
@@ -1576,6 +1579,36 @@ public:
           presentation.entity->refreshAvailableAnimationState();
       }
     }
+  }
+
+  void setNpcFlashlight(Presentation &owner, bool enabled) {
+    if (!enabled) {
+      if (owner.flashlight) {
+        owner.flashlight->detachFromParent();
+        sceneManager->destroyLight(owner.flashlight);
+        owner.flashlight = nullptr;
+      }
+      if (owner.flashlightNode) {
+        sceneManager->destroySceneNode(owner.flashlightNode);
+        owner.flashlightNode = nullptr;
+      }
+      return;
+    }
+    if (owner.flashlight || owner.spec.kind != RuntimeEntityKind::Npc ||
+        owner.node == nullptr) return;
+    // Legacy niNode light follows the NPC root, independently of head/hand animation.
+    owner.flashlight = sceneManager->createLight();
+    owner.flashlight->setType(Ogre::Light::LT_SPOTLIGHT);
+    owner.flashlight->setDiffuseColour(0.5F, 0.5F, 0.5F);
+    owner.flashlight->setSpecularColour(0.0F, 0.0F, 0.0F);
+    owner.flashlight->setSpotlightRange(Ogre::Degree(60), Ogre::Degree(80));
+    // Legacy shaders ignored attenuation coefficients; retain the authored range.
+    owner.flashlight->setAttenuation(3000, 1, 0, 0);
+    owner.flashlight->setCastShadows(true);
+    owner.flashlightNode = owner.node->createChildSceneNode(Ogre::Vector3(0, 0, -20));
+    owner.flashlightNode->setDirection(Ogre::Vector3::NEGATIVE_UNIT_Z,
+                                       Ogre::Node::TS_PARENT);
+    owner.flashlightNode->attachObject(owner.flashlight);
   }
 
   void setNpcAttachment(const SetNpcAttachment &command) {
@@ -1973,12 +2006,14 @@ OgreSequenceServices::OgreSequenceServices(
     PlayerController &player,
     audio::IAudioEngine &audio, ui::IUiSystem &ui,
     MapChangeRequest mapChangeRequest,
-    double meshLodBias, double defaultFovDegrees)
+    double meshLodBias, double defaultFovDegrees,
+    std::shared_ptr<scripting::NumericRegisters> numericRegisters)
     : impl_(std::make_unique<Impl>(paths, sceneManager, camera, physicsWorld,
                                    staticMap,
                                    player,
                                    audio, ui, std::move(mapChangeRequest),
-                                   meshLodBias, defaultFovDegrees)) {}
+                                   meshLodBias, defaultFovDegrees,
+                                   std::move(numericRegisters))) {}
 OgreSequenceServices::~OgreSequenceServices() = default;
 
 void OgreSequenceServices::attach(SequenceRuntime &runtime) noexcept {
@@ -2238,8 +2273,8 @@ void OgreSequenceServices::submit(const GameCommand &command) {
                       50.0F, 1200.0F)
                 : impl_->oneShots.emit(path, value.durationSeconds);
             if (!ok) {
-              throw std::runtime_error("cannot play effect '" + path.string() +
-                                       "': " + impl_->audio->lastError());
+              impl_->log("warning: cannot play effect '" + path.string() +
+                         "': " + impl_->audio->lastError() + "; effect skipped");
             }
           },
           [this](const SetRuntimeMusicGain &value) {
@@ -2291,6 +2326,9 @@ void OgreSequenceServices::submit(const GameCommand &command) {
           },
           [this](const ToggleRuntimeFlashlight &) {
             impl_->toggleFlashlight();
+          },
+          [this](const SetNpcFlashlight &value) {
+            impl_->setNpcFlashlight(impl_->require(value.owner), value.enabled);
           },
           [this](const SetRuntimeFov &value) {
             const double degrees = value.degrees.value_or(

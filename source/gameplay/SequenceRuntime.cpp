@@ -330,6 +330,8 @@ public:
     bool completionFired{};
     bool reverse{};
     bool infinite{};
+    bool positionSaveMode{};
+    physics::Vec3 savedPosition{};
     bool rotational{};
     bool orientToPath{true};
     double trainYawDegrees{180.0};
@@ -1181,6 +1183,13 @@ public:
   }
 
   void updateTrain(Record &record) {
+    if (record.positionSaveMode) {
+      record.speed += record.acceleration * fixedStepSeconds;
+      record.publicState.transform.position = record.savedPosition;
+      services->submit(SetRuntimeTransform{record.publicState.handle,
+                                            record.publicState.transform});
+      return;
+    }
     if (!record.publicState.active || record.keyPoints.empty()) return;
     // Legacy Train::train_movement applied acceleration before calculating
     // this tick's velocity.  Keep that ordering for station braking scripts.
@@ -1605,6 +1614,16 @@ SequenceRuntime::dispatchScriptCall(const scripting::ScriptCall &call) {
                           : !door->publicState.active;
         setDoorOpen(name, open);
       }
+    } else if (call.name == "enableTrainSaveMode" ||
+               call.name == "disableTrainSaveMode") {
+      const std::string name = requireName();
+      auto *train = impl_->findKind(name, RuntimeEntityKind::Train);
+      if (train == nullptr) warnMissing("train", name);
+      else {
+        train->positionSaveMode = call.name == "enableTrainSaveMode";
+        if (train->positionSaveMode)
+          train->savedPosition = train->publicState.transform.position;
+      }
     } else if (call.name == "startTrain" || call.name == "stopTrain" ||
                call.name == "reverseTrain") {
       const std::string &name = requireName();
@@ -1948,7 +1967,8 @@ PersistentSequenceState SequenceRuntime::saveState() const {
                                record.rotationProgress, record.speed,
                                record.acceleration,
                                record.oneShotFired, record.completionFired,
-                               record.reverse});
+                               record.reverse, record.positionSaveMode,
+                               record.savedPosition});
   }
   for (const Impl::QueuedAction &action : impl_->queue) {
     saved.pending.push_back({action.dueTick, action.order, action.action});
@@ -2006,6 +2026,8 @@ void SequenceRuntime::restoreState(const PersistentSequenceState &state) {
     record.oneShotFired = internals.oneShotFired;
     record.completionFired = internals.completionFired;
     record.reverse = internals.reverse;
+    record.positionSaveMode = internals.positionSaveMode;
+    record.savedPosition = internals.savedPosition;
     if (record.publicState.tag != "timer") {
       impl_->services->submit(SetRuntimeTransform{current,
                                                   record.publicState.transform});
@@ -2075,7 +2097,7 @@ std::string SequenceRuntime::serializeState() const {
   std::ostringstream output;
   output.imbue(std::locale::classic());
   output << std::setprecision(17);
-  output << "RUN3_SEQUENCE_STATE 4\n" << std::quoted(saved.mapName) << ' '
+  output << "RUN3_SEQUENCE_STATE 5\n" << std::quoted(saved.mapName) << ' '
          << saved.tick << ' ' << saved.nextQueueOrder << '\n'
          << std::quoted(saved.playerParent) << ' ' << saved.fullPlayerParent
          << ' ' << saved.playerParentLocalOffset.x << ' '
@@ -2101,7 +2123,9 @@ std::string SequenceRuntime::serializeState() const {
            << internal.rotationProgress.y << ' '
            << internal.rotationProgress.z << ' ' << internal.speed << ' '
            << internal.acceleration << ' ' << internal.oneShotFired << ' '
-           << internal.completionFired << ' ' << internal.reverse << '\n';
+           << internal.completionFired << ' ' << internal.reverse << ' '
+           << internal.positionSaveMode << ' ' << internal.savedPosition.x << ' '
+           << internal.savedPosition.y << ' ' << internal.savedPosition.z << '\n';
   output << saved.pending.size() << '\n';
   for (const auto &pending : saved.pending) {
     output << pending.dueTick << ' ' << pending.order << '\n';
@@ -2116,7 +2140,7 @@ void SequenceRuntime::restoreSerializedState(std::string_view state) {
   std::string magic;
   int version{};
   if (!(input >> magic >> version) || magic != "RUN3_SEQUENCE_STATE" ||
-      (version < 1 || version > 4))
+      (version < 1 || version > 5))
     throw std::invalid_argument("unsupported sequence state format");
   PersistentSequenceState saved = saveState();
   std::size_t count{};
@@ -2167,6 +2191,11 @@ void SequenceRuntime::restoreSerializedState(std::string_view state) {
     if (!(input >> internal.oneShotFired >> internal.completionFired >>
           internal.reverse))
       throw std::invalid_argument("invalid sequence internals record");
+    internal.positionSaveMode = false;
+    internal.savedPosition = {};
+    if (version >= 5 && !(input >> internal.positionSaveMode >>
+        internal.savedPosition.x >> internal.savedPosition.y >> internal.savedPosition.z))
+      throw std::invalid_argument("invalid train position-save state");
   }
   std::size_t pendingCount{};
   if (!(input >> pendingCount))

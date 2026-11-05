@@ -282,6 +282,10 @@ struct NpcSystem::Impl {
     else setAnimation(npc, "Walk");
   }
   void kill(Record &npc) {
+    if (npc.flashlight) {
+      npc.flashlight = false;
+      services->submit(SetNpcFlashlight{npc.publicState.handle, false});
+    }
     if (npc.publicState.state == NpcState::Dead) return;
     npc.publicState.state = NpcState::Dead;
     npc.path.clear();
@@ -599,6 +603,12 @@ void NpcSystem::dispatch(const NpcRuntimeCommand &command) {
     case NpcEvent::FacialActivity:
       impl_->services->submit(PlayRuntimeFacial{npc.publicState.handle,
         command.argument, npc.publicState.transform.position}); break;
+    case NpcEvent::ToggleFlashlight:
+      npc.flashlight = !npc.flashlight;
+      impl_->services->submit(SetNpcFlashlight{npc.publicState.handle, npc.flashlight});
+      impl_->services->submit(PlayRuntimeEffect{"run3/sounds/flash01.wav",
+          npc.publicState.transform.position, 2.0F, false});
+      break;
     default: throw std::invalid_argument("NPC event " +
                 std::to_string(command.legacyEvent) + " is not implemented for '" +
                 npc.publicState.name + "'");
@@ -686,7 +696,7 @@ std::string NpcSystem::serializeState() const {
   std::ostringstream output;
   output.imbue(std::locale::classic());
   output << std::setprecision(17);
-  output << "RUN3_NPC_STATE 1\n" << impl_->records.size() << '\n';
+  output << "RUN3_NPC_STATE 2\n" << impl_->records.size() << '\n';
   for (const auto &npc : impl_->records) {
     output << std::quoted(npc.publicState.name) << ' '
            << static_cast<int>(npc.publicState.state) << ' '
@@ -700,7 +710,8 @@ std::string NpcSystem::serializeState() const {
            << npc.publicState.goal.x << ' ' << npc.publicState.goal.y << ' '
            << npc.publicState.goal.z << ' ' << npc.publicState.health << ' '
            << std::quoted(npc.publicState.animation) << ' '
-           << std::quoted(npc.parent) << ' ' << npc.gravityEnabled << '\n';
+           << std::quoted(npc.parent) << ' ' << npc.gravityEnabled << ' '
+           << npc.flashlight << '\n';
   }
   return output.str();
 }
@@ -714,7 +725,7 @@ void NpcSystem::restoreSerializedState(std::string_view state) {
   int version{};
   std::size_t count{};
   if (!(input >> magic >> version >> count) || magic != "RUN3_NPC_STATE" ||
-      version != 1 || count != impl_->records.size())
+      (version < 1 || version > 2) || count != impl_->records.size())
     throw std::invalid_argument("NPC save does not match loaded map");
   for (auto &npc : impl_->records) {
     std::string name, animation, parent;
@@ -734,6 +745,11 @@ void NpcSystem::restoreSerializedState(std::string_view state) {
         stateValue > static_cast<int>(NpcState::Dead))
       throw std::invalid_argument("invalid NPC save record");
     npc.publicState.state = static_cast<NpcState>(stateValue);
+    npc.flashlight = false;
+    if (version >= 2 && !(input >> npc.flashlight))
+      throw std::invalid_argument("invalid NPC flashlight state");
+    impl_->services->submit(SetNpcFlashlight{npc.publicState.handle,
+        npc.flashlight && npc.publicState.state != NpcState::Dead});
     npc.publicState.animation = std::move(animation);
     npc.parent = std::move(parent);
     impl_->services->submit(SetRuntimeTransform{npc.publicState.handle,

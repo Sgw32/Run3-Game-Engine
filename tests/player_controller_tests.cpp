@@ -349,6 +349,41 @@ TEST_CASE("script parent binding pins the capsule and suppresses player drift") 
   static_cast<void>(floor);
 }
 
+TEST_CASE("new noclip flies independently while preserving the scripted train binding") {
+  PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
+  PlayerController player(world);
+  player.spawn({0, 100, 0});
+  player.setParented(true);
+  player.applyParentMotion({5, 2, -3});
+  static_cast<void>(player.simulateFixedStep());
+  const auto attached = player.state().position;
+
+  player.setNoclip(true);
+  for (int step = 0; step < 10; ++step) {
+    player.applyParentMotion({50, 20, -30});
+    static_cast<void>(player.simulateFixedStep());
+  }
+  CHECK(player.state().parented);
+  CHECK(player.state().position == attached);
+
+  player.setCommand({0, 1, 0, false, false, false});
+  player.applyParentMotion({50, 20, -30});
+  static_cast<void>(player.simulateFixedStep());
+  CHECK(player.state().position.x == Catch::Approx(attached.x));
+  CHECK(player.state().position.y == Catch::Approx(attached.y));
+  CHECK(player.state().position.z < attached.z);
+  const auto freePosition = player.state().position;
+
+  // Leaving noclip resumes attachment without replaying ignored train deltas.
+  player.setNoclip(false);
+  player.setCommand({});
+  player.applyParentMotion({5, 2, -3});
+  static_cast<void>(player.simulateFixedStep());
+  CHECK(player.state().position.x == Catch::Approx(freePosition.x + 5));
+  CHECK(player.state().position.y == Catch::Approx(freePosition.y + 2));
+  CHECK(player.state().position.z == Catch::Approx(freePosition.z - 3));
+}
+
 TEST_CASE("use and weapon queries use the Run3 raycast API") {
   PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
   const auto wall = addBox(world, {0, 150, -150}, {50, 100, 10});

@@ -6,7 +6,9 @@
 #include <sol/sol.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
+#include <iomanip>
 #include <limits>
 #include <sstream>
 #include <system_error>
@@ -183,6 +185,10 @@ class ScriptEngine::Impl final {
 public:
   Impl(ScriptEngineConfig config, ScriptDispatch dispatch)
       : config_(std::move(config)), dispatch_(std::move(dispatch)) {
+    registers_ = config_.numericRegisters ? config_.numericRegisters
+                                          : std::make_shared<NumericRegisters>();
+    for (const auto *name : {"rx1", "rx2", "ry1", "ry2", "rz1", "rz2", "a", "ra", "rb", "rc"})
+      registers_->try_emplace(name, 0.0);
     config_.contentRoot = normalizeRoot(config_.contentRoot, "contentRoot");
     config_.userRoot = normalizeRoot(config_.userRoot, "userRoot");
     if (config_.instructionBudget == 0) {
@@ -222,6 +228,38 @@ public:
               call.arguments.push_back(argumentString(argument));
             }
             calls_.push_back(call);
+            // Legacy numeric registers are Lua-session state, shared by all
+            // chapter scripts, rather than deferred presentation commands.
+            if (call.name == "toString") {
+              if (call.arguments.size() != 1)
+                throw std::invalid_argument("toString expects one number");
+              const double value = std::stod(call.arguments[0]);
+              if (!std::isfinite(value)) throw std::invalid_argument("non-finite number");
+              std::ostringstream formatted;
+              formatted << std::fixed << std::setprecision(0) << std::trunc(value);
+              return sol::make_object(state, formatted.str());
+            }
+            if (call.name == "get__register" || call.name == "set__register" ||
+                call.name == "add__register" || call.name == "inc__register" ||
+                call.name == "dec__register") {
+              const bool takesValue = call.name == "set__register" ||
+                                      call.name == "add__register";
+              if (call.arguments.size() != (takesValue ? 2U : 1U))
+                throw std::invalid_argument("invalid register arguments");
+              auto found = registers_->find(call.arguments[0]);
+              if (found == registers_->end())
+                throw std::invalid_argument("unknown numeric register '" + call.arguments[0] + "'");
+              double &value = found->second;
+              if (call.name == "get__register") return sol::make_object(state, value);
+              if (takesValue) {
+                std::size_t used{};
+                const double operand = std::stod(call.arguments[1], &used);
+                if (used != call.arguments[1].size() || !std::isfinite(operand))
+                  throw std::invalid_argument("invalid register value");
+                value = call.name == "set__register" ? operand : value + operand;
+              } else value += call.name == "inc__register" ? 1.0 : -1.0;
+              return sol::make_object(state, sol::nil);
+            }
             if (config_.buttonGuiFacade != nullptr) {
               if (const auto result = dispatchButtonGuiCompatibility(calls_.back()))
                 return toObject(state, *result);
@@ -529,6 +567,7 @@ public:
 
   ScriptEngineConfig config_;
   ScriptDispatch dispatch_;
+  std::shared_ptr<NumericRegisters> registers_;
   sol::state lua_;
   sol::protected_function traceback_;
   std::vector<ScriptCall> calls_;

@@ -903,6 +903,7 @@ int Run3App::run() {
             std::llround(static_cast<double>(frame.simulationSteps) *
                          worldTimeScale));
         for (std::size_t step = 0; step < scaledSimulationSteps; ++step) {
+          const auto playerBeforeStep = player_->state();
           if (sequenceRuntime_) {
             sequenceRuntime_->fixedUpdate();
           }
@@ -910,6 +911,15 @@ int Run3App::run() {
           player_->updatePickedBody(pitchRadians_,
                                     physics::PhysicsWorld::fixedStepSeconds);
           static_cast<void>(player_->simulateFixedStep());
+          if (legacyNoclip_ && playerBeforeStep.parented &&
+              player_->state().parented) {
+            // Legacy noclip detaches only the camera. Preserve its freely
+            // chosen offset while the attached capsule follows the train.
+            const auto position = player_->state().position;
+            detachedCameraPosition_.x += position.x - playerBeforeStep.position.x;
+            detachedCameraPosition_.y += position.y - playerBeforeStep.position.y;
+            detachedCameraPosition_.z += position.z - playerBeforeStep.position.z;
+          }
           ++simulatedSteps_;
         }
         if (staticMap_) {
@@ -1503,7 +1513,8 @@ void Run3App::loadMap(const std::string &mapName) {
         options_.paths, *sceneManager_, *camera_, *physicsWorld_, *staticMap_,
         *player_, *audioEngine_, *ui_,
         [this](std::string map) { requestMapChange(std::move(map)); },
-        meshLodBias(options_.modelQuality), options_.verticalFovDegrees);
+        meshLodBias(options_.modelQuality), options_.verticalFovDegrees,
+        numericRegisters_);
     sequenceServices_->attachLighting(*lighting_);
     if (mapAudio_) {
       sequenceServices_->attachMapAudio(*mapAudio_);

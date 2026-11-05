@@ -49,6 +49,8 @@ struct PersistentSequenceState {
     bool oneShotFired{};
     bool completionFired{};
     bool reverse{};
+    bool positionSaveMode{};
+    physics::Vec3 savedPosition{};
   };
   struct PendingAction {
     std::uint64_t dueTick{};

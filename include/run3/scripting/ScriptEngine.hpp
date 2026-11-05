@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <unordered_map>
 #include <stdexcept>
 #include <string>
 #include <variant>
@@ -15,6 +16,7 @@ class IScriptUiFacade;
 }
 
 namespace run3::scripting {
+using NumericRegisters = std::unordered_map<std::string, double>;
 
 struct BindingSpec {
   std::string group;
@@ -40,6 +42,7 @@ struct ScriptEngineConfig {
   std::size_t instructionBudget{1'000'000};
   ui::IScriptUiFacade *uiFacade{};
   ui::IButtonGuiFacade *buttonGuiFacade{};
+  std::shared_ptr<NumericRegisters> numericRegisters;
 };
 
 struct ScriptCheckResult {

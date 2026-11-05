@@ -3,6 +3,7 @@
 #include <run3/gameplay/EntityRegistry.hpp>
 #include <run3/gameplay/GameCommands.hpp>
 #include <run3/gameplay/SequenceRuntime.hpp>
+#include <run3/gameplay/NpcSystem.hpp>
 #include <run3/scripting/ScriptEngine.hpp>
 
 #include <catch2/catch_approx.hpp>
@@ -26,6 +27,12 @@ namespace {
 const fs::path sourceRoot{RUN3_TEST_SOURCE_DIR};
 
 struct FakeServices final : gameplay::IGameServices {
+  gameplay::NpcSystem *npcs{};
+  gameplay::SequenceRuntime *sequence{};
+  std::optional<physics::Transform> runtimeTransform(std::string_view name) const override {
+    const auto state = sequence ? sequence->state(name) : std::nullopt;
+    return state ? std::optional<physics::Transform>{state->transform} : std::nullopt;
+  }
   physics::Vec3 player{};
   std::vector<gameplay::GameCommand> commands;
   std::string failScript;
@@ -39,6 +46,8 @@ struct FakeServices final : gameplay::IGameServices {
   std::vector<double> musicSeeks;
 
   void submit(const gameplay::GameCommand &command) override {
+    if (const auto *event = std::get_if<gameplay::NpcRuntimeCommand>(&command); event && npcs)
+      npcs->dispatch(*event);
     if (const auto *script = std::get_if<gameplay::RunRuntimeScript>(&command);
         script != nullptr && script->path.generic_string() == failScript) {
       throw std::runtime_error("fixture script failure");
@@ -624,6 +633,72 @@ TEST_CASE("Stations02 pandus2 script accelerates all fourteen vehicle wheels",
     const auto *deferred = std::get_if<gameplay::DeferredLegacyCommand>(&command);
     if (deferred) CHECK(deferred->name != "setAccDoor");
   }
+}
+
+TEST_CASE("Train position-save mode holds, persists and releases the platform",
+          "[step8c][train][save]") {
+  FixtureRuntime fixture;
+  fixture.runtime->start();
+  fixture.runtime->fixedUpdate();
+  const auto position = fixture.runtime->state("train")->transform.position;
+  static_cast<void>(fixture.runtime->dispatchScriptCall({"sequence", "enableTrainSaveMode", {"train"}}));
+  const auto saved = fixture.runtime->serializeState();
+  for (int i = 0; i < 5; ++i) fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->state("train")->transform.position == position);
+  static_cast<void>(fixture.runtime->dispatchScriptCall({"sequence", "disableTrainSaveMode", {"train"}}));
+  fixture.runtime->fixedUpdate();
+  CHECK_FALSE(fixture.runtime->state("train")->transform.position == position);
+  fixture.runtime->restoreSerializedState(saved);
+  fixture.runtime->fixedUpdate();
+  CHECK(fixture.runtime->state("train")->transform.position == position);
+  CHECK(fixture.services.count<gameplay::DeferredLegacyCommand>() == 0);
+}
+
+TEST_CASE("Stations03 chapter Lua commands execute without deferred operations",
+          "[step8c][stations03][content][lua]") {
+  const auto root = sourceRoot / "Games/The Long Way/TheLongWay";
+  const auto chapter = root / "run3/lua/chapters/tlwstations03";
+  if (!fs::is_directory(chapter)) SKIP("optional author content not attached");
+  auto paths = AppPaths::resolve(sourceRoot / "build/stations03-regression.exe", root,
+                                sourceRoot / "build/stations03-regression-user");
+  paths.setContentOverlay(sourceRoot / "derived-content/tlwrm");
+  const auto definition = content::loadMapDefinition(paths, "tlwstations03", "high");
+  gameplay::EntityRegistry registry;
+  static_cast<void>(gameplay::populateEntityRegistry(definition, registry, true));
+  struct Query final : physics::IPhysicsQuery {
+    std::vector<physics::RaycastHit> raycastAll(const physics::RaycastQuery &) const override { return {}; }
+  } query;
+  FakeServices services;
+  gameplay::SequenceRuntime runtime(definition, registry, services);
+  gameplay::NpcSystem npcs(definition, registry, query, services);
+  services.npcs = &npcs;
+  services.sequence = &runtime;
+  npcs.start();
+  runtime.start();
+  scripting::ScriptEngine scripts({paths.contentRoot(), paths.userRoot(), 100000},
+      [&runtime](const scripting::ScriptCall &call) { return runtime.dispatchScriptCall(call); });
+  std::vector<fs::path> files;
+  for (const auto &entry : fs::directory_iterator(chapter))
+    if (entry.path().extension() == ".lua") files.push_back(entry.path());
+  std::sort(files.begin(), files.end());
+  REQUIRE(files.size() > 10);
+  for (const auto &file : files) {
+    INFO(file.string());
+    scripts.executeText("invstate=1; set__register('ra','100')", "chapter-test-setup");
+    CHECK_NOTHROW(scripts.executeFile(file));
+  }
+  for (const auto setup : {"invstate=2", "invstate=5; set__register('ra','100')",
+                           "invstate=5; set__register('ra','0')", "invstate=7"}) {
+    scripts.executeText(setup, "document-check-setup");
+    CHECK_NOTHROW(scripts.executeFile(chapter / "card_scan_timer.lua"));
+  }
+  CHECK(services.count<gameplay::SetNpcFlashlight>() >= 1);
+  scripts.executeText("invstate=5; set__register('ra','100')", "money-setup");
+  scripts.executeFile(chapter / "card_scan_timer.lua");
+  scripts.executeText("assert(get__register('ra')==70); assert(toString(12.9)=='12')", "money-result");
+  for (const auto &command : services.commands)
+    if (const auto *deferred = std::get_if<gameplay::DeferredLegacyCommand>(&command))
+      FAIL_CHECK("unimplemented chapter command: " << deferred->name);
 }
 
 TEST_CASE("Step 8C legacy FOV bindings return a number and drive the camera service",

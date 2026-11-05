@@ -142,6 +142,8 @@ private:
   std::unique_ptr<gameplay::SemiInfiniteWorld> semiInfiniteWorld_;
   std::unique_ptr<gameplay::PlayerController> player_;
   std::unique_ptr<gameplay::OgreSequenceServices> sequenceServices_;
+  std::shared_ptr<scripting::NumericRegisters> numericRegisters_{
+      std::make_shared<scripting::NumericRegisters>()};
   std::unique_ptr<gameplay::SequenceRuntime> sequenceRuntime_;
   std::unique_ptr<physics::WorldPhysicsQuery> npcPhysicsQuery_;
   std::unique_ptr<gameplay::NpcSystem> npcSystem_;

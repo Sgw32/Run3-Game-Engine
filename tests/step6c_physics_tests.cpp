@@ -292,6 +292,85 @@ TEST_CASE("Player pressure cannot push NPCs but scripted movement remains availa
   CHECK_THAT(scene.transform(npcId).position.z, WithinAbs(stopped.z, 0.001));
 }
 
+TEST_CASE("Station passengers land on train collision after a long parented ride",
+          "[npc][train][physics]") {
+  PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
+  DynamicPhysicsScene scene(world);
+  // A small CPU model of the stations03 train, with its authored world
+  // position, scale, yaw and passenger offsets. No World floor underneath:
+  // support must come from the train's invisible collision geometry.
+  constexpr double scale = 2.6053;
+  constexpr double floorY = -13478.4 + 20.0 * scale;
+  Transform trainPose{{1300, floorY, 15556.9}, {0, 0, -1, 0}};
+  Shape floor = Shape::box({300, 5, 1000});
+  double floorTop = floorY + 5;
+  SECTION("Train root collision box") {}
+  SECTION("Invisible child triangle-mesh floor") {
+    floor = Shape::triangleMesh({{-300, 0, -1000}, {-300, 0, 1000},
+                                {300, 0, 1000}, {300, 0, -1000}},
+                               {0, 1, 2, 0, 2, 3});
+    floorTop = floorY;
+  }
+  DynamicEntityDesc train{"er9m_1_1/floor", BodyType::Train, std::move(floor)};
+  train.transform = trainPose;
+  train.mask = run3::physics::collisionMask(CollisionGroup::Player) |
+               run3::physics::collisionMask(CollisionGroup::Dynamic) |
+               run3::physics::collisionMask(CollisionGroup::Npc);
+  const auto trainId = scene.createTrain(std::move(train));
+  std::vector<run3::gameplay::PhysicsEntityId> passengers;
+  const std::vector<Vec3> localOffsets{{40.9741, 70.8624, 227.436},
+                                      {-60.9741, 70.8624, 227.436}};
+  const std::vector<double> halfHeights{60, 35};
+  const auto passengerPose = [&](std::size_t index) {
+    const auto local = localOffsets[index];
+    return Transform{{1300 - local.x * scale,
+                      -13478.4 + local.y * scale,
+                      trainPose.position.z - local.z * scale}, {}};
+  };
+  for (std::size_t i = 0; i < localOffsets.size(); ++i) {
+    DynamicEntityDesc npc{i == 0 ? "inspector" : "ovcharka_npc",
+                          BodyType::Npc, Shape::box({20, halfHeights[i], 20})};
+    npc.transform = passengerPose(i);
+    npc.massKg = 80;
+    npc.group = CollisionGroup::Npc;
+    npc.mask = run3::gameplay::npcCollisionMask();
+    passengers.push_back(scene.createEntity(std::move(npc)));
+    scene.setEntityGravityEnabled(passengers.back(), false); // event 17
+  }
+  // Longer than the ~155-second authored ride at speed 800. A parented NPC
+  // is repositioned every tick while gravity is disabled, just as events 17/21.
+  for (int tick = 0; tick < 9600; ++tick) {
+    trainPose.position.z = std::max(-108040.0, trainPose.position.z - 800 * step);
+    scene.setTrainTransform(trainId, trainPose);
+    for (std::size_t i = 0; i < passengers.size(); ++i)
+      scene.setEntityTransform(passengers[i], passengerPose(i));
+    static_cast<void>(world.advance(step));
+  }
+  for (std::size_t i = 0; i < passengers.size(); ++i) {
+    CHECK_THAT(scene.transform(passengers[i]).position.y,
+               WithinAbs(passengerPose(i).position.y, 0.001));
+    scene.setEntityGravityEnabled(passengers[i], true); // event 25
+  }
+  for (int tick = 0; tick < 360; ++tick)
+    static_cast<void>(world.advance(step));
+  for (std::size_t i = 0; i < passengers.size(); ++i) {
+    INFO((i == 0 ? "inspector" : "ovcharka_npc"));
+    CHECK_THAT(scene.transform(passengers[i]).position.y,
+               WithinAbs(floorTop + halfHeights[i], 0.5));
+    // Navigation must still work after release; preserve physics-owned Y.
+    for (int tick = 0; tick < 60; ++tick) {
+      auto pose = scene.transform(passengers[i]);
+      pose.position.z += 50 * step;
+      scene.setEntityTransform(passengers[i], pose);
+      static_cast<void>(world.advance(step));
+    }
+    CHECK_THAT(scene.transform(passengers[i]).position.y,
+               WithinAbs(floorTop + halfHeights[i], 0.5));
+    CHECK_THAT(scene.transform(passengers[i]).position.z,
+               WithinAbs(passengerPose(i).position.z + 50, 0.5));
+  }
+}
+
 TEST_CASE("ragdoll constraints and map unload have explicit RAII lifetimes") {
   PhysicsConfig config;
   config.gravity = {};

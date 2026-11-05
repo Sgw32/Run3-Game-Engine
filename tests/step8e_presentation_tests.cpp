@@ -337,7 +337,7 @@ TEST_CASE("Step 8E stable state and authored train binding round trip",
   REQUIRE(fixture.runtime->startCutscene("intro"));
   fixture.runtime->fixedUpdate();
   const std::string state = fixture.runtime->serializeState();
-  CHECK(state.rfind("RUN3_SEQUENCE_STATE 4", 0) == 0);
+  CHECK(state.rfind("RUN3_SEQUENCE_STATE 5", 0) == 0);
   fixture.runtime->skipCutscene();
   for (int tick = 0; tick < 10; ++tick) fixture.runtime->fixedUpdate();
   REQUIRE_NOTHROW(fixture.runtime->restoreSerializedState(state));

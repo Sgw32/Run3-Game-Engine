@@ -221,6 +221,34 @@ TEST_CASE("Step 8D constructs typed neutral and enemy NPCs", "[step8d][npc]") {
   CHECK(fixture.npcs->size() == 0);
 }
 
+TEST_CASE("NPC flashlight toggles without changing navigation and survives restore",
+          "[step8d][npc][flashlight]") {
+  RuntimeFixture fixture;
+  fixture.npcs->dispatch({"guide", 10, "10 0 0", {}, false});
+  const auto before = fixture.npcs->state("guide");
+  fixture.npcs->dispatch({"guide", 28, "light", {}, false});
+  REQUIRE(fixture.services.count<gameplay::SetNpcFlashlight>() == 1);
+  CHECK(fixture.npcs->state("guide")->state == before->state);
+  CHECK(fixture.npcs->state("guide")->animation == before->animation);
+  const auto saved = fixture.npcs->serializeState();
+  fixture.npcs->dispatch({"guide", 28, "light", {}, false});
+  const auto lastLight = [&]() {
+    for (auto i = fixture.services.commands.rbegin(); i != fixture.services.commands.rend(); ++i)
+      if (const auto *light = std::get_if<gameplay::SetNpcFlashlight>(&*i)) return light->enabled;
+    return false;
+  };
+  CHECK_FALSE(lastLight());
+  fixture.npcs->restoreSerializedState(saved);
+  // Restore also submits an off state for the other NPC.
+  bool guideOn{};
+  for (const auto &command : fixture.services.commands)
+    if (const auto *light = std::get_if<gameplay::SetNpcFlashlight>(&command);
+        light && light->owner == before->handle) guideOn = light->enabled;
+  CHECK(guideOn);
+  fixture.npcs->dispatch({"guide", 6, "", {}, false});
+  CHECK_FALSE(lastLight());
+}
+
 TEST_CASE("Step 8D NPC animation variation and strange look are deterministic",
           "[step8d][npc][look]") {
   using namespace gameplay;
@@ -515,7 +543,7 @@ TEST_CASE("Step 8E NPC gravity event and stable state round trip",
   CHECK_FALSE(fixture.npcs->state("guide")->gravityEnabled);
   CHECK(fixture.services.count<gameplay::SetRuntimeNpcGravity>() == 1);
   const std::string saved = fixture.npcs->serializeState();
-  CHECK(saved.rfind("RUN3_NPC_STATE 1", 0) == 0);
+  CHECK(saved.rfind("RUN3_NPC_STATE 2", 0) == 0);
   CHECK_NOTHROW(fixture.npcs->dispatch({"guide", 26, "1", {}, false}));
   CHECK(fixture.npcs->state("guide")->gravityEnabled);
   CHECK_NOTHROW(fixture.npcs->restoreSerializedState(saved));

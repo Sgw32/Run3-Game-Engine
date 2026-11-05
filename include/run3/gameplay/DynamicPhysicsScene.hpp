@@ -12,6 +12,16 @@ namespace run3::gameplay {
 
 using PhysicsEntityId = std::uint64_t;
 
+// Shared by live NPC creation and physics fixtures. Bullet requires both
+// sides' masks to accept a pair, including separately authored train parts.
+[[nodiscard]] constexpr physics::CollisionMask npcCollisionMask() noexcept {
+  return physics::collisionMask(physics::CollisionGroup::Player) |
+         physics::collisionMask(physics::CollisionGroup::World) |
+         physics::collisionMask(physics::CollisionGroup::Dynamic) |
+         physics::collisionMask(physics::CollisionGroup::Door) |
+         physics::collisionMask(physics::CollisionGroup::Train);
+}
+
 enum class GameplayPhysicsEventType {
   PickupCollected,
   ButtonPressed,

@@ -215,6 +215,7 @@ struct NpcRuntimeCommand {
   bool broadcast{};
 };
 struct DestroyNpcRuntimeCommand { std::string name; };
+struct SetNpcFlashlight { EntityHandle owner; bool enabled{}; };
 struct SetNpcAttachment {
   EntityHandle owner;
   std::string object;
@@ -253,7 +254,7 @@ using GameCommand =
                  SetRuntimeHudVisible,
                   SetRuntimeSubtitle, SetRuntimeTypewriterText,
                   SetRuntimeInventoryEnabled,
-                  SetRuntimeFlashlightAllowed, ToggleRuntimeFlashlight,
+                  SetRuntimeFlashlightAllowed, ToggleRuntimeFlashlight, SetNpcFlashlight,
                   SetRuntimeFov,
                   SetRuntimeCompositor,
                  SetRuntimeShaderParameter, SetRuntimeEffectEnabled,

@@ -617,7 +617,7 @@ if(RUN3_BUILD_TESTS)
         PRIVATE RUN3_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     target_link_libraries(
         run3_step8c_tests
-        PRIVATE run3::warnings run3::sequence Catch2::Catch2WithMain)
+        PRIVATE run3::warnings run3::sequence run3::npcs Catch2::Catch2WithMain)
     catch_discover_tests(run3_step8c_tests
                          TEST_PREFIX "run3_step8c."
                          PROPERTIES LABELS "step8c;sequence;entities")

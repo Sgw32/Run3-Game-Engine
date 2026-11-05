@@ -70,7 +70,8 @@ public:
                        audio::IAudioEngine &audio, ui::IUiSystem &ui,
                        MapChangeRequest mapChangeRequest = {},
                        double meshLodBias = 1.0,
-                       double defaultFovDegrees = 75.0);
+                       double defaultFovDegrees = 75.0,
+                       std::shared_ptr<scripting::NumericRegisters> numericRegisters = {});
   ~OgreSequenceServices() override;
   OgreSequenceServices(const OgreSequenceServices &) = delete;
   OgreSequenceServices &operator=(const OgreSequenceServices &) = delete;

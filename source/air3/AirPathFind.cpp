@@ -15,7 +15,8 @@ void AirPathFind::setNodes(std::vector<PathNode> nodes) {
   nodes_ = std::move(nodes);
 }
 
-bool AirPathFind::lineBlocked(physics::Vec3 from, physics::Vec3 to) const {
+bool AirPathFind::lineBlocked(physics::Vec3 from, physics::Vec3 to,
+                              bool avoidPlayer, double clearance) const {
   // Bullet asserts when a ray has identical endpoints. Duplicate authored AI
   // nodes are legal legacy content, so treat that graph edge as trivially
   // traversable instead of forwarding an invalid query to the backend.
@@ -31,14 +32,31 @@ bool AirPathFind::lineBlocked(physics::Vec3 from, physics::Vec3 to) const {
   query.group = physics::CollisionGroup::Npc;
   query.mask = physics::collisionMask(physics::CollisionGroup::World) |
                physics::collisionMask(physics::CollisionGroup::Dynamic) |
-               physics::collisionMask(physics::CollisionGroup::Door);
+               physics::collisionMask(physics::CollisionGroup::Door) |
+               physics::collisionMask(physics::CollisionGroup::Train);
+  if (avoidPlayer)
+    query.mask |= physics::collisionMask(physics::CollisionGroup::Player);
   query.includeTriggers = false;
-  return physicsQuery_->raycastClosest(query).has_value();
+  if (physicsQuery_->raycastClosest(query)) return true;
+  // Legacy NPC visibility probes included side rays, so a clear centre line
+  // alone must not allow a walking body to clip a wall or narrow doorway.
+  const double horizontal = std::hypot(dx, dz);
+  if (horizontal > duplicateNodeEpsilon) {
+    const physics::Vec3 side{-dz / horizontal * clearance, 0,
+                             dx / horizontal * clearance};
+    for (const double sign : {-1.0, 1.0}) {
+      query.from = {from.x + side.x * sign, from.y, from.z + side.z * sign};
+      query.to = {to.x + side.x * sign, to.y, to.z + side.z * sign};
+      if (physicsQuery_->raycastClosest(query)) return true;
+    }
+  }
+  return false;
 }
 
 std::vector<PathNode>
-AirPathFind::search(const PathNode &start, const PathNode &destination) const {
-  if (!lineBlocked(start.position, destination.position)) {
+AirPathFind::search(const PathNode &start, const PathNode &destination,
+                    bool avoidPlayer, double clearance) const {
+  if (!lineBlocked(start.position, destination.position, avoidPlayer, clearance)) {
     return {start, destination};
   }
   std::vector<PathNode> graph;
@@ -57,7 +75,7 @@ AirPathFind::search(const PathNode &start, const PathNode &destination) const {
     pending.pop();
     for (std::size_t candidate = 1; candidate < graph.size(); ++candidate) {
       if (visited[candidate] ||
-          lineBlocked(graph[current].position, graph[candidate].position)) {
+          lineBlocked(graph[current].position, graph[candidate].position, avoidPlayer, clearance)) {
         continue;
       }
       visited[candidate] = true;

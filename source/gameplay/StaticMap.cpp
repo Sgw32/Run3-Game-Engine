@@ -1430,6 +1430,15 @@ bool StaticMap::setNamedObjectPhysicsEnabled(std::string_view name,
     while (candidate != nullptr && candidate != node && includeChildren)
       candidate = candidate->getParent();
     if (candidate == node) {
+      if (enabled && !implementation_->world_->isEnabled(binding.body)) {
+        binding.node->_update(true, true);
+        const auto rotation = binding.node->_getDerivedOrientation();
+        implementation_->world_->setTransform(binding.body,
+            {fromOgre(binding.node->_getDerivedPosition() +
+                      rotation * binding.localCenter), fromOgre(rotation)});
+        implementation_->world_->setFrozen(binding.body, false);
+        implementation_->world_->setLinearVelocity(binding.body, {});
+      }
       implementation_->world_->setEnabled(binding.body, enabled);
       found = true;
     }

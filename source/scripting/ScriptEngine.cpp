@@ -228,6 +228,25 @@ public:
               call.arguments.push_back(argumentString(argument));
             }
             calls_.push_back(call);
+            if (call.name == "random_number") {
+              if (call.arguments.size() != 1)
+                throw std::invalid_argument("random_number expects one non-negative bound");
+              std::size_t consumed{};
+              const double bound = std::stod(call.arguments[0], &consumed);
+              if (consumed != call.arguments[0].size() || !std::isfinite(bound) ||
+                  bound < 0)
+                throw std::invalid_argument("random_number expects one non-negative bound");
+              // Match legacy RangeRandom(0, bound); toString truncates the
+              // result to select zero-based dialogue branches.
+              sol::protected_function random = lua_["math"]["random"];
+              const sol::protected_function_result result =
+                  random();
+              if (!result.valid()) {
+                const sol::error error = result;
+                throw std::runtime_error(error.what());
+              }
+              return sol::make_object(state, result.get<double>() * bound);
+            }
             // Legacy numeric registers are Lua-session state, shared by all
             // chapter scripts, rather than deferred presentation commands.
             if (call.name == "toString") {

@@ -19,12 +19,16 @@ public:
   explicit AirPathFind(const physics::IPhysicsQuery &physicsQuery) noexcept;
   void setNodes(std::vector<PathNode> nodes);
   [[nodiscard]] std::vector<PathNode> search(const PathNode &start,
-                                             const PathNode &destination) const;
+                                             const PathNode &destination,
+                                             bool avoidPlayer = false,
+                                             double clearance = 30.0) const;
+
+  [[nodiscard]] bool lineBlocked(physics::Vec3 from,
+                                 physics::Vec3 to,
+                                 bool avoidPlayer = false,
+                                 double clearance = 30.0) const;
 
 private:
-  [[nodiscard]] bool lineBlocked(physics::Vec3 from,
-                                 physics::Vec3 to) const;
-
   const physics::IPhysicsQuery *physicsQuery_{};
   std::vector<PathNode> nodes_;
 };

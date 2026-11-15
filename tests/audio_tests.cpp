@@ -224,6 +224,26 @@ TEST_CASE("null backend supports state, fades, pitch, seek, buses, and 3D attenu
   CHECK(engine->state(sound) == SoundState::stopped);
 }
 
+TEST_CASE("door movement matches start and stop cue gain at interaction distances") {
+  TemporaryAudioFiles files;
+  const auto file = files.makeWave("door.wav");
+  for (const bool realBackend : {false, true}) {
+    CAPTURE(realBackend);
+    auto engine = realBackend ? createMiniaudioEngine({4, true})
+                              : createNullAudioEngine({4, false});
+    PlayOptions stop;
+    stop.file = file;
+    auto stopCue = engine->play(stop);
+    REQUIRE(stopCue.valid());
+    for (const float distance : {50.0F, 200.0F, 500.0F, 800.0F}) {
+      CAPTURE(distance);
+      auto movement = engine->play(doorSoundOptions(file, {distance, 0, 0}));
+      REQUIRE(movement.valid());
+      CHECK(engine->effectiveGain(movement) == Catch::Approx(engine->effectiveGain(stopCue)));
+    }
+  }
+}
+
 TEST_CASE("map-scoped sound runtime releases every voice on clear") {
   auto engine = createNullAudioEngine({3, false});
   SoundRuntime runtime(*engine);

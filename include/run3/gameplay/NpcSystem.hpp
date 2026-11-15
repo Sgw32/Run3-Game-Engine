@@ -65,6 +65,7 @@ public:
   [[nodiscard]] std::optional<NpcSnapshot> state(std::string_view name) const;
   [[nodiscard]] const std::vector<NpcSnapshot> &states() const;
   [[nodiscard]] std::size_t size() const noexcept;
+  [[nodiscard]] const std::vector<air3::PathNode> &navigationNodes() const noexcept;
   [[nodiscard]] std::string serializeState() const;
   void restoreSerializedState(std::string_view state);
 

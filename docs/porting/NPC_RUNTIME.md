@@ -42,7 +42,7 @@ The numeric values are content ABI and must never be renumbered.
 | 6 | `Kill` | death script, collision removal, optional ragdoll |
 | 7 / 8 | `Weapon` / `Shoot` | rejected; no selected-map behavior implementation yet |
 | 9 | `Spawn` | restores visibility/collision and idle state |
-| 10 | `GoTo` | AIR3 path to authored vector; blocked state is visible |
+| 10 | `GoTo` | AIR3 path to authored vector with legacy 0.7 walking activity; blocked state is visible |
 | 11 / 12 | `SetAi` / `Reach` | rejected; selected maps do not require direct handling |
 | 13 / 14 | `TakeOff` / `Land` | rejected for neutral/enemy; aerial class is not live |
 | 15 | `SetAnimation` | sets animation and stops movement, matching legacy |
@@ -156,6 +156,53 @@ release onto either a train-group box or triangle-mesh floor. It reproduces
 fall-through with the old NPC mask and verifies landing and subsequent scripted
 walking with train contacts enabled. Gravity disable already clears velocity
 and forces; this failure was collision filtering, not accumulated gravity.
+
+AIR3 obstacle queries also include `Train`, so invisible train walls block
+direct routes and graph edges. Side probes use the fitted Bullet body's
+horizontal half extents for both path search and active segment checks; the
+fallback for services without body dimensions remains thirty units. A fixed
+thirty-unit probe rejected tlwcao Mezhin's route despite his roughly fifteen-unit
+body fitting the passage. A CPU train-wall
+fixture uses the station's navigation-node positions to verify a clear detour.
+NPCs turn in place to within five degrees of the next segment before walking,
+using authored `rotateSpeed` (legacy default 50 degrees/second) and `Stealth`
+while turning. Arrival remains stationary until another command is issued.
+The attached `ov2_2.lua` deliberately orders a return toward the train; its
+four-second timer calls `ov2_3.lua` to stop the inspector. A Lua/sequence/NPC
+integration check verifies this turn-and-stop sequence without the previous
+instant reversal and roughly 200-unit retreat. The original Lua is unchanged.
+
+Blocked scripted destinations retain their goal and select `Idle1`. AIR3
+checks the current segment for new obstacles, including the player. Failed
+searches retry once per second; a successful search resumes the original
+command and fires its reach script only on arrival. Half a second without
+horizontal physics progress also enters this wait state. Stop and explicit
+animation commands cancel retries.
+
+The Lua `random_number(bound)` binding returns the legacy random number from
+zero to the bound; `toString` truncates it for dialogue selection. It uses Lua's
+random state, including `math.randomseed`. Soldier E interactions depend on
+this numeric return value. Deferring it as a presentation command returned nil
+and caused `toString` to terminate the runtime with a script error. Regression
+coverage invokes the actual soldier and inspector use callbacks repeatedly.
+
+NPC attachment release leaves the carrier and its children at the hand pose.
+Re-enabling the map body first transfers that pose to Bullet, clears its old
+velocity and unfreezes it so gravity drops the prop. Teardown still restores
+the original authored pose. Door movement emitters use the legacy 800-unit
+reference distance and 1000-unit maximum distance, keeping movement comparable
+to the unattenuated Lua start/stop effects throughout the interaction range.
+Other sequence emitters retain their 50-unit reference distance. Emitters
+follow their moving owner.
+
+NPC meshes declare all facial pose targets before entity construction, using
+a disabled layout animation. Ogre allocates blend buffers at construction;
+adding a previously unused target during speech otherwise leaves a null
+subentity buffer. The `mvd01.mesh` inspector reproduced this access violation
+in `Entity::applyVertexAnimation` at OgreEntity.cpp:1006 (release DLL RVA
+`0x8929e`). The regression test reproduces that missing buffer, then verifies
+buffer allocation and software pose application for the inspector, director
+and Mezhin meshes with the layout prepared.
 
 `run3_step8d_tests` covers neutral/enemy construction, AIR3 success and blocked
 paths, 30/60/144 deterministic replay, reach/near/use/death callbacks,

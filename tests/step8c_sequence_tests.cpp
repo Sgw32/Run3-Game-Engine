@@ -28,6 +28,7 @@ const fs::path sourceRoot{RUN3_TEST_SOURCE_DIR};
 
 struct FakeServices final : gameplay::IGameServices {
   gameplay::NpcSystem *npcs{};
+  scripting::ScriptEngine *scripts{};
   gameplay::SequenceRuntime *sequence{};
   std::optional<physics::Transform> runtimeTransform(std::string_view name) const override {
     const auto state = sequence ? sequence->state(name) : std::nullopt;
@@ -48,6 +49,8 @@ struct FakeServices final : gameplay::IGameServices {
   void submit(const gameplay::GameCommand &command) override {
     if (const auto *event = std::get_if<gameplay::NpcRuntimeCommand>(&command); event && npcs)
       npcs->dispatch(*event);
+    if (const auto *script = std::get_if<gameplay::RunRuntimeScript>(&command); script && scripts)
+      scripts->executeFile(script->path);
     if (const auto *script = std::get_if<gameplay::RunRuntimeScript>(&command);
         script != nullptr && script->path.generic_string() == failScript) {
       throw std::runtime_error("fixture script failure");
@@ -699,6 +702,108 @@ TEST_CASE("Stations03 chapter Lua commands execute without deferred operations",
   for (const auto &command : services.commands)
     if (const auto *deferred = std::get_if<gameplay::DeferredLegacyCommand>(&command))
       FAIL_CHECK("unimplemented chapter command: " << deferred->name);
+}
+
+TEST_CASE("TLW soldier use scripts return random dialogue choices", "[step8c][tlwcao][lua][npc]") {
+  const auto root = sourceRoot / "Games/The Long Way/TheLongWay";
+  if (!fs::is_directory(root / "run3/lua/chapters/tlwcao")) SKIP("TLW content absent");
+  auto paths = AppPaths::resolve(sourceRoot / "build/soldier-regression.exe", root,
+                                sourceRoot / "build/soldier-regression-user");
+  paths.setContentOverlay(sourceRoot / "derived-content/tlwrm");
+  const auto definition = content::loadMapDefinition(paths, "tlwcao", "high");
+  gameplay::EntityRegistry registry;
+  static_cast<void>(gameplay::populateEntityRegistry(definition, registry));
+  struct Query final : physics::IPhysicsQuery {
+    std::vector<physics::RaycastHit> raycastAll(const physics::RaycastQuery &) const override { return {}; }
+  } query;
+  FakeServices services;
+  gameplay::SequenceRuntime runtime(definition, registry, services);
+  gameplay::NpcSystem npcs(definition, registry, query, services);
+  services.npcs = &npcs;
+  npcs.start();
+  scripting::ScriptEngine scripts({paths.contentRoot(), paths.userRoot(), 100000},
+      [&runtime](const scripting::ScriptCall &call) { return runtime.dispatchScriptCall(call); });
+  services.scripts = &scripts;
+  scripts.executeText(R"lua(
+    math.randomseed(17)
+    local seen = {}
+    for i=1,200 do
+      local value = random_number('5')
+      assert(type(value)=='number' and value>=0 and value<5)
+      seen[toString(value)] = true
+    end
+    for i=0,4 do assert(seen[tostring(i)]) end
+    assert(random_number('0')==0)
+    assert(random_number('0.25')<0.25)
+  )lua", "random-number-contract");
+  for (const auto *npc : {"first_npsc3", "advisor1", "advisor2", "inspector123122_r3"}) {
+    const std::string file = std::string(npc) == "inspector123122_r3" ? "budget1.lua" :
+        std::string(npc) == "advisor1" ? "soldier_use_process3.lua" :
+        std::string(npc) == "advisor2" ? "soldier_use_process4.lua" : "soldier_use_process2.lua";
+    npcs.dispatch({npc, 19, "run3/lua/chapters/tlwcao/" + file, {}, false});
+    for (int repeat = 0; repeat < 20; ++repeat)
+      CHECK_NOTHROW(npcs.use(npcs.state(npc)->handle));
+  }
+  CHECK(services.count<gameplay::PlayRuntimeFacial>() == 80);
+  CHECK(services.count<gameplay::DeferredLegacyCommand>() == 0);
+}
+
+TEST_CASE("Stations03 inspector arrival turns until the authored stop timer",
+          "[step8c][stations03][content][lua][npc]") {
+  const auto root = sourceRoot / "Games/The Long Way/TheLongWay";
+  if (!fs::is_regular_file(root / "run3/lua/chapters/tlwstations03/ov2_2.lua"))
+    SKIP("optional author content not attached");
+  auto paths = AppPaths::resolve(sourceRoot / "build/inspector-arrival.exe", root,
+                                sourceRoot / "build/inspector-arrival-user");
+  paths.setContentOverlay(sourceRoot / "derived-content/tlwrm");
+  const auto definition = content::loadMapDefinition(paths, "tlwstations03", "high");
+  gameplay::EntityRegistry registry;
+  static_cast<void>(gameplay::populateEntityRegistry(definition, registry, true));
+  struct Query final : physics::IPhysicsQuery {
+    std::vector<physics::RaycastHit> raycastAll(const physics::RaycastQuery &) const override { return {}; }
+  } query;
+  FakeServices services;
+  services.player = {1000000, 1000000, 1000000};
+  gameplay::SequenceRuntime runtime(definition, registry, services);
+  gameplay::NpcSystem npcs(definition, registry, query, services);
+  services.npcs = &npcs;
+  services.sequence = &runtime;
+  npcs.start();
+  runtime.start();
+  scripting::ScriptEngine scripts({paths.contentRoot(), paths.userRoot(), 100000},
+      [&runtime](const scripting::ScriptCall &call) { return runtime.dispatchScriptCall(call); });
+  services.scripts = &scripts;
+  scripts.executeText(
+      "npcEvent('inspector','16','1305.96 -13177.6 -107800'); "
+      "npcEvent('inspector','20','0 0 1 0'); "
+      "npcEvent('inspector','10','1305.96 -13287.6 -107650'); "
+      "npcEvent('inspector','18','run3/lua/chapters/tlwstations03/ov2_2.lua')",
+      "inspector-arrival-setup");
+  npcs.setUpdateInterval(0.05);
+  std::optional<physics::Vec3> arrived;
+  std::size_t callbacks{};
+  for (int tick = 0; tick < 480; ++tick) {
+    runtime.fixedUpdate();
+    npcs.fixedUpdate();
+    const auto count = std::count_if(services.commands.begin(), services.commands.end(),
+        [](const auto &command) {
+          const auto *script = std::get_if<gameplay::RunRuntimeScript>(&command);
+          return script && script->path.filename() == "ov2_2.lua";
+        });
+    callbacks = static_cast<std::size_t>(count);
+    if (callbacks && !arrived) arrived = npcs.state("inspector")->transform.position;
+  }
+  REQUIRE(arrived);
+  CHECK(callbacks == 1);
+  const auto inspector = npcs.state("inspector");
+  REQUIRE(inspector);
+  CHECK(inspector->state == gameplay::NpcState::Idle);
+  CHECK(inspector->animation == "Idle1");
+  // The old instant reversal walked ~200 units before the four-second stop.
+  // Legacy turning consumes almost all that interval while staying in place.
+  CHECK(std::abs(inspector->transform.position.z - arrived->z) < 40.0);
+  CHECK(services.count<gameplay::PlayRuntimeFacial>() == 1);
+  services.scripts = nullptr;
 }
 
 TEST_CASE("Step 8C legacy FOV bindings return a number and drive the camera service",

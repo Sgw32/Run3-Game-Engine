@@ -104,6 +104,8 @@ public:
   runtimeScale(std::string_view name) const override;
   [[nodiscard]] std::optional<physics::Transform>
   settleRuntimeNpc(EntityHandle handle) override;
+  [[nodiscard]] std::optional<physics::Vec3>
+  runtimeNpcHalfExtents(EntityHandle handle) const override;
   [[nodiscard]] bool runtimeFacialActive(EntityHandle handle) const override;
   [[nodiscard]] double runtimeFovDegrees() const override;
   [[nodiscard]] std::optional<double> runtimeMusicSeconds() const override;

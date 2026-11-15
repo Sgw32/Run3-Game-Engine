@@ -7,6 +7,10 @@
 
 namespace run3::audio {
 
+// Door movement shares its audible range with the legacy door start/stop cues.
+[[nodiscard]] PlayOptions doorSoundOptions(const std::filesystem::path &file,
+                                          Vec3 position, float gain = 1.0F);
+
 // Map-scoped replacement for Run3SoundRuntime. Ownership of each voice is
 // explicit; destroying or clearing this object returns every pool slot.
 class SoundRuntime {

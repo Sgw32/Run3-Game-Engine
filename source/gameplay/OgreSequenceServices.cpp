@@ -7,6 +7,7 @@
 #include <run3/gameplay/NpcBehavior.hpp>
 #include <run3/gameplay/NpcSystem.hpp>
 #include <run3/gameplay/OgreNodeAttachment.hpp>
+#include <run3/gameplay/OgreFacialPoseLayout.hpp>
 #include <run3/gameplay/PlayerController.hpp>
 #include <run3/gameplay/StaticMap.hpp>
 #include <run3/rendering/OgreLighting.hpp>
@@ -38,6 +39,7 @@
 #include <OgreTextureManager.h>
 #include <OgreKeyFrame.h>
 #include <OgreMesh.h>
+#include <OgreMeshManager.h>
 #include <OgreParticleSystem.h>
 #include <OgreParticleEmitter.h>
 #include <OgrePose.h>
@@ -791,6 +793,11 @@ public:
       const std::string objectName =
           "Run3Step8CEntity/" + std::to_string(spec.handle.id.value);
       try {
+        if (spec.kind == RuntimeEntityKind::Npc) {
+          const auto mesh = Ogre::MeshManager::getSingleton().load(
+              spec.mesh, Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
+          prepareFacialPoseLayout(*mesh);
+        }
         presentation.entity = sceneManager->createEntity(
             objectName, spec.mesh,
             Ogre::ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME);
@@ -956,6 +963,15 @@ public:
     }
     syncPresentationBody(presentation);
     for (Presentation::Part &part : presentation.parts) syncPartBody(part);
+    if (const auto sound = sounds.find(command.handle.id.value);
+        sound != sounds.end()) {
+      const auto position = presentation.node != nullptr
+          ? fromOgre(presentation.node->_getDerivedPosition())
+          : command.transform.position;
+      static_cast<void>(audio->setPosition(sound->second,
+          {static_cast<float>(position.x), static_cast<float>(position.y),
+           static_cast<float>(position.z)}));
+    }
     // Parent motion also moves authored children. Keep each child collision
     // body in the same Bullet world as the visual hierarchy.
     if (presentation.spec.kind != RuntimeEntityKind::Npc) {
@@ -1049,10 +1065,23 @@ public:
     options.loop = command.loop;
     options.streaming = options.bus == audio::Bus::music;
     options.spatial = command.owner.id.value != 0;
+    if (options.spatial) {
+      // Legacy maps use centimetre-sized units, including door emitters.
+      options.minDistance = 50.0F;
+      options.maxDistance = 800.0F;
+    }
     options.position = {static_cast<float>(command.position.x),
                         static_cast<float>(command.position.y),
                         static_cast<float>(command.position.z)};
     options.gain = command.gain;
+    if (options.spatial) {
+      const auto &owner = require(command.owner);
+      if (owner.spec.kind == RuntimeEntityKind::Door ||
+          owner.spec.kind == RuntimeEntityKind::Rotator) {
+        options = audio::doorSoundOptions(options.file, options.position, command.gain);
+        options.loop = command.loop;
+      }
+    }
     audio::SoundHandle sound = audio->play(options);
     if (!sound.valid()) {
       if (command.owner.id.value == 0) {
@@ -1622,7 +1651,9 @@ public:
         });
     if (!command.attach) {
       if (previous == owned.end()) return;
-      previous->pose.restore();
+      // Leave the entire carrier hierarchy at its current hand pose.
+      owner.entity->_updateAnimation();
+      previous->pose.update();
       static_cast<void>(staticMap->setNamedObjectPhysicsEnabled(
           previous->objectName, true, true));
       owned.erase(previous);
@@ -2590,6 +2621,13 @@ OgreSequenceServices::settleRuntimeNpc(EntityHandle handle) {
   settled.position.y = hit->point.y + entry.collisionHalfExtents.y;
   impl_->setTransform(SetRuntimeTransform{handle, settled});
   return settled;
+}
+
+std::optional<physics::Vec3>
+OgreSequenceServices::runtimeNpcHalfExtents(EntityHandle handle) const {
+  const auto &entry = impl_->require(handle);
+  if (entry.spec.kind != RuntimeEntityKind::Npc) return std::nullopt;
+  return entry.collisionHalfExtents;
 }
 
 bool OgreSequenceServices::runtimeFacialActive(EntityHandle handle) const {

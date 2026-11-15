@@ -42,6 +42,7 @@ struct Services final : gameplay::IGameServices {
   std::map<std::string, physics::Transform> transforms;
   std::map<std::string, physics::Vec3> scales;
   std::optional<physics::Transform> settledNpc;
+  std::optional<physics::Vec3> npcHalfExtents;
   bool facialActive{};
   std::size_t settleCalls{};
   std::vector<gameplay::GameCommand> commands;
@@ -68,6 +69,9 @@ struct Services final : gameplay::IGameServices {
   }
   bool runtimeFacialActive(gameplay::EntityHandle) const override {
     return facialActive;
+  }
+  std::optional<physics::Vec3> runtimeNpcHalfExtents(gameplay::EntityHandle) const override {
+    return npcHalfExtents;
   }
   template <class T> std::size_t count() const {
     return static_cast<std::size_t>(std::count_if(commands.begin(), commands.end(),
@@ -123,6 +127,7 @@ TEST_CASE("Step 8D gravity NPCs receive deterministic initial floor settling",
 TEST_CASE("Step 8D navigation preserves the Bullet-owned vertical position",
           "[step8d][npc][physics]") {
   RuntimeFixture fixture;
+  fixture.npcs->dispatch({"guide", 20, "0.7071067811865476 0 -0.7071067811865476 0", {}, false});
   fixture.services.transforms["guide"] = {{0, 42, 0}, {}};
   fixture.npcs->dispatch({"guide", 10, "100 0 0", {}, false});
   fixture.npcs->fixedUpdate();
@@ -426,7 +431,8 @@ TEST_CASE("Step 8D navigation and reach callback follow fixed ticks", "[step8d][
   RuntimeFixture fixture;
   fixture.npcs->dispatch({"guide", 10, "10 0 0", {}, false});
   REQUIRE(fixture.npcs->state("guide")->state == gameplay::NpcState::Navigating);
-  for (int tick = 0; tick < 20; ++tick) fixture.npcs->fixedUpdate();
+  // Allow the original 50-degree/second turn toward +X before walking.
+  for (int tick = 0; tick < 120; ++tick) fixture.npcs->fixedUpdate();
   CHECK(fixture.npcs->state("guide")->state == gameplay::NpcState::Reached);
   CHECK(fixture.npcs->state("guide")->transform.position.x == Catch::Approx(9));
   CHECK(std::abs(fixture.npcs->state("guide")->transform.rotation.y) > 0.5);
@@ -435,9 +441,36 @@ TEST_CASE("Step 8D navigation and reach callback follow fixed ticks", "[step8d][
   CHECK(replayAt(60).x == replayAt(144).x);
 }
 
+TEST_CASE("NPC arrival stays stopped and an opposite goal turns before walking",
+          "[step8d][npc][navigation][turn]") {
+  RuntimeFixture fixture;
+  fixture.npcs->dispatch({"guide", 10, "0 0 -10", {}, false});
+  for (int tick = 0; tick < 60; ++tick) fixture.npcs->fixedUpdate();
+  REQUIRE(fixture.npcs->state("guide")->state == gameplay::NpcState::Reached);
+  const auto arrived = fixture.npcs->state("guide")->transform.position;
+  for (int tick = 0; tick < 120; ++tick) fixture.npcs->fixedUpdate();
+  CHECK(fixture.npcs->state("guide")->transform.position == arrived);
+  CHECK(fixture.services.count<gameplay::RunRuntimeScript>() == 1);
+
+  // This is the inspector's arrival pattern: the reach Lua orders a goal
+  // behind him, then a timer issues Stop. He must turn, not instantly retreat.
+  fixture.npcs->dispatch({"guide", 10, "0 0 100", {}, false});
+  for (int tick = 0; tick < 120; ++tick) fixture.npcs->fixedUpdate();
+  CHECK(fixture.npcs->state("guide")->transform.position == arrived);
+  CHECK(fixture.npcs->state("guide")->animation == "Stealth");
+  const auto turning = fixture.npcs->state("guide")->transform.rotation;
+  const double angle = 100.0 * 3.14159265358979323846 / 180.0;
+  CHECK(std::abs(turning.y) == Catch::Approx(std::sin(angle / 2)).margin(1e-8));
+  fixture.npcs->dispatch({"guide", 4, "Idle1", {}, false});
+  for (int tick = 0; tick < 240; ++tick) fixture.npcs->fixedUpdate();
+  CHECK(fixture.npcs->state("guide")->transform.position == arrived);
+  CHECK(fixture.npcs->state("guide")->state == gameplay::NpcState::Idle);
+}
+
 TEST_CASE("Step 8E NPC scheduler interval retains fixed-tick determinism",
           "[step8d][step8e][npc][scheduler]") {
   RuntimeFixture fixture;
+  fixture.npcs->dispatch({"guide", 20, "0.7071067811865476 0 -0.7071067811865476 0", {}, false});
   fixture.npcs->setUpdateInterval(0.05);
   fixture.npcs->dispatch({"guide", 10, "10 0 0", {}, false});
   fixture.npcs->fixedUpdate();
@@ -459,6 +492,83 @@ TEST_CASE("Step 8D blocked path and invalid commands are visible", "[step8d][npc
   CHECK_THROWS(fixture.npcs->dispatch({"guide", 10, "bad", {}, false}));
   CHECK_NOTHROW(fixture.npcs->dispatch({"missing", 4, {}, {}, false}));
   CHECK(fixture.services.count<gameplay::RuntimeLog>() == 2);
+}
+
+TEST_CASE("NPCs use fitted body clearance for search and active route checks", "[step8d][npc][navigation]") {
+  RuntimeFixture fixture;
+  auto world = physics::createBulletPhysicsWorld();
+  physics::BodyDesc wall{physics::Shape::box({50, 100, 10})};
+  wall.group = physics::CollisionGroup::World;
+  wall.transform.position = {100, 0, 30};
+  const auto left = world.createBody(wall);
+  wall.transform.position.z = -30;
+  const auto right = world.createBody(wall);
+  physics::WorldPhysicsQuery query(world);
+  for (const double width : {15.0, 30.0}) {
+    CAPTURE(width);
+    gameplay::EntityRegistry registry;
+    static_cast<void>(gameplay::populateEntityRegistry(fixture.definition, registry));
+    Services services;
+    services.npcHalfExtents = physics::Vec3{width, 75.9, width};
+    gameplay::NpcSystem npcs(fixture.definition, registry, query, services);
+    npcs.start();
+    npcs.dispatch({"guide", 10, "200 0 0", {}, false});
+    for (int tick = 0; tick < 100; ++tick) npcs.fixedUpdate(0.1);
+    CHECK(npcs.state("guide")->state == (width == 15.0
+        ? gameplay::NpcState::Reached : gameplay::NpcState::Blocked));
+  }
+}
+
+TEST_CASE("Step 8D blocked scripted goals idle and retry each second", "[step8d][npc][navigation]") {
+  RuntimeFixture fixture;
+  fixture.npcs->dispatch({"guide", 10, "10 0 0", {}, false});
+  CHECK(fixture.npcs->state("guide")->animation == "Walk");
+  fixture.query.blockEverything = true;
+  fixture.npcs->fixedUpdate(0.1);
+  CHECK(fixture.npcs->state("guide")->state == gameplay::NpcState::Blocked);
+  CHECK(fixture.npcs->state("guide")->animation == "Idle1");
+  const auto stopped = fixture.npcs->state("guide")->transform.position;
+  fixture.query.blockEverything = false;
+  fixture.npcs->fixedUpdate(0.9);
+  CHECK(fixture.npcs->state("guide")->state == gameplay::NpcState::Blocked);
+  CHECK(fixture.npcs->state("guide")->transform.position == stopped);
+  fixture.npcs->fixedUpdate(0.1);
+  CHECK(fixture.npcs->state("guide")->state == gameplay::NpcState::Navigating);
+  for (int tick = 0; tick < 100; ++tick) fixture.npcs->fixedUpdate(0.1);
+  CHECK(fixture.npcs->state("guide")->state == gameplay::NpcState::Reached);
+  CHECK(fixture.npcs->state("guide")->animation == "Idle1");
+  const auto reached = std::count_if(fixture.services.commands.begin(),
+      fixture.services.commands.end(), [](const gameplay::GameCommand &command) {
+        const auto *script = std::get_if<gameplay::RunRuntimeScript>(&command);
+        return script && script->path == "run3/lua/reach.lua";
+      });
+  CHECK(reached == 1);
+}
+
+TEST_CASE("Step 8D failed initial paths recover and explicit stop cancels retries", "[step8d][npc][navigation]") {
+  RuntimeFixture fixture;
+  fixture.query.blockEverything = true;
+  fixture.npcs->dispatch({"guide", 10, "10 0 0", {}, false});
+  fixture.npcs->fixedUpdate(1.0);
+  CHECK(fixture.npcs->state("guide")->state == gameplay::NpcState::Blocked);
+  fixture.query.blockEverything = false;
+  fixture.npcs->fixedUpdate(1.0);
+  CHECK(fixture.npcs->state("guide")->state != gameplay::NpcState::Blocked);
+  fixture.query.blockEverything = true;
+  fixture.npcs->dispatch({"guide", 10, "100 0 0", {}, false});
+  fixture.npcs->dispatch({"guide", 4, {}, {}, false});
+  fixture.query.blockEverything = false;
+  fixture.npcs->fixedUpdate(1.0);
+  CHECK(fixture.npcs->state("guide")->state == gameplay::NpcState::Idle);
+}
+
+TEST_CASE("Step 8D physics obstruction stops walking even with a clear ray", "[step8d][npc][navigation]") {
+  RuntimeFixture fixture;
+  fixture.services.transforms["guide"] = {};
+  fixture.npcs->dispatch({"guide", 10, "100 0 0", {}, false});
+  for (int tick = 0; tick < 40; ++tick) fixture.npcs->fixedUpdate(0.1);
+  CHECK(fixture.npcs->state("guide")->state == gameplay::NpcState::Blocked);
+  CHECK(fixture.npcs->state("guide")->animation == "Idle1");
 }
 
 TEST_CASE("Step 8D damage, death, removal and unload invalidate handles", "[step8d][npc]") {

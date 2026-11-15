@@ -129,6 +129,7 @@ struct NpcSystem::Impl {
     double speed{1.0}, stopDistance{1.0}, renderDistance{10000.0};
     double farFind{1000.0}, attackDistance{130.0}, headshotDistance{20.0};
     double movementMultiplier{1.0}, yShift{};
+    double rotateSpeed{50.0};
     bool stopAtDistance{}, animated{true}, ragdoll{}, spawned{};
     bool autoPosition{};
     bool headshotEnabled{}, suspended{}, nearFired{};
@@ -142,14 +143,18 @@ struct NpcSystem::Impl {
     std::uint64_t perceptionTick{}, attackTick{};
     std::vector<air3::PathNode> path;
     std::size_t waypoint{1};
+    double pathRetrySeconds{};
+    double stalledSeconds{}, requestedMove{};
+    physics::Vec3 moveOrigin;
+    bool avoidPlayer{true};
+    double navigationClearance{30.0};
   };
 
   Impl(const content::MapDefinition &map, EntityRegistry &entities,
        const physics::IPhysicsQuery &query, IGameServices &game)
       : registry(&entities), services(&game), navigation(query) {
-    std::vector<air3::PathNode> nodes;
-    appendNodes(map.scene, nodes);
-    navigation.setNodes(std::move(nodes));
+    appendNodes(map.scene, navigationNodes);
+    navigation.setNodes(navigationNodes);
     for (const auto *element : content::sequenceDeclarations(map)) {
       if (element->tag != "npc") continue;
       Record npc;
@@ -176,6 +181,7 @@ struct NpcSystem::Impl {
       if (const auto *far = element->firstChild("farFind"))
         npc.farFind = number(*far, "dist", 1000.0);
       npc.yShift = number(*element, "yShift", 0.0);
+      npc.rotateSpeed = number(*element, "rotateSpeed", 50.0);
       npc.publicState.health = number(*element, "health", 30.0);
       npc.stopAtDistance = boolean(*element, "stopAtDist", false);
       npc.animated = boolean(*element, "animated", true);
@@ -184,7 +190,7 @@ struct NpcSystem::Impl {
       npc.gravityEnabled = boolean(*element, "applyGravity", true);
       npc.castShadows = boolean(*element, "castShadows", true);
       npc.headshotEnabled = boolean(*element, "headshot", false);
-      if (npc.speed < 0 || npc.stopDistance < 0 || npc.publicState.health <= 0)
+      if (npc.speed < 0 || npc.rotateSpeed < 0 || npc.stopDistance < 0 || npc.publicState.health <= 0)
         throw std::runtime_error(origin(*element) + ": negative movement or invalid health");
       if (const auto *position = element->firstChild("position"))
         npc.publicState.transform.position = vector(*position);
@@ -270,15 +276,28 @@ struct NpcSystem::Impl {
                                            npc.publicState.animation, true});
   }
   void setGoal(Record &npc, physics::Vec3 goal) {
+    const bool wasBlocked = npc.publicState.state == NpcState::Blocked &&
+                            npc.publicState.goal == goal;
     npc.suspended = false;
     npc.publicState.goal = goal;
     npc.path = navigation.search(
-        {0, npc.publicState.transform.position}, {0, goal});
+        {0, npc.publicState.transform.position}, {0, goal}, npc.avoidPlayer,
+        npc.navigationClearance);
     npc.waypoint = 1;
+    npc.pathRetrySeconds = 0.0;
+    npc.stalledSeconds = npc.requestedMove = 0.0;
     npc.publicState.state = npc.path.empty() ? NpcState::Blocked : NpcState::Navigating;
-    if (npc.publicState.state == NpcState::Blocked)
-      services->submit(RuntimeLog{"NPC '" + npc.publicState.name +
-                                   "' has no path to requested goal"});
+    if (npc.publicState.state == NpcState::Blocked) {
+      setAnimation(npc, "Idle1");
+      if (!wasBlocked)
+        services->submit(RuntimeLog{"NPC '" + npc.publicState.name +
+            "' has no path to requested goal; from=(" +
+            std::to_string(npc.publicState.transform.position.x) + "," +
+            std::to_string(npc.publicState.transform.position.y) + "," +
+            std::to_string(npc.publicState.transform.position.z) + "), goal=(" +
+            std::to_string(goal.x) + "," + std::to_string(goal.y) + "," +
+            std::to_string(goal.z) + ")"});
+    }
     else setAnimation(npc, "Walk");
   }
   void kill(Record &npc) {
@@ -300,6 +319,7 @@ struct NpcSystem::Impl {
   EntityRegistry *registry{};
   IGameServices *services{};
   air3::AirPathFind navigation;
+  std::vector<air3::PathNode> navigationNodes;
   std::vector<Record> records;
   std::vector<physics::Vec3> scales;
   mutable std::vector<NpcSnapshot> publicStates;
@@ -353,6 +373,11 @@ void NpcSystem::start() {
     spec.halfExtents = {20, 90, 20};
     impl_->services->submit(SpawnRuntimeEntity{std::move(spec)});
     npc.spawned = true;
+    if (const auto half = impl_->services->runtimeNpcHalfExtents(npc.publicState.handle)) {
+      // Use the fitted Bullet body, not a fixed width which rejects passages
+      // that small NPCs (including tlwcao's Mezhin) can actually traverse.
+      npc.navigationClearance = std::max(half->x, half->z);
+    }
     // Place the body on a floor immediately when one is below the authored
     // spawn. It remains a dynamic Bullet body afterward, so gravity continues
     // to handle ledges, slopes and moving NPCs.
@@ -382,14 +407,29 @@ void NpcSystem::fixedUpdate(double seconds) {
   }
   impl_->services->submit(TickRuntimeNpcPhysics{updateSeconds});
   for (auto &npc : impl_->records) {
+    bool newlyBlocked = false;
     if (npc.parent.empty()) {
       if (const auto physicsTransform =
               impl_->services->runtimeTransform(npc.publicState.name)) {
         // Bullet owns the body position (especially its gravity-driven Y).
         // Navigation retains ownership of the facing rotation.
         npc.publicState.transform.position = physicsTransform->position;
+        if (npc.publicState.state == NpcState::Navigating && npc.requestedMove > 0) {
+          const double progress = std::hypot(
+              physicsTransform->position.x - npc.moveOrigin.x,
+              physicsTransform->position.z - npc.moveOrigin.z);
+          npc.stalledSeconds = progress < npc.requestedMove * 0.1
+              ? npc.stalledSeconds + updateSeconds : 0.0;
+          if (npc.stalledSeconds >= 0.5) {
+            newlyBlocked = true;
+            npc.publicState.state = NpcState::Blocked;
+            npc.pathRetrySeconds = 0.0;
+            impl_->setAnimation(npc, "Idle1");
+          }
+        }
       }
     }
+    npc.requestedMove = 0.0;
     if (!npc.nearFired && !npc.nearScript.empty() &&
         separation(npc.publicState.transform.position,
                    impl_->services->playerPosition()) < 200.0) {
@@ -403,9 +443,10 @@ void NpcSystem::fixedUpdate(double seconds) {
       const double gap = separation(npc.publicState.transform.position, player);
       if (gap <= npc.farFind &&
           (npc.publicState.state == NpcState::Idle ||
-           npc.publicState.state == NpcState::Reached ||
-           npc.publicState.state == NpcState::Blocked))
+           npc.publicState.state == NpcState::Reached)) {
+        npc.avoidPlayer = false;
         impl_->setGoal(npc, player);
+      }
       if (gap <= npc.attackDistance && npc.perceptionTick - npc.attackTick >= 60) {
         npc.attackTick = npc.perceptionTick;
         impl_->services->submit(DamageRuntimePlayer{10.0});
@@ -426,18 +467,53 @@ void NpcSystem::fixedUpdate(double seconds) {
       }
       continue;
     }
+    if (npc.publicState.state == NpcState::Blocked && !npc.suspended && !newlyBlocked) {
+      npc.pathRetrySeconds += updateSeconds;
+      if (npc.pathRetrySeconds + 1e-9 >= 1.0)
+        impl_->setGoal(npc, npc.publicState.goal);
+    }
     if (npc.publicState.state != NpcState::Navigating) continue;
     if (npc.waypoint >= npc.path.size()) {
       npc.publicState.state = NpcState::Reached;
     } else {
       const physics::Vec3 target = npc.path[npc.waypoint].position;
+      if (impl_->navigation.lineBlocked(npc.publicState.transform.position, target,
+                                        npc.avoidPlayer, npc.navigationClearance)) {
+        npc.publicState.state = NpcState::Blocked;
+        npc.pathRetrySeconds = 0.0;
+        impl_->setAnimation(npc, "Idle1");
+        continue;
+      }
       auto &position = npc.publicState.transform.position;
       const double targetX = target.x - position.x;
       const double targetZ = target.z - position.z;
       const double gap = std::sqrt(targetX * targetX + targetZ * targetZ);
       const double move = npc.speed * npc.movementMultiplier * updateSeconds;
+      npc.moveOrigin = position;
       const double arrival = npc.waypoint + 1 == npc.path.size() &&
                              npc.stopAtDistance ? npc.stopDistance : 0.0;
+      // The original neutral NPC turns on the spot before translating. In
+      // particular, the stations03 arrival script points the inspector back
+      // toward the train while a four-second timer completes his turn.
+      if (gap > arrival + move) {
+        constexpr double pi = 3.14159265358979323846;
+        constexpr double radiansPerDegree = pi / 180.0;
+        const auto forward = rotate(npc.publicState.transform.rotation, {0, 0, -1});
+        const double yaw = std::atan2(-forward.x, -forward.z);
+        const double desired = std::atan2(-targetX, -targetZ);
+        const double difference = std::remainder(desired - yaw, 2.0 * pi);
+        if (std::abs(difference) > 5.0 * radiansPerDegree) {
+          const double maximumTurn = npc.rotateSpeed * radiansPerDegree * updateSeconds;
+          const double turned = yaw + std::clamp(difference, -maximumTurn, maximumTurn);
+          npc.publicState.transform.rotation = {std::cos(turned * 0.5), 0,
+                                                 std::sin(turned * 0.5), 0};
+          impl_->setAnimation(npc, "Stealth");
+          impl_->services->submit(SetRuntimeTransform{npc.publicState.handle,
+                                                       npc.publicState.transform});
+          continue;
+        }
+        impl_->setAnimation(npc, "Walk");
+      }
       if (gap <= arrival + move) {
         if (gap > arrival && gap > 0) {
           const double fraction = (gap - arrival) / gap;
@@ -454,6 +530,8 @@ void NpcSystem::fixedUpdate(double seconds) {
                     position.z + (target.z - position.z) * fraction};
       }
       const double dx = target.x - position.x;
+      npc.requestedMove = std::hypot(position.x - npc.moveOrigin.x,
+                                      position.z - npc.moveOrigin.z);
       const double dz = target.z - position.z;
       if (std::abs(dx) + std::abs(dz) > 1e-8) {
         const double yaw = std::atan2(-dx, -dz) * 0.5;
@@ -464,6 +542,10 @@ void NpcSystem::fixedUpdate(double seconds) {
                                                    npc.publicState.transform});
     }
     if (npc.publicState.state == NpcState::Reached) {
+      impl_->services->submit(RuntimeLog{"NPC '" + npc.publicState.name +
+          "' reached goal=(" + std::to_string(npc.publicState.goal.x) + "," +
+          std::to_string(npc.publicState.goal.y) + "," +
+          std::to_string(npc.publicState.goal.z) + ")"});
       impl_->setAnimation(npc, "Idle1");
       if (!npc.goalScript.empty())
         impl_->services->submit(RunRuntimeScript{npc.goalScript});
@@ -488,8 +570,16 @@ void NpcSystem::dispatch(const NpcRuntimeCommand &command) {
   auto apply = [this, &command, event](Impl::Record &npc) {
     if (npc.publicState.state == NpcState::Dead && *event != NpcEvent::Spawn) return;
     switch (*event) {
-    case NpcEvent::GoTo: impl_->setGoal(npc, parseVector(command.argument)); break;
-    case NpcEvent::RunTo: impl_->setGoal(npc, impl_->services->playerPosition()); break;
+    case NpcEvent::GoTo:
+      // Legacy GOTO_NPC selects the scripted walking activity independently
+      // of a preceding RunTo/Alert/SetMoveActivity event.
+      npc.movementMultiplier = 0.7;
+      npc.avoidPlayer = true;
+      impl_->setGoal(npc, parseVector(command.argument)); break;
+    case NpcEvent::RunTo:
+      // The player is the destination for pursuit, rather than an obstacle.
+      npc.avoidPlayer = false;
+      impl_->setGoal(npc, impl_->services->playerPosition()); break;
     case NpcEvent::Stop: npc.publicState.state = NpcState::Idle; npc.path.clear();
       npc.suspended = true;
       impl_->setAnimation(npc, "Idle1"); break;
@@ -676,6 +766,7 @@ void NpcSystem::unload() {
   }
   impl_->records.clear();
   impl_->scales.clear();
+  impl_->navigationNodes.clear();
   impl_->markPublicStatesDirty();
 }
 std::optional<NpcSnapshot> NpcSystem::state(std::string_view name) const {
@@ -691,6 +782,9 @@ const std::vector<NpcSnapshot> &NpcSystem::states() const {
   return impl_->publicStates;
 }
 std::size_t NpcSystem::size() const noexcept { return impl_->records.size(); }
+const std::vector<air3::PathNode> &NpcSystem::navigationNodes() const noexcept {
+  return impl_->navigationNodes;
+}
 
 std::string NpcSystem::serializeState() const {
   std::ostringstream output;
@@ -745,6 +839,7 @@ void NpcSystem::restoreSerializedState(std::string_view state) {
         stateValue > static_cast<int>(NpcState::Dead))
       throw std::invalid_argument("invalid NPC save record");
     npc.publicState.state = static_cast<NpcState>(stateValue);
+    npc.pathRetrySeconds = npc.stalledSeconds = npc.requestedMove = 0.0;
     npc.flashlight = false;
     if (version >= 2 && !(input >> npc.flashlight))
       throw std::invalid_argument("invalid NPC flashlight state");

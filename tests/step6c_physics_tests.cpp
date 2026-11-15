@@ -98,6 +98,35 @@ TEST_CASE("AIR3 path raycasts through the injected Run3 query interface") {
   CHECK(query.calls > 1);
 }
 
+TEST_CASE("AIR3 waits for player obstacles without blocking pursuit destinations") {
+  auto world = run3::physics::createBulletPhysicsWorld();
+  const auto player = world.createBody(playerBody({100, 0, 0}));
+  run3::physics::WorldPhysicsQuery query(world);
+  run3::air3::AirPathFind pathfinder(query);
+  const run3::air3::PathNode start{1, {0, 0, 0}}, goal{2, {200, 0, 0}};
+  CHECK(pathfinder.search(start, goal, true).empty());
+  CHECK(pathfinder.search(start, {2, {100, 0, 0}}, false).size() == 2);
+  world.setTransform(player, {{100, 0, 200}, {}});
+  CHECK(pathfinder.search(start, goal, true).size() == 2);
+}
+
+TEST_CASE("AIR3 clearance matches small NPC bodies in narrow passages") {
+  auto world = run3::physics::createBulletPhysicsWorld();
+  BodyDesc wall{Shape::box({50, 100, 10})};
+  wall.group = CollisionGroup::World;
+  wall.transform.position = {100, 0, 30};
+  const auto left = world.createBody(wall);
+  wall.transform.position.z = -30;
+  const auto right = world.createBody(wall);
+  run3::physics::WorldPhysicsQuery query(world);
+  run3::air3::AirPathFind pathfinder(query);
+  const run3::air3::PathNode start{1, {0, 0, 0}}, goal{2, {200, 0, 0}};
+  CHECK(pathfinder.search(start, goal, false, 30).empty());
+  CHECK(pathfinder.search(start, goal, false, 15).size() == 2);
+  CHECK(pathfinder.lineBlocked(start.position, goal.position, false, 30));
+  CHECK_FALSE(pathfinder.lineBlocked(start.position, goal.position, false, 15));
+}
+
 TEST_CASE("AIR3 never submits zero-length rays for duplicate authored nodes") {
   BlockingQuery query;
   run3::air3::AirPathFind pathfinder(query);
@@ -369,6 +398,60 @@ TEST_CASE("Station passengers land on train collision after a long parented ride
     CHECK_THAT(scene.transform(passengers[i]).position.z,
                WithinAbs(passengerPose(i).position.z + 50, 0.5));
   }
+}
+
+TEST_CASE("AIR3 routes station passengers through nodes around invisible train walls",
+          "[npc][train][air3][physics]") {
+  PhysicsConfig config;
+  config.gravity = {};
+  PhysicsWorld world = run3::physics::createBulletPhysicsWorld(config);
+  DynamicPhysicsScene scene(world);
+  DynamicEntityDesc wall{"er9m_1_1/invisible-wall", BodyType::Train,
+                         Shape::box({5, 200, 675})};
+  wall.transform.position = {1400, -13177.6, -107875};
+  wall.mask = run3::physics::collisionMask(CollisionGroup::Npc);
+  const auto wallId = scene.createTrain(std::move(wall));
+  run3::physics::WorldPhysicsQuery query(world);
+  run3::air3::AirPathFind navigation(query);
+  navigation.setNodes({{1, {1451.12, -13177.6, -108612}},
+                       {2, {1374.03, -13177.6, -108612}},
+                       {3, {1305.69, -13177.6, -108612}},
+                       {4, {1305.25, -13177.6, -107440}},
+                       {5, {1305.96, -13177.6, -107545}},
+                       {6, {1305.96, -13177.6, -107140}},
+                       {7, {1498.19, -13177.6, -107140}},
+                       {8, {1305.96, -13177.6, -107672}}});
+  const run3::air3::PathNode start{100, {1451.12, -13177.6, -108400}};
+  const run3::air3::PathNode goal{101, {1305.96, -13177.6, -107672}};
+  const auto path = navigation.search(start, goal);
+  REQUIRE(path.size() >= 4);
+  CHECK(path.front().id == start.id);
+  CHECK(path.back().id == goal.id);
+  for (std::size_t i = 1; i < path.size(); ++i) {
+    run3::physics::RaycastQuery segment{path[i - 1].position, path[i].position};
+    segment.group = CollisionGroup::Npc;
+    segment.mask = run3::physics::collisionMask(CollisionGroup::Train);
+    CHECK_FALSE(world.raycastClosest(segment));
+  }
+  scene.destroyEntity(wallId);
+  CHECK(navigation.search(start, goal).size() == 2);
+}
+
+TEST_CASE("AIR3 side probes reject train walls missed by the centre ray",
+          "[npc][train][air3][physics]") {
+  PhysicsWorld world = run3::physics::createBulletPhysicsWorld();
+  DynamicPhysicsScene scene(world);
+  DynamicEntityDesc wall{"narrow-train-passage", BodyType::Train,
+                         Shape::box({5, 100, 10})};
+  wall.transform.position = {26, 100, -50};
+  wall.mask = run3::physics::collisionMask(CollisionGroup::Npc);
+  const auto wallId = scene.createTrain(std::move(wall));
+  run3::physics::WorldPhysicsQuery query(world);
+  run3::air3::AirPathFind navigation(query);
+  const run3::air3::PathNode start{1, {0, 100, 0}}, end{2, {0, 100, -100}};
+  CHECK(navigation.search(start, end).empty());
+  scene.destroyEntity(wallId);
+  CHECK(navigation.search(start, end).size() == 2);
 }
 
 TEST_CASE("ragdoll constraints and map unload have explicit RAII lifetimes") {

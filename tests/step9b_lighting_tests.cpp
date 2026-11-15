@@ -8,12 +8,84 @@
 #include <run3/gameplay/LegacyMaterialCatalog.hpp>
 #include <run3/gameplay/SemiInfiniteWorld.hpp>
 #include <run3/gameplay/OgreNodeAttachment.hpp>
+#include <run3/gameplay/OgreFacialPoseLayout.hpp>
+#include <OgreDefaultHardwareBufferManager.h>
+#include <OgreMeshManager.h>
+#include <OgreMaterialManager.h>
+#include <OgreResourceGroupManager.h>
+#include <OgreSceneManager.h>
+#include <OgreEntity.h>
+#include <OgreSubEntity.h>
+#include <OgreSubMesh.h>
 #include <limits>
+#include <map>
 #include <optional>
 #include <set>
 
 using namespace run3;
 using namespace run3::rendering;
+
+TEST_CASE("Facial pose targets allocate blend buffers before NPC construction",
+          "[npc][facial][regression]") {
+  const auto models = std::filesystem::path(RUN3_TEST_SOURCE_DIR) /
+      "Games/The Long Way/TheLongWay/run3/models";
+  if (!std::filesystem::exists(models / "mvd01.mesh")) SKIP("TLW content absent");
+  Ogre::Root root("", "", "");
+  Ogre::DefaultHardwareBufferManager buffers;
+  Ogre::MaterialManager::getSingleton().initialise();
+  auto &resources = Ogre::ResourceGroupManager::getSingleton();
+  resources.addResourceLocation(models.string(), "FileSystem", "FacialRegression");
+  auto *scene = root.createSceneManager();
+  for (const auto *name : {"mvd01.mesh", "director01fac.mesh", "alex_mezhin02.mesh"}) {
+    CAPTURE(name);
+    auto mesh = Ogre::MeshManager::getSingleton().load(name, "FacialRegression");
+    // mvd01's original animations omit targets later used by speech. This
+    // reproduces the null buffer at OgreEntity.cpp:1006 without dereferencing it.
+    if (std::string(name) == "mvd01.mesh") {
+      auto *before = scene->createEntity(mesh);
+      bool missing = false;
+      for (const auto *pose : mesh->getPoseList()) {
+        if (pose->getTarget() != 0 &&
+            before->getSubEntity(pose->getTarget() - 1)->_getSoftwareVertexAnimVertexData() == nullptr)
+          missing = true;
+      }
+      CHECK(missing);
+      scene->destroyEntity(before);
+    }
+    gameplay::prepareFacialPoseLayout(*mesh);
+    gameplay::prepareFacialPoseLayout(*mesh); // shared NPC meshes reuse the layout
+    auto *entity = scene->createEntity(mesh);
+    for (const auto *pose : mesh->getPoseList()) {
+      const auto target = pose->getTarget();
+      if (target == 0) {
+        REQUIRE(entity->_getSoftwareVertexAnimVertexData() != nullptr);
+      } else {
+        REQUIRE(target <= entity->getNumSubEntities());
+        REQUIRE(entity->getSubEntity(target - 1)->_getSoftwareVertexAnimVertexData() != nullptr);
+      }
+    }
+    auto *speech = mesh->createAnimation("speech-regression", 1.0F);
+    std::map<unsigned short, Ogre::VertexPoseKeyFrame *> keyframes;
+    for (std::size_t index = 0; index < mesh->getPoseList().size(); ++index) {
+      const auto target = mesh->getPoseList()[index]->getTarget();
+      if (keyframes.count(target) == 0)
+        keyframes[target] = speech->createVertexTrack(target, Ogre::VAT_POSE)
+                                ->createVertexPoseKeyFrame(0.0F);
+      keyframes[target]->addPoseReference(static_cast<unsigned short>(index), 0.1F);
+    }
+    entity->refreshAvailableAnimationState();
+    entity->addSoftwareAnimationRequest(false);
+    entity->getAnimationState("speech-regression")->setEnabled(true);
+    for (int frame = 0; frame < 3; ++frame) {
+      entity->getAnimationState("speech-regression")->getParent()->_notifyDirty();
+      CHECK_NOTHROW(entity->_updateAnimation());
+    }
+    entity->removeSoftwareAnimationRequest(false);
+    scene->destroyEntity(entity);
+  }
+  root.destroySceneManager(scene);
+  Ogre::MeshManager::getSingleton().removeAll();
+}
 
 TEST_CASE("Directional shadow tiles ignore viewer rotation and snap to texels",
           "[shadow][camera]") {

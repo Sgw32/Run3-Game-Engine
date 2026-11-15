@@ -4,6 +4,18 @@
 
 namespace run3::audio {
 
+PlayOptions doorSoundOptions(const std::filesystem::path &file,
+                              const Vec3 position, const float gain) {
+  PlayOptions options;
+  options.file = file;
+  options.spatial = true;
+  options.position = position;
+  options.gain = gain;
+  options.minDistance = 800.0F;
+  options.maxDistance = 1000.0F;
+  return options;
+}
+
 bool SoundRuntime::emit(const std::filesystem::path &file,
                         const float lifetimeSeconds, const bool loop,
                         const Bus bus) {

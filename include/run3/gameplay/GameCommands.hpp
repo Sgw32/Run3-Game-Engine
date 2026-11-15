@@ -287,6 +287,8 @@ public:
   runtimeScale(std::string_view) const { return {1.0, 1.0, 1.0}; }
   [[nodiscard]] virtual std::optional<physics::Transform>
   settleRuntimeNpc(EntityHandle) { return std::nullopt; }
+  [[nodiscard]] virtual std::optional<physics::Vec3>
+  runtimeNpcHalfExtents(EntityHandle) const { return std::nullopt; }
   [[nodiscard]] virtual bool runtimeFacialActive(EntityHandle) const {
     return false;
   }

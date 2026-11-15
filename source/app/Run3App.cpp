@@ -1717,7 +1717,27 @@ void Run3App::updatePhysicsDebugDraw() {
   if (physicsDebugObject_ == nullptr) return;
   physicsDebugObject_->clear();
   if (!physicsDebug_ || physicsWorld_ == nullptr) return;
-  const auto lines = physicsWorld_->debugLines();
+  auto lines = physicsWorld_->debugLines();
+  if (npcSystem_) {
+    // Magenta wire diamonds mark the exact authored AIR3 navigation nodes.
+    // Use the same overlay queue and depth-free material as F3 body bounds.
+    constexpr double radius = 20.0;
+    const physics::Vec3 colour{1.0, 0.2, 1.0};
+    for (const auto &node : npcSystem_->navigationNodes()) {
+      const auto p = node.position;
+      const physics::Vec3 top{p.x, p.y + radius, p.z};
+      const physics::Vec3 bottom{p.x, p.y - radius, p.z};
+      const physics::Vec3 ring[]{{p.x + radius, p.y, p.z},
+                                 {p.x, p.y, p.z + radius},
+                                 {p.x - radius, p.y, p.z},
+                                 {p.x, p.y, p.z - radius}};
+      for (std::size_t side = 0; side < 4; ++side) {
+        lines.push_back({top, ring[side], colour});
+        lines.push_back({bottom, ring[side], colour});
+        lines.push_back({ring[side], ring[(side + 1) % 4], colour});
+      }
+    }
+  }
   if (lines.empty()) return;
 
   physicsDebugObject_->estimateVertexCount(
@@ -1865,7 +1885,9 @@ void Run3App::handleInput(const std::vector<InputEvent> &events) {
           std::string("Bullet bounds: ") +
           (physicsDebug_ ? "enabled" : "disabled") +
           ", bodies=" + std::to_string(bodyCount) +
-          ", lines=" + std::to_string(lineCount));
+          ", lines=" + std::to_string(lineCount) +
+          ", NPC nodes=" + std::to_string(
+              npcSystem_ ? npcSystem_->navigationNodes().size() : 0));
     } else if (player_ && event.type == InputEventType::KeyPressed &&
                !event.repeated &&
                event.key == options_.inputBindings.key(InputAction::Use)) {

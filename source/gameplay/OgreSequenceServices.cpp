@@ -808,7 +808,8 @@ public:
       // Sequence-spawned meshes use the same compatibility material path as
       // static map sections. Legacy materials are not valid RTSS materials on
       // modern D3D11/GL3+, which previously left doors/trains/buttons white.
-      staticMap->applyCompatibleMaterials(*presentation.entity, spec.material);
+      staticMap->applyCompatibleMaterials(*presentation.entity, spec.material,
+                                         spec.materialSubEntity);
       presentation.entity->setMeshLodBias(
           static_cast<Ogre::Real>(meshLodBias));
       presentation.entity->setVisible(spec.visible);

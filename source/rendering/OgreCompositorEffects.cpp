@@ -1,4 +1,5 @@
 #include "OgreCompositorEffects.hpp"
+#include "LegacySamplerBindings.hpp"
 
 #include <OgreCamera.h>
 #include <OgreCompositor.h>
@@ -196,32 +197,6 @@ float4 run3_splat4(float4 v) { return v; }
   return std::string(helpers) + source;
 }
 
-std::string separateD3D11SamplerBindings(std::string source) {
-  // Cg's combined sampler register maps both texture and sampler state with a
-  // single sN declaration. The D3D11 compiler accepts that syntax for
-  // compatibility, but reflection aliases multiple textures to t0. Express
-  // both register spaces explicitly so compositor inputs 0 and 1 remain
-  // distinct while retaining the authored sampling and blur calculations.
-  static const std::regex declaration(
-      R"(uniform[ \t]+sampler2D[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*:[ \t]*register[ \t]*\([ \t]*s([0-9]+)[ \t]*\))");
-  std::vector<std::string> samplers;
-  for (std::sregex_iterator match(source.begin(), source.end(), declaration),
-       end; match != end; ++match)
-    samplers.push_back((*match)[1].str());
-  source = std::regex_replace(
-      source, declaration,
-      "uniform Texture2D $1Texture : register(t$2), "
-      "uniform SamplerState $1Sampler : register(s$2)");
-  for (const std::string &sampler : samplers) {
-    source = std::regex_replace(
-        source,
-        std::regex(R"(\btex2D[ \t]*\([ \t]*)" + sampler +
-                   R"([ \t]*,[ \t]*)"),
-        sampler + "Texture.Sample(" + sampler + "Sampler, ");
-  }
-  return source;
-}
-
 void writeCgOverlay(const fs::path &sourceRoot, const fs::path &programCache,
                     const std::string &sourceName,
                     const std::string &overlayName) {
@@ -229,8 +204,9 @@ void writeCgOverlay(const fs::path &sourceRoot, const fs::path &programCache,
   const fs::path output = programCache / overlayName;
   std::string translated = translateCgSource(readText(sourceRoot /
                                                        sourceName));
-  if (lower(fs::path(sourceName).filename().string()) == "glow.cg")
-    translated = separateD3D11SamplerBindings(std::move(translated));
+  const auto filename = lower(fs::path(sourceName).filename().string());
+  if (filename == "glow.cg" || filename == "effect8.cg")
+    translated = detail::separateD3D11SamplerBindings(std::move(translated));
   if (fs::is_regular_file(output) && readText(output) == translated) return;
   std::ofstream stream(output, std::ios::binary | std::ios::trunc);
   if (!stream)

@@ -1477,16 +1477,19 @@ bool StaticMap::setNamedObjectMaterial(std::string_view name,
 }
 
 void StaticMap::applyCompatibleMaterials(Ogre::Entity &entity,
-                                         std::string_view overrideMaterial) {
+                                         std::string_view overrideMaterial,
+                                         std::optional<unsigned> overrideSubEntity) {
   for (unsigned index = 0; index < entity.getNumSubEntities(); ++index) {
     Ogre::SubEntity *subEntity = entity.getSubEntity(index);
-    std::string legacy = overrideMaterial.empty()
-        ? subEntity->getMaterialName() : std::string(overrideMaterial);
+    const bool overridden = !overrideMaterial.empty() &&
+        (!overrideSubEntity || *overrideSubEntity == index);
+    std::string legacy = overridden
+        ? std::string(overrideMaterial) : subEntity->getMaterialName();
     // The mesh serializer listener may already have replaced the legacy name
     // while the shared mesh was loaded by a static section. Recover its source
     // name so dynamic instances reuse the same generated textured material
     // instead of looking up "Run3/CompatTexture/..." as legacy content.
-    if (overrideMaterial.empty()) {
+    if (!overridden) {
       const auto generated =
           implementation_->generatedMaterialSources_.find(legacy);
       if (generated != implementation_->generatedMaterialSources_.end()) {

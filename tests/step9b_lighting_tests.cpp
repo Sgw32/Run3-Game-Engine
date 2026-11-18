@@ -132,6 +132,39 @@ TEST_CASE("Directional shadow tiles ignore viewer rotation and snap to texels",
   lightNode.detachAllObjects();
 }
 
+TEST_CASE("Directional shadow volume contains the kilometre range at shallow sun angles",
+          "[shadow][camera][range]") {
+  Ogre::Root root("", "", "");
+  Ogre::SceneNode viewerNode(nullptr), lightNode(nullptr), shadowNode(nullptr), cullNode(nullptr);
+  Ogre::Camera viewer("viewer", nullptr), shadow("shadow", nullptr), cull("cull", nullptr);
+  Ogre::Light sun("sun");
+  viewerNode.attachObject(&viewer);
+  shadowNode.attachObject(&shadow);
+  cullNode.attachObject(&cull);
+  lightNode.attachObject(&sun);
+  sun.setType(Ogre::Light::LT_DIRECTIONAL);
+  shadow.setCullingFrustum(&cull);
+  viewerNode.setPosition(-5000, -9000, 3000);
+  lightNode.setDirection(Ogre::Vector3(1, -0.05F, 1).normalisedCopy());
+  StableShadowCamera setup({directionalShadowFadeEnd, directionalShadowFadeEnd,
+                            directionalShadowFadeEnd}, 512);
+  for (const float yaw : {0.0F, 90.0F, 180.0F}) {
+    viewerNode.setOrientation(Ogre::Quaternion(Ogre::Degree(yaw), Ogre::Vector3::UNIT_Y));
+    setup.getShadowCamera(nullptr, &viewer, nullptr, &sun, &shadow, 0);
+    for (const auto axis : {Ogre::Vector3::UNIT_X, Ogre::Vector3::UNIT_Y, Ogre::Vector3::UNIT_Z})
+      for (const float sign : {-1.0F, 1.0F}) {
+        const auto point = viewerNode.getPosition() + axis * (sign * directionalShadowFadeStart);
+        CHECK(shadow.isVisible(point));
+        CHECK(cull.isVisible(point));
+      }
+  }
+  shadow.setCullingFrustum(nullptr);
+  viewerNode.detachAllObjects();
+  shadowNode.detachAllObjects();
+  cullNode.detachAllObjects();
+  lightNode.detachAllObjects();
+}
+
 TEST_CASE("NPC attachment follows the bone with the complete authored hierarchy",
           "[npc][attachment]") {
   Ogre::SceneNode map(nullptr), carrier(nullptr), saw(nullptr);

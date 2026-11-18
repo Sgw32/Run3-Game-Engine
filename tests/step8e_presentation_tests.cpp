@@ -498,6 +498,56 @@ TEST_CASE("Step 8E selected content constructs every computer and cutscene",
   }
 }
 
+TEST_CASE("Step 8E computer skins preserve the monitor material in original and derived maps",
+          "[step8e][computer][content][regression]") {
+  const auto source = fs::path(RUN3_TEST_SOURCE_DIR);
+  const auto root = source / "Games/The Long Way/TheLongWay";
+  if (!fs::is_directory(root)) SKIP("optional author content not attached");
+  for (const bool derived : {false, true}) {
+    CAPTURE(derived);
+    auto paths = AppPaths::resolve(source / "build/computer-material-test.exe",
+        root, source / "build/computer-material-test-user");
+    if (derived) paths.setContentOverlay(source / "derived-content/tlwrm");
+    for (const auto &[map, name, material] :
+         std::vector<std::tuple<std::string, std::string, std::string>>{
+             {"tlwcao", "amiga1000#2", "AMIGA100001-Default2"},
+             {"tlwstations02", "amiga1000#0", ""}}) {
+      CAPTURE(map, name);
+      const auto definition = content::loadMapDefinition(paths, map, "high");
+      gameplay::EntityRegistry registry;
+      static_cast<void>(gameplay::populateEntityRegistry(definition, registry, false));
+      Services services;
+      gameplay::SequenceRuntime runtime(definition, registry, services);
+      runtime.start();
+      const auto spawned = std::find_if(services.commands.begin(), services.commands.end(),
+          [name](const auto &command) {
+            const auto *spawn = std::get_if<gameplay::SpawnRuntimeEntity>(&command);
+            return spawn != nullptr && spawn->spec.name == name;
+          });
+      REQUIRE(spawned != services.commands.end());
+      const auto &spec = std::get<gameplay::SpawnRuntimeEntity>(*spawned).spec;
+      CHECK(spec.mesh == "amiga1000.mesh");
+      CHECK(spec.materialSubEntity == 0);
+      CHECK(spec.material == material);
+      const auto handle = registry.findFirst(name);
+      REQUIRE(handle.has_value());
+      REQUIRE(runtime.interact(*handle));
+      const auto display = std::find_if(services.commands.rbegin(), services.commands.rend(),
+          [](const auto &command) {
+            return std::holds_alternative<gameplay::SetComputerPresentation>(command);
+          });
+      REQUIRE(display != services.commands.rend());
+      CHECK(std::get<gameplay::SetComputerPresentation>(*display).material ==
+            "AMIGA1000AmigaMon");
+      REQUIRE(runtime.exitComputer());
+      for (const auto &command : services.commands)
+        if (const auto *spawn = std::get_if<gameplay::SpawnRuntimeEntity>(&command);
+            spawn != nullptr && spawn->spec.kind != gameplay::RuntimeEntityKind::Computer)
+          CHECK_FALSE(spawn->spec.materialSubEntity.has_value());
+    }
+  }
+}
+
 TEST_CASE("Step 8E real stations chapter transition keeps authored target",
           "[step8e][content][transition]") {
   const fs::path root = fs::path(RUN3_TEST_SOURCE_DIR) /

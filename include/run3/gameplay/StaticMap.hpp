@@ -103,7 +103,8 @@ public:
   [[nodiscard]] bool setNamedObjectMaterial(std::string_view name,
                                             std::string_view material);
   void applyCompatibleMaterials(Ogre::Entity &entity,
-                                std::string_view overrideMaterial = {});
+                                std::string_view overrideMaterial = {},
+                                std::optional<unsigned> overrideSubEntity = std::nullopt);
   [[nodiscard]] bool materialMatchesSource(
       std::string_view runtimeMaterial,
       std::string_view authoredMaterial) const noexcept;

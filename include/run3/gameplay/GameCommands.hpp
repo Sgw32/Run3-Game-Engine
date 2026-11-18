@@ -50,6 +50,8 @@ struct RuntimeEntitySpec {
   std::string name;
   std::string mesh;
   std::string material;
+  // Empty selects the whole entity. Legacy computer skins affect only slot 0.
+  std::optional<unsigned> materialSubEntity;
   std::string parent;
   physics::Transform transform;
   physics::Vec3 scale{1.0, 1.0, 1.0};

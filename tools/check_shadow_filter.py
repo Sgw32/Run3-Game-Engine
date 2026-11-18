@@ -29,6 +29,8 @@ float4 main(float4 p0 : TEXCOORD0, float4 p1 : TEXCOORD1,
 #else
     SGX_ShadowPCF4(map0, p0, float2(0.001,0.001), visibility);
 #endif
+    Run3_FadeDirectionalShadow(float3(110000,0,0), float4(0,-1,0,0),
+        float2(100000,125000), visibility);
     return float4(visibility,visibility,visibility,1);
 }
 ''', encoding='utf-8')

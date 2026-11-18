@@ -3,6 +3,7 @@
 #include "OgreCompositorEffects.hpp"
 #include "SurfaceMaps.hpp"
 #include "GBufferGeometry.hpp"
+#include "ShadowDistanceFade.hpp"
 #include <run3/rendering/Run3SceneManager.hpp>
 #include <run3/rendering/StableShadowCamera.hpp>
 #include <Ogre.h>
@@ -122,6 +123,7 @@ public:
   SurfaceMapsFactory mapsFactory;
   GBufferSurfaceFactory gbufferFactory;
   GBufferGeometryFactory geometryFactory;
+  ShadowDistanceFadeFactory shadowFadeFactory;
   ShaderErrors shaderErrors;
   std::chrono::steady_clock::time_point started{std::chrono::steady_clock::now()};
   std::chrono::steady_clock::time_point lastFrame{};
@@ -142,6 +144,7 @@ public:
     generator.addSubRenderStateFactory(&mapsFactory);
     generator.addSubRenderStateFactory(&gbufferFactory);
     generator.addSubRenderStateFactory(&geometryFactory);
+    generator.addSubRenderStateFactory(&shadowFadeFactory);
     auto *globalState = generator.getRenderState(Ogre::MSN_SHADERGEN);
     viewport.setMaterialScheme(Ogre::MSN_SHADERGEN);
     if (settings.pipeline == LightingPipeline::Pbr) {
@@ -192,8 +195,8 @@ public:
       scene.setShadowTextureSettings(static_cast<Ogre::uint16>(budget.resolution),
                                     static_cast<Ogre::uint16>(budget.textures), Ogre::PF_DEPTH32);
       scene.setShadowTextureSelfShadow(true);
-      const float directionalDistance = budget.splits > 1
-          ? settings.directionalShadowDistances[2] : budget.distance;
+      const float directionalDistance = std::max(
+          settings.directionalShadowDistances[2], directionalShadowFadeEnd);
       scene.setShadowFarDistance(directionalDistance);
       // Ogre defaults to placing a directional shadow volume 60% of its
       // range in the camera's *look* direction. At this scale that makes
@@ -213,6 +216,8 @@ public:
       globalState->setLightCountAutoUpdate(false);
       globalState->setLightCount(budget.textures);
       globalState->addTemplateSubRenderState(shadow);
+      globalState->addTemplateSubRenderState(
+          generator.createSubRenderState("Run3ShadowDistanceFade"));
       activeShadowTextures = budget.textures;
       message("local shadow atlas=" + std::to_string(budget.textures) + "x" +
               std::to_string(budget.resolution) +
@@ -268,15 +273,16 @@ public:
           camera.getNearClipDistance(), settings.directionalShadowDistances[0],
           settings.directionalShadowDistances[1],
           settings.directionalShadowDistances[2]};
-      scene.setShadowCameraSetup(std::make_shared<StableShadowCamera>(
-          settings.directionalShadowDistances, budget.resolution));
+      auto radii = settings.directionalShadowDistances;
+      radii[2] = std::max(radii[2], directionalShadowFadeEnd);
+      scene.setShadowCameraSetup(std::make_shared<StableShadowCamera>(radii, budget.resolution));
       scene.setShadowTextureCountPerLightType(Ogre::Light::LT_DIRECTIONAL, 3);
       scene.setShadowTextureCountPerLightType(Ogre::Light::LT_SPOTLIGHT, 1);
       scene.setShadowTextureSettings(
           static_cast<Ogre::uint16>(budget.resolution), 3, Ogre::PF_DEPTH32);
-      scene.setShadowFarDistance(settings.directionalShadowDistances[2]);
+      scene.setShadowFarDistance(radii[2]);
       scene.setShadowDirectionalLightExtrusionDistance(
-          settings.directionalShadowDistances[2] * 2.0F);
+          radii[2] * 2.0F);
 
       auto *shadow = generator.createSubRenderState("SGX_IntegratedPSSM3");
       shadow->setParameter("split_points", Ogre::Any(splitPoints));
@@ -285,6 +291,8 @@ public:
       globalState->setLightCountAutoUpdate(false);
       globalState->setLightCount(1);
       globalState->addTemplateSubRenderState(shadow);
+      globalState->addTemplateSubRenderState(
+          generator.createSubRenderState("Run3ShadowDistanceFade"));
       directionalPssm = true;
       activeShadowTextures = 3;
       message("directional PSSM enabled: splits=" +
@@ -301,10 +309,9 @@ public:
       scene.setShadowTextureSettings(
           static_cast<Ogre::uint16>(budget.resolution),
           static_cast<Ogre::uint16>(budget.textures), Ogre::PF_DEPTH32);
-      const float directionalDistance = std::min(
-          budget.distance, settings.directionalShadowDistances[0]);
-      // A mixed-light pass has one map per light, not three cascades. Spend
-      // its texels on nearby receivers instead of a 10 km-wide footprint.
+      const float directionalDistance = directionalShadowFadeEnd;
+      // Mixed-light passes have one map per light. Cover the entire fade
+      // range rather than clipping the sun at the near cascade boundary.
       scene.setShadowCameraSetup(std::make_shared<StableShadowCamera>(
           std::array<float, 3>{directionalDistance, directionalDistance,
                                directionalDistance}, budget.resolution));
@@ -319,6 +326,8 @@ public:
       globalState->setLightCountAutoUpdate(false);
       globalState->setLightCount(budget.textures);
       globalState->addTemplateSubRenderState(shadow);
+      globalState->addTemplateSubRenderState(
+          generator.createSubRenderState("Run3ShadowDistanceFade"));
       directionalPssm = false;
       activeShadowTextures = budget.textures;
       message("directional PSSM not selected for mixed map: authored=" +
@@ -350,6 +359,7 @@ public:
     generator.removeSubRenderStateFactory(&mapsFactory);
     generator.removeSubRenderStateFactory(&gbufferFactory);
     generator.removeSubRenderStateFactory(&geometryFactory);
+    generator.removeSubRenderStateFactory(&shadowFadeFactory);
     if (Ogre::ResourceGroupManager::getSingleton().resourceGroupExists(group))
       Ogre::ResourceGroupManager::getSingleton().destroyResourceGroup(group);
   }
@@ -762,8 +772,9 @@ void OgreLighting::writeReport(const std::filesystem::path &path, Ogre::RenderWi
     {"shadow_cascade_distances",s.settings.directionalShadowDistances},
     {"shadow_projection","stable_light_space_tiles"},
     {"shadow_filter","weighted_pcf_receiver_plane"},
-    {"shadow_mixed_directional_radius",std::min(
-        budget.distance, s.settings.directionalShadowDistances[0])},
+    {"shadow_mixed_directional_radius",directionalShadowFadeEnd},
+    {"shadow_directional_fade_start",directionalShadowFadeStart},
+    {"shadow_directional_fade_end",directionalShadowFadeEnd},
     {"cpu_wall_seconds",std::chrono::duration<double>(std::chrono::steady_clock::now()-s.started).count()}};
   if (const auto *scene = dynamic_cast<const Run3SceneManager *>(&s.scene)) {
     report["shadow_update_interval_frames"] = scene->shadowUpdateInterval();

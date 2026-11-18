@@ -644,6 +644,10 @@ if(RUN3_BUILD_TESTS)
 
     add_executable(run3_step9a_tests tests/step9a_ui_tests.cpp)
     add_executable(run3_step9b_tests tests/step9b_lighting_tests.cpp)
+    if(WIN32)
+        target_sources(run3_step9b_tests PRIVATE tests/resonant_shader_tests.cpp)
+        target_link_libraries(run3_step9b_tests PRIVATE d3d11 d3dcompiler)
+    endif()
     target_compile_definitions(run3_step9b_tests PRIVATE RUN3_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     target_link_libraries(run3_step9b_tests PRIVATE run3::warnings run3::gameplay Catch2::Catch2WithMain)
     catch_discover_tests(run3_step9b_tests TEST_PREFIX "run3_step9b."

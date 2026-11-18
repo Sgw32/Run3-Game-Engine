@@ -1475,7 +1475,8 @@ void Run3App::loadMap(const std::string &mapName) {
     const float configuredShadowFar = mapShadowBudget.splits > 1
         ? options_.lighting.directionalShadowDistances[2]
         : mapShadowBudget.distance;
-    camera_->setFarClipDistance(std::max(100000.0F, configuredShadowFar));
+    camera_->setFarClipDistance(std::max({100000.0F, configuredShadowFar,
+        rendering::directionalShadowFadeEnd}));
     camera_->setFOVy(Ogre::Degree(static_cast<Ogre::Real>(
         options_.verticalFovDegrees)));
     lighting_->configureMapShadows();

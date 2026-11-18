@@ -6,6 +6,8 @@
 #include <vector>
 
 namespace run3::rendering {
+inline constexpr float directionalShadowFadeStart = 100000.0F; // 1000 metres
+inline constexpr float directionalShadowFadeEnd = 125000.0F;   // 1250 metres
 
 enum class LightingPipeline { LegacyForward, Deferred, Pbr, FastForward };
 enum class ShadowQuality { Off, Low, Medium, High, Ultra };

@@ -858,6 +858,10 @@ public:
       result.mesh = attribute(*record.definition, "mesh", "box.mesh");
     }
     result.material = attribute(*record.definition, "materialFile", "");
+    // Sequence::processComputer applies materialFile to subentity 0 only;
+    // other slots retain the mesh materials, including the dispMat screen.
+    if (record.kind == RuntimeEntityKind::Computer)
+      result.materialSubEntity = 0;
     result.collision = record.kind != RuntimeEntityKind::DarkZone;
     return result;
   }

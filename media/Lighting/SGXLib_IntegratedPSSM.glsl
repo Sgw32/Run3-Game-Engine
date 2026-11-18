@@ -53,6 +53,14 @@ THE SOFTWARE.
 #endif
 
 //-----------------------------------------------------------------------------
+void Run3_FadeDirectionalShadow(in vec3 viewPosition, in vec4 lightPosition,
+                               in vec2 fadeRange, inout float visibility)
+{
+	if (lightPosition.w == 0.0)
+		visibility = mix(visibility, 1.0,
+		    smoothstep(fadeRange.x, fadeRange.y, length(viewPosition)));
+}
+
 #ifdef SHADOWLIGHT_COUNT
 void SGX_ApplyShadowFactor_Modulative(in vec4 ambient,
 					  in float fShadowFactor[SHADOWLIGHT_COUNT],

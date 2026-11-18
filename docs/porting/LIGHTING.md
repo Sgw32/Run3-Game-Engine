@@ -63,6 +63,17 @@ every frame by default. Valid opt-in refresh intervals are 1..8; movement,
 rotation, projection changes, and changes to the active shadow lights force
 an immediate refresh even with a longer interval. Invalid values fail.
 
+Directional receivers retain their shadow strength through 1000 metres
+(100000 world units), then smoothly fade to unshadowed at 1250 metres. The
+fade uses radial viewer distance, so turning the camera does not move a split
+plane through nearby shadows. Mixed directional/spotlight maps now cover this
+whole range instead of limiting the sun to the 60-metre near cascade. Only
+directional shadow factors fade; spotlights retain their authored cones and
+ranges. The main camera also covers the fade band. Capture reports expose
+`shadow_directional_fade_start` and `shadow_directional_fade_end` in world units.
+Mixed maps still use one shadow texture per light, so long-range fine detail
+depends on the selected shadow resolution.
+
 Asset-independent lab (do not combine `--lighting-lab` with `--map`):
 
 ```powershell

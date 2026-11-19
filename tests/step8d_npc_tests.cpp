@@ -124,6 +124,60 @@ TEST_CASE("Step 8D gravity NPCs receive deterministic initial floor settling",
         Catch::Approx(42.0));
 }
 
+TEST_CASE("Step 8D home NPCs and navigation use the original coordinate multipliers",
+          "[step8d][npc][content][regression]") {
+  const auto root = sourceRoot / "Games/The Long Way/TheLongWay";
+  if (!fs::is_directory(root)) SKIP("optional author content not attached");
+  for (const bool derived : {false, true}) {
+    CAPTURE(derived);
+    auto paths = AppPaths::resolve(sourceRoot / "build/npc-multiplier-test.exe",
+        root, sourceRoot / "build/npc-multiplier-test-user");
+    if (derived) paths.setContentOverlay(sourceRoot / "derived-content/tlwrm");
+    const auto map = content::loadMapDefinition(paths, "tlwhome01", "high");
+    gameplay::EntityRegistry registry;
+    static_cast<void>(gameplay::populateEntityRegistry(map, registry));
+    Query query;
+    Services services;
+    gameplay::NpcSystem npcs(map, registry, query, services);
+    npcs.start();
+    const double spawnY = -7576;
+    const std::map<std::string, physics::Vec3> expected{
+        {"first_npsc1", {4178.4, spawnY, 3091.2}},
+        {"police01", {1600, spawnY, 720}},
+        {"police02", {1760, spawnY, 720}},
+        {"police03", {1920, spawnY, 768}},
+        {"police04", {1600, spawnY, 240}},
+        {"police05", {1680, spawnY, 240}},
+        {"police06", {2080, spawnY, 240}}};
+    REQUIRE(npcs.size() == expected.size());
+    for (const auto &command : services.commands) {
+      const auto *spawn = std::get_if<gameplay::SpawnRuntimeEntity>(&command);
+      if (spawn == nullptr) continue;
+      CAPTURE(spawn->spec.name);
+      const auto &position = expected.at(spawn->spec.name);
+      CHECK(spawn->spec.transform.position.x == Catch::Approx(position.x));
+      CHECK(spawn->spec.transform.position.y == Catch::Approx(position.y));
+      CHECK(spawn->spec.transform.position.z == Catch::Approx(position.z));
+      CHECK(spawn->spec.autoPositionOffsetY == (derived ? 30 : 0));
+      // Scene multiplier must not scale sequence mesh sizes a second time.
+      CHECK(spawn->spec.scale.y == (spawn->spec.name == "first_npsc1" ? 2 : 80));
+    }
+    const std::vector<physics::Vec3> nodes{
+        {2400, -7600, 880}, {1280, -7600, 880}, {1600, -7600, 720},
+        {2465.6, -7600, 1917.6}, {1600, -7600, 1917.6},
+        {2000, -7600, 1917.6}, {4178.4, -7576, 3091.2},
+        {7872.8, -7576, 3091.2}};
+    REQUIRE(npcs.navigationNodes().size() == nodes.size());
+    for (std::size_t i = 0; i < nodes.size(); ++i) {
+      CAPTURE(i);
+      const auto &actual = npcs.navigationNodes()[i].position;
+      CHECK(actual.x == Catch::Approx(nodes[i].x));
+      CHECK(actual.y == Catch::Approx(nodes[i].y));
+      CHECK(actual.z == Catch::Approx(nodes[i].z));
+    }
+  }
+}
+
 TEST_CASE("Step 8D navigation preserves the Bullet-owned vertical position",
           "[step8d][npc][physics]") {
   RuntimeFixture fixture;

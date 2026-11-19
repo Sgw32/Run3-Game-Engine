@@ -9,6 +9,7 @@
 #include <run3/gameplay/SemiInfiniteWorld.hpp>
 #include <run3/gameplay/OgreNodeAttachment.hpp>
 #include <run3/gameplay/OgreFacialPoseLayout.hpp>
+#include <run3/gameplay/OgreNpcBodyFit.hpp>
 #include <OgreDefaultHardwareBufferManager.h>
 #include <OgreMeshManager.h>
 #include <OgreMaterialManager.h>
@@ -24,6 +25,66 @@
 
 using namespace run3;
 using namespace run3::rendering;
+
+TEST_CASE("NPC automatic body fit keeps the feet at the floor", "[npc][body-fit]") {
+  const auto models = std::filesystem::path(RUN3_TEST_SOURCE_DIR) /
+      "Games/The Long Way/TheLongWay/run3/models";
+  if (!std::filesystem::exists(models / "mvd01.mesh")) SKIP("TLW content absent");
+  Ogre::Root root("", "", "");
+  Ogre::DefaultHardwareBufferManager buffers;
+  Ogre::MaterialManager::getSingleton().initialise();
+  auto &resources = Ogre::ResourceGroupManager::getSingleton();
+  resources.addResourceLocation(models.string(), "FileSystem", "NpcBodyFit");
+  auto *scene = root.createSceneManager();
+  for (const auto *name : {"mvd01.mesh", "fac_soldier01.mesh"}) {
+    CAPTURE(name);
+    auto mesh = Ogre::MeshManager::getSingleton().load(name, "NpcBodyFit");
+    gameplay::prepareFacialPoseLayout(*mesh);
+    auto *entity = scene->createEntity(mesh);
+    const float authoredScale = std::string(name) == "mvd01.mesh" ? 80.f : 2.f;
+    const auto orientation = Ogre::Quaternion(Ogre::Degree(35), Ogre::Vector3::UNIT_Y);
+    const auto base = gameplay::detail::automaticNpcBodyFit(*entity, "Walk", orientation,
+        Ogre::Vector3(authoredScale), Ogre::Vector3::UNIT_SCALE);
+    REQUIRE(base.has_value());
+    for (const float scaleMultiplier : {1.f, 0.8f}) {
+      const Ogre::Vector3 scale(authoredScale * scaleMultiplier);
+      for (const float correctionY : {1.f, 0.85f}) {
+        CAPTURE(scaleMultiplier, correctionY);
+        const auto fit = gameplay::detail::automaticNpcBodyFit(*entity, "Walk", orientation,
+            scale, Ogre::Vector3(1, correctionY, 1));
+        REQUIRE(fit.has_value());
+        CHECK(fit->halfExtents.y == Catch::Approx(
+            base->halfExtents.y * scaleMultiplier * correctionY));
+        const auto lifted = gameplay::detail::automaticNpcBodyFit(*entity, "Walk", orientation,
+            scale, Ogre::Vector3(1, correctionY, 1), 30);
+        REQUIRE(lifted.has_value());
+        CHECK(lifted->halfExtents == fit->halfExtents);
+        CHECK((lifted->visualOffset.y - fit->visualOffset.y) * scale.y ==
+              Catch::Approx(30));
+        float lowestFoot = std::numeric_limits<float>::max();
+        auto states = entity->getAllAnimationStates()->getAnimationStateIterator();
+        while (states.hasMoreElements()) {
+          const auto animation = states.getNext()->getAnimationName();
+          if (animation.find("Walk") == std::string::npos &&
+              animation.find("Idle") == std::string::npos) continue;
+          // Check twice the fitter's sampling rate, including between samples.
+          for (int i = 0; i < 64; ++i) {
+            const auto bounds = gameplay::detail::animationPoseBounds(*entity, animation,
+                entity->getAnimationState(animation)->getLength() * i / 64);
+            REQUIRE(bounds.has_value());
+            const auto posed = gameplay::detail::scaledNpcPoseBounds(*bounds, orientation, scale);
+            const auto foot = posed.getMinimum().y + fit->visualOffset.y * scale.y;
+            // Body centre is placed halfExtents.y above the floor by settling.
+            lowestFoot = std::min(lowestFoot, foot + fit->halfExtents.y);
+          }
+        }
+        CHECK(lowestFoot >= -0.25f); // less than 2.5 mm between sampled poses
+        CHECK(lowestFoot <= 0.25f);
+      }
+    }
+    scene->destroyEntity(entity);
+  }
+}
 
 TEST_CASE("Facial pose targets allocate blend buffers before NPC construction",
           "[npc][facial][regression]") {

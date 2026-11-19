@@ -49,9 +49,12 @@ bool boolean(const AuthoredElement &element, std::string_view name,
                            std::string(name));
 }
 physics::Vec3 vector(const AuthoredElement &element,
-                     physics::Vec3 fallback = {}) {
-  return {number(element, "x", fallback.x), number(element, "y", fallback.y),
-          number(element, "z", fallback.z)};
+                     physics::Vec3 fallback = {},
+                     std::string_view multiplierAttribute = "mul") {
+  const double multiplier = number(element, multiplierAttribute, 1.0);
+  return {number(element, "x", fallback.x) * multiplier,
+          number(element, "y", fallback.y) * multiplier,
+          number(element, "z", fallback.z) * multiplier};
 }
 physics::Vec3 parseVector(const std::string &text) {
   std::string normalized = text;
@@ -99,11 +102,17 @@ double separation(physics::Vec3 left, physics::Vec3 right) {
   return std::sqrt(x * x + y * y + z * z);
 }
 void appendNodes(const AuthoredElement &element,
-                 std::vector<air3::PathNode> &nodes) {
-  if (element.tag == "npcnode")
-    nodes.push_back({static_cast<air3::NodeId>(element.order + 1), vector(element)});
+                 std::vector<air3::PathNode> &nodes,
+                 double sceneMultiplier) {
+  if (element.tag == "npcnode") {
+    const auto position = vector(element, {}, "m");
+    nodes.push_back({static_cast<air3::NodeId>(element.order + 1),
+        {position.x * sceneMultiplier, position.y * sceneMultiplier,
+         position.z * sceneMultiplier}});
+  }
   if (element.tag == "integratedSequence") return;
-  for (const auto &child : element.children) appendNodes(child, nodes);
+  for (const auto &child : element.children)
+    appendNodes(child, nodes, sceneMultiplier);
 }
 } // namespace
 
@@ -124,6 +133,7 @@ struct NpcSystem::Impl {
     physics::Vec3 visualOffset{};
     physics::Vec3 collisionScale{1.0, 1.0, 1.0};
     physics::Vec3 autoPositionCorrection{1.0, 1.0, 1.0};
+    double autoPositionOffsetY{};
     physics::Vec3 visualRotationAxis{0.0, 1.0, 0.0};
     double visualRotationDegrees{};
     double speed{1.0}, stopDistance{1.0}, renderDistance{10000.0};
@@ -153,7 +163,9 @@ struct NpcSystem::Impl {
   Impl(const content::MapDefinition &map, EntityRegistry &entities,
        const physics::IPhysicsQuery &query, IGameServices &game)
       : registry(&entities), services(&game), navigation(query) {
-    appendNodes(map.scene, navigationNodes);
+    // DotSceneLoader scales aiNodes by the scene multiplier (and local m).
+    // Sequence::parseVector3 instead uses local mul for NPC spawn data.
+    appendNodes(map.scene, navigationNodes, number(map.scene, "multiplier", 1.0));
     navigation.setNodes(navigationNodes);
     for (const auto *element : content::sequenceDeclarations(map)) {
       if (element->tag != "npc") continue;
@@ -206,9 +218,11 @@ struct NpcSystem::Impl {
         npc.visualOffset = vector(*physPosition);
       if (const auto *physSize = element->firstChild("physSize"))
         npc.collisionScale = vector(*physSize, npc.collisionScale);
-      if (const auto *correction = element->firstChild("physAutoCorrection"))
+      if (const auto *correction = element->firstChild("physAutoCorrection")) {
         npc.autoPositionCorrection =
             vector(*correction, npc.autoPositionCorrection);
+        npc.autoPositionOffsetY = number(*correction, "offsetY", 0.0);
+      }
       if (const auto *axis = element->firstChild("axis"))
         npc.visualRotationAxis = vector(*axis, npc.visualRotationAxis);
       if (const auto *angle = element->firstChild("angle"))
@@ -354,6 +368,7 @@ void NpcSystem::start() {
     spec.visualOffset = npc.visualOffset;
     spec.collisionScale = npc.collisionScale;
     spec.autoPositionCorrection = npc.autoPositionCorrection;
+    spec.autoPositionOffsetY = npc.autoPositionOffsetY;
     spec.autoPosition = npc.autoPosition;
     spec.autoPositionAnimation = "Walk";
     spec.gravityEnabled = npc.gravityEnabled;

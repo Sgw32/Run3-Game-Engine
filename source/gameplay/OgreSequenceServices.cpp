@@ -8,6 +8,7 @@
 #include <run3/gameplay/NpcSystem.hpp>
 #include <run3/gameplay/OgreNodeAttachment.hpp>
 #include <run3/gameplay/OgreFacialPoseLayout.hpp>
+#include <run3/gameplay/OgreNpcBodyFit.hpp>
 #include <run3/gameplay/PlayerController.hpp>
 #include <run3/gameplay/StaticMap.hpp>
 #include <run3/rendering/OgreLighting.hpp>
@@ -262,97 +263,6 @@ int legacyFacialPoseFromName(std::string name) {
   if (name == "lettersogl1" || name == "lettersogl01") return 7;
   if (name == "lettersogl2" || name == "lettersogl02") return 8;
   return -1;
-}
-
-Ogre::AnimationState *findBoundsAnimation(Ogre::Entity &entity,
-                                          const std::string &preferred) {
-  if (!preferred.empty() && entity.hasAnimationState(preferred))
-    return entity.getAnimationState(preferred);
-  if (entity.hasAnimationState("Walk"))
-    return entity.getAnimationState("Walk");
-  if (entity.hasAnimationState("Walk1"))
-    return entity.getAnimationState("Walk1");
-  if (entity.getAllAnimationStates() == nullptr) return nullptr;
-
-  Ogre::AnimationState *idleFallback = nullptr;
-  auto iterator = entity.getAllAnimationStates()->getAnimationStateIterator();
-  while (iterator.hasMoreElements()) {
-    Ogre::AnimationState *state = iterator.getNext();
-    std::string name = state->getAnimationName();
-    std::transform(name.begin(), name.end(), name.begin(),
-                   [](const unsigned char character) {
-                     return static_cast<char>(std::tolower(character));
-                   });
-    if (name.rfind("walk", 0) == 0) return state;
-    if (idleFallback == nullptr && name.rfind("idle", 0) == 0)
-      idleFallback = state;
-  }
-  return idleFallback;
-}
-
-std::optional<Ogre::AxisAlignedBox> animationPoseBounds(
-    Ogre::Entity &entity, const std::string &preferred) {
-  Ogre::AnimationState *animation = findBoundsAnimation(entity, preferred);
-  if (animation == nullptr || !entity.hasSkeleton()) return std::nullopt;
-
-  if (entity.getAllAnimationStates() != nullptr) {
-    auto iterator = entity.getAllAnimationStates()->getAnimationStateIterator();
-    while (iterator.hasMoreElements()) iterator.getNext()->setEnabled(false);
-  }
-  animation->setTimePosition(0);
-  animation->setLoop(true);
-  animation->setEnabled(true);
-  Ogre::AnimationStateSet *states = entity.getAllAnimationStates();
-  Ogre::SkeletonInstance *skeleton = entity.getSkeleton();
-  skeleton->setAnimationState(*states);
-
-  std::vector<Ogre::Affine3> boneMatrices(skeleton->getNumBones());
-  skeleton->_getBoneMatrices(boneMatrices.data());
-  const Ogre::MeshPtr mesh = entity.getMesh();
-  Ogre::AxisAlignedBox bounds;
-  auto mergeSkinnedVertices = [&](const Ogre::VertexData *source,
-                                  const Ogre::Mesh::IndexMap &indexMap) {
-    if (source == nullptr || source->vertexCount == 0 || indexMap.empty())
-      return;
-    std::unique_ptr<Ogre::VertexData> target(source->clone(true));
-    std::vector<const Ogre::Affine3 *> blendMatrices(indexMap.size());
-    Ogre::Mesh::prepareMatricesForVertexBlend(
-        blendMatrices.data(), boneMatrices.data(), indexMap);
-    Ogre::Mesh::softwareVertexBlend(source, target.get(),
-                                    blendMatrices.data(),
-                                    blendMatrices.size(), false);
-    Ogre::AxisAlignedBox partBounds;
-    Ogre::Real radius{};
-    mesh->_calcBoundsFromVertexBuffer(target.get(), partBounds, radius);
-    bounds.merge(partBounds);
-  };
-  mergeSkinnedVertices(mesh->sharedVertexData,
-                       mesh->sharedBlendIndexToBoneIndexMap);
-  for (Ogre::SubMesh *subMesh : mesh->getSubMeshes()) {
-    if (!subMesh->useSharedVertices)
-      mergeSkinnedVertices(subMesh->vertexData,
-                           subMesh->blendIndexToBoneIndexMap);
-  }
-  if (bounds.isNull() || bounds.isInfinite()) return std::nullopt;
-  return bounds;
-}
-
-Ogre::Vector3 orientedHalfSize(const Ogre::Vector3 &half,
-                               const Ogre::Quaternion &orientation) {
-  Ogre::Vector3 result = Ogre::Vector3::ZERO;
-  for (int x : {-1, 1}) {
-    for (int y : {-1, 1}) {
-      for (int z : {-1, 1}) {
-        const Ogre::Vector3 corner = orientation * Ogre::Vector3{
-            half.x * static_cast<Ogre::Real>(x),
-            half.y * static_cast<Ogre::Real>(y),
-            half.z * static_cast<Ogre::Real>(z)};
-        result.makeCeil({std::abs(corner.x), std::abs(corner.y),
-                         std::abs(corner.z)});
-      }
-    }
-  }
-  return result;
 }
 
 physics::BodyType bodyType(RuntimeEntityKind kind) {
@@ -864,26 +774,18 @@ public:
       if (spec.kind == RuntimeEntityKind::Npc) {
         bool fittedFromAnimation = false;
         if (spec.autoPosition) {
-          if (const auto posedBounds = animationPoseBounds(
-                  *presentation.entity, spec.autoPositionAnimation)) {
-            const Ogre::Vector3 posedCentre = posedBounds->getCenter();
-            const Ogre::Vector3 posedHalf = orientedHalfSize(
-                posedBounds->getHalfSize(),
-                presentation.visualNode->getOrientation());
-            const Ogre::Vector3 offset =
-                -(presentation.visualNode->getOrientation() * posedCentre);
+          if (const auto fit = detail::automaticNpcBodyFit(
+                  *presentation.entity, spec.autoPositionAnimation,
+                  presentation.visualNode->getOrientation(),
+                  toOgre(spec.scale), toOgre(spec.autoPositionCorrection),
+                  static_cast<Ogre::Real>(spec.autoPositionOffsetY))) {
+            const Ogre::Vector3 offset = fit->visualOffset;
             presentation.visualNode->setPosition(offset);
             presentation.spec.visualOffset = fromOgre(offset);
-            half = {
-                std::abs(posedHalf.x * spec.scale.x *
-                         spec.autoPositionCorrection.x),
-                std::abs(posedHalf.y * spec.scale.y *
-                         spec.autoPositionCorrection.y),
-                std::abs(posedHalf.z * spec.scale.z *
-                         spec.autoPositionCorrection.z)};
+            half = fromOgre(fit->halfExtents);
             fittedFromAnimation = true;
             log("NPC '" + spec.name +
-                "' auto-fitted from walking pose: offset " +
+                "' auto-fitted from idle/walk cycles: offset " +
                 Ogre::StringConverter::toString(offset) +
                 ", half extents " +
                 Ogre::StringConverter::toString(toOgre(half)));

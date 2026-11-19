@@ -61,6 +61,9 @@ struct RuntimeEntitySpec {
   physics::Vec3 visualOffset{};
   physics::Vec3 collisionScale{1.0, 1.0, 1.0};
   physics::Vec3 autoPositionCorrection{1.0, 1.0, 1.0};
+  // physAutoCorrection offsetY: visual lift in world centimetres, independent
+  // of the physics body's position and the authored mesh scale.
+  double autoPositionOffsetY{};
   bool autoPosition{};
   std::string autoPositionAnimation;
   bool gravityEnabled{true};
